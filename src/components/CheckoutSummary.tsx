@@ -1,8 +1,21 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ShoppingCart, TrendingDown, ArrowLeft, CalendarDays } from 'lucide-react';
+import { 
+  ShoppingCart, 
+  ArrowLeft, 
+  CalendarDays, 
+  Check, 
+  Truck, 
+  Shield, 
+  Clock, 
+  Wrench,
+  Package,
+  ArrowRight,
+  RefreshCw
+} from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 
@@ -13,136 +26,230 @@ interface CheckoutSummaryProps {
   onBack: () => void;
 }
 
+const DAY_1_FEE = 150; // Processing, delivery, damage waiver
+const DAY_2_PLUS_RATE = 25; // Flat fee per additional day
+
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
+  const [showDetails, setShowDetails] = useState(false);
+  
   const rentals = items.filter(item => !item.isConsumable && item.quantity > 0);
   const consumables = items.filter(item => item.isConsumable && item.quantity > 0);
 
-  const rentalTotal = rentals.reduce((sum, item) => sum + (item.dailyRate * item.quantity * rentalDays), 0);
   const consumableTotal = consumables.reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
+  
+  // New pricing model: Day 1 + (Days - 1) * flat rate
+  const additionalDays = Math.max(0, rentalDays - 1);
+  const rentalTotal = DAY_1_FEE + (additionalDays * DAY_2_PLUS_RATE);
   const grandTotal = rentalTotal + consumableTotal;
 
-  const retailTotal = items
-    .filter(item => item.quantity > 0)
-    .reduce((sum, item) => sum + (item.retailPrice * item.quantity), 0);
-  
-  const savings = retailTotal - grandTotal;
+  const benefits = [
+    { icon: Truck, text: 'Free delivery & pickup' },
+    { icon: Shield, text: 'Damage waiver included' },
+    { icon: Wrench, text: 'Pro-grade tools, properly maintained' },
+    { icon: Clock, text: 'Save 10–15 hours of research & shopping' },
+    { icon: RefreshCw, text: 'No storage, no depreciation, no clutter' },
+    { icon: Package, text: 'Everything curated for your specific project' },
+  ];
 
+  // Benefits page (shown first)
+  if (!showDetails) {
+    return (
+      <div className="max-w-2xl mx-auto animate-fade-in">
+        <Button 
+          variant="ghost" 
+          onClick={onBack}
+          className="mb-6"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Ordering
+        </Button>
+
+        <Card className="shadow-elevated overflow-hidden">
+          <CardHeader className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent pb-6">
+            <Badge variant="secondary" className="w-fit bg-primary/20 text-primary border-0 mb-2">
+              Why Rent With Us?
+            </Badge>
+            <CardTitle className="font-display text-2xl md:text-3xl">
+              The Smart Way to DIY
+            </CardTitle>
+            <p className="text-muted-foreground mt-2">
+              Get everything you need without the commitment of buying
+            </p>
+          </CardHeader>
+
+          <CardContent className="p-6 space-y-6">
+            {/* Benefits list */}
+            <div className="grid gap-4">
+              {benefits.map((benefit, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center gap-4 p-3 bg-secondary/30 rounded-lg"
+                >
+                  <div className="p-2 rounded-full bg-success/10">
+                    <benefit.icon className="w-5 h-5 text-success" />
+                  </div>
+                  <span className="font-medium">{benefit.text}</span>
+                </div>
+              ))}
+            </div>
+
+            <Separator />
+
+            {/* Price comparison teaser */}
+            <div className="text-center space-y-2">
+              <p className="text-muted-foreground">Ready to see your total?</p>
+              <Button 
+                size="lg" 
+                className="w-full"
+                onClick={() => setShowDetails(true)}
+              >
+                View Pricing Breakdown
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Pricing details page
   return (
-    <div className="max-w-3xl mx-auto animate-fade-in">
+    <div className="max-w-2xl mx-auto animate-fade-in">
       <Button 
         variant="ghost" 
-        onClick={onBack}
+        onClick={() => setShowDetails(false)}
         className="mb-6"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Ordering
+        Back to Benefits
       </Button>
 
       <Card className="shadow-elevated">
         <CardHeader className="pb-4">
           <CardTitle className="font-display text-2xl flex items-center gap-3">
             <ShoppingCart className="w-6 h-6 text-primary" />
-            Order Summary
+            Your Investment
           </CardTitle>
-          {startDate ? (
+          {startDate && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <CalendarDays className="w-4 h-4" />
               <span>
                 {format(startDate, 'EEE, MMM d')} → {format(addDays(startDate, rentalDays), 'EEE, MMM d, yyyy')}
               </span>
             </div>
-          ) : (
-            <p className="text-muted-foreground">
-              {rentalDays}-day rental period
-            </p>
           )}
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Rental Items */}
-          {rentals.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                Rental Items
-                <Badge variant="secondary">{rentals.length}</Badge>
-              </h3>
-              <div className="space-y-2">
-                {rentals.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg">
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover" />
-                    )}
-                    <div className="flex-1">
-                      <span className="font-medium">{item.name}</span>
-                      <span className="text-muted-foreground ml-2">×{item.quantity}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-medium">
-                        ${(item.dailyRate * item.quantity * rentalDays).toFixed(2)}
-                      </span>
-                      <span className="text-xs text-muted-foreground block">
-                        ${item.dailyRate.toFixed(2)}/day × {rentalDays} days
-                      </span>
-                    </div>
-                  </div>
-                ))}
+          {/* Pricing breakdown */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">How pricing works:</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-start p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div>
+                  <p className="font-semibold">Day 1</p>
+                  <p className="text-sm text-muted-foreground">
+                    Processing, delivery & damage waiver
+                  </p>
+                </div>
+                <span className="font-bold text-lg">${DAY_1_FEE}</span>
               </div>
-              <div className="text-right mt-2 font-semibold">
-                Subtotal: ${rentalTotal.toFixed(2)}
-              </div>
-            </div>
-          )}
 
-          {/* Consumables */}
-          {consumables.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                Materials & Consumables
-                <Badge variant="outline">Purchase</Badge>
-              </h3>
-              <div className="space-y-2">
-                {consumables.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-amber-soft rounded-lg">
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover" />
-                    )}
-                    <div className="flex-1">
-                      <span className="font-medium">{item.name}</span>
-                      <span className="text-muted-foreground ml-2">×{item.quantity}</span>
-                    </div>
-                    <span className="font-medium">
-                      ${(item.dailyRate * item.quantity).toFixed(2)}
-                    </span>
+              {additionalDays > 0 && (
+                <div className="flex justify-between items-start p-4 bg-secondary/50 rounded-lg">
+                  <div>
+                    <p className="font-semibold">Day 2–{rentalDays}</p>
+                    <p className="text-sm text-muted-foreground">
+                      ${DAY_2_PLUS_RATE}/day × {additionalDays} days
+                    </p>
                   </div>
-                ))}
-              </div>
-              <div className="text-right mt-2 font-semibold">
-                Subtotal: ${consumableTotal.toFixed(2)}
-              </div>
+                  <span className="font-bold text-lg">${additionalDays * DAY_2_PLUS_RATE}</span>
+                </div>
+              )}
+
+              {consumables.length > 0 && (
+                <div className="flex justify-between items-start p-4 bg-amber-soft rounded-lg">
+                  <div>
+                    <p className="font-semibold">Materials & Consumables</p>
+                    <p className="text-sm text-muted-foreground">
+                      {consumables.length} items (one-time purchase)
+                    </p>
+                  </div>
+                  <span className="font-bold text-lg">${consumableTotal.toFixed(2)}</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           <Separator />
 
-          {/* Totals */}
-          <div className="space-y-3">
-            <div className="flex justify-between text-xl font-bold">
-              <span>Total</span>
-              <span className="text-primary">${grandTotal.toFixed(2)}</span>
-            </div>
-
-            {savings > 0 && (
-              <div className="flex items-center justify-between p-4 bg-success/10 rounded-lg border border-success/20">
-                <div className="flex items-center gap-2 text-success">
-                  <TrendingDown className="w-5 h-5" />
-                  <span className="font-semibold">Savings vs. Buying</span>
-                </div>
-                <span className="font-bold text-success text-lg">
-                  ${savings.toFixed(2)}
-                </span>
-              </div>
-            )}
+          {/* Total */}
+          <div className="flex justify-between items-center text-2xl font-bold">
+            <span>Your Total</span>
+            <span className="text-primary">${grandTotal.toFixed(2)}</span>
           </div>
+
+          <Separator />
+
+          {/* Comparison */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">How does that compare?</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-4 bg-destructive/5 rounded-lg border border-destructive/20">
+                <div>
+                  <p className="font-medium text-destructive">Amazon (pro-grade)</p>
+                  <p className="text-sm text-muted-foreground">Buy it all, store it forever</p>
+                </div>
+                <span className="font-bold text-lg text-destructive">$1,000+</span>
+              </div>
+
+              <div className="flex justify-between items-center p-4 bg-accent/50 rounded-lg border border-accent">
+                <div>
+                  <p className="font-medium text-accent-foreground">FB Marketplace</p>
+                  <p className="text-sm text-muted-foreground">Mystery quality, your problem now</p>
+                </div>
+                <span className="font-bold text-lg text-accent-foreground">~$600</span>
+              </div>
+
+              <div className="flex justify-between items-center p-4 bg-success/10 rounded-lg border border-success/30">
+                <div className="flex items-start gap-3">
+                  <div className="p-1.5 rounded-full bg-success/20 mt-0.5">
+                    <Check className="w-4 h-4 text-success" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-success">Toolio Package</p>
+                    <p className="text-sm text-muted-foreground">
+                      The right stuff, delivered, ready to help you succeed
+                    </p>
+                  </div>
+                </div>
+                <span className="font-bold text-xl text-success">${grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Items included (collapsible) */}
+          {rentals.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                View {rentals.length} items included →
+              </summary>
+              <div className="mt-3 space-y-2 animate-fade-in">
+                {rentals.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg text-sm">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                    )}
+                    <span className="flex-1">{item.name}</span>
+                    <span className="text-muted-foreground">×{item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
 
           <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">📝 Note:</p>
