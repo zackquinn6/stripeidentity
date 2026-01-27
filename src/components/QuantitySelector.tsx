@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus } from 'lucide-react';
 
@@ -8,26 +9,28 @@ interface QuantitySelectorProps {
   max?: number;
 }
 
-const QuantitySelector = ({ 
+const QuantitySelector = forwardRef<HTMLDivElement, QuantitySelectorProps>(({ 
   quantity, 
   onQuantityChange, 
   min = 0, 
   max = 10 
-}: QuantitySelectorProps) => {
-  const handleDecrease = () => {
+}, ref) => {
+  const handleDecrease = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (quantity > min) {
       onQuantityChange(quantity - 1);
     }
   };
 
-  const handleIncrease = () => {
+  const handleIncrease = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (quantity < max) {
       onQuantityChange(quantity + 1);
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div ref={ref} className="flex items-center gap-2">
       <Button
         variant="outline"
         size="icon"
@@ -53,6 +56,8 @@ const QuantitySelector = ({
       </Button>
     </div>
   );
-};
+});
+
+QuantitySelector.displayName = 'QuantitySelector';
 
 export default QuantitySelector;

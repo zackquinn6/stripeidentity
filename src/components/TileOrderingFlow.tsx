@@ -84,17 +84,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const getAllSelectedItems = useMemo((): RentalItem[] => {
     const equipmentItems = equipment.flatMap(cat => cat.items).filter(item => item.quantity > 0);
     const addOnItems = addOns.flatMap(cat => cat.items).filter(item => item.quantity > 0);
-    
-    // Auto-calculate thinset based on square footage
-    const adjustedMaterials = materials.map(item => {
-      if (item.id === 'thinset') {
-        return { ...item, quantity: thinsetBags };
-      }
-      return item;
-    }).filter(item => item.quantity > 0);
+    const materialItems = materials.filter(item => item.quantity > 0);
 
-    return [...equipmentItems, ...addOnItems, ...adjustedMaterials];
-  }, [equipment, addOns, materials, thinsetBags]);
+    return [...equipmentItems, ...addOnItems, ...materialItems];
+  }, [equipment, addOns, materials]);
 
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
@@ -304,27 +297,31 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <div className="space-y-4">
-                <div className="p-4 bg-secondary/50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <span className="font-medium">Thinset Mortar (50lb bag)</span>
-                      <p className="text-sm text-muted-foreground">
-                        Calculated: {thinsetBags} bags needed for {sqft || 0} sq ft
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-semibold">${(thinsetBags * 25).toFixed(2)}</span>
-                      <p className="text-xs text-muted-foreground">1 bag = 10 sq ft</p>
-                    </div>
-                  </div>
-                </div>
-
-                {materials.filter(m => m.id !== 'thinset').map((item) => (
+              <p className="text-muted-foreground mb-4">
+                Purchase materials for your project. Thinset is pre-calculated based on your square footage.
+              </p>
+              <div className="space-y-3">
+                {materials.map((item) => (
                   <div key={item.id} className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
-                    <div>
-                      <span className="font-medium">{item.name}</span>
-                      <p className="text-sm text-muted-foreground">${item.dailyRate.toFixed(2)} each</p>
+                    <div className="flex items-center gap-3">
+                      {item.imageUrl && (
+                        <img 
+                          src={item.imageUrl} 
+                          alt={item.name}
+                          className="w-12 h-12 rounded-lg object-cover bg-muted"
+                        />
+                      )}
+                      <div>
+                        <span className="font-medium">{item.name}</span>
+                        <p className="text-sm text-muted-foreground">
+                          ${item.dailyRate.toFixed(2)} each
+                          {item.id === 'thinset' && sqft > 0 && (
+                            <span className="ml-2 text-primary">
+                              (Suggested: {thinsetBags} for {sqft} sq ft)
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                     <QuantitySelector
                       quantity={item.quantity}
