@@ -361,7 +361,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
       </div>
 
       <AddOnModal
-        category={activeAddOn}
+        category={activeAddOn ? addOns.find(c => c.id === activeAddOn.id) || null : null}
         open={!!activeAddOn}
         onClose={() => setActiveAddOn(null)}
         onQuantityChange={handleAddOnQuantityChange}
