@@ -6,13 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays } from 'lucide-react';
 import { equipmentCategories, addOnCategories, consumables, tileSizes } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
 import AddOnModal from './AddOnModal';
 import CheckoutSummary from './CheckoutSummary';
 import QuantitySelector from './QuantitySelector';
+import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDatePicker';
+import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
 
 interface TileOrderingFlowProps {
   onBack: () => void;
@@ -27,6 +29,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const [activeAddOn, setActiveAddOn] = useState<AddOnCategory | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [openAccordions, setOpenAccordions] = useState<string[]>(['step-1']);
+  
+  // Rental date state
+  const [rentalDuration, setRentalDuration] = useState<RentalDuration>('1-weekend');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
 
   const sqft = parseFloat(squareFootage) || 0;
   const thinsetBags = Math.ceil(sqft / 10);
@@ -34,6 +40,9 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const step1Complete = sqft > 0 && tileSize !== '';
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
+  const step4Complete = !!startDate;
+  
+  const rentalDays = durationOptions.find(o => o.value === rentalDuration)?.days || 3;
 
   const handleEquipmentQuantityChange = (categoryId: string, itemId: string, quantity: number) => {
     setEquipment(prev =>
@@ -100,7 +109,8 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
       <div className="py-12 px-6">
         <CheckoutSummary 
           items={getAllSelectedItems} 
-          rentalDays={3}
+          rentalDays={rentalDays}
+          startDate={startDate}
           onBack={() => setShowCheckout(false)} 
         />
       </div>
@@ -284,8 +294,37 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
             </AccordionContent>
           </AccordionItem>
 
-          {/* Step 4: Materials & Consumables */}
+          {/* Step 4: Rental Period */}
           <AccordionItem value="step-4" className="border rounded-xl overflow-hidden bg-card shadow-card">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  step4Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {step4Complete ? <Check className="w-4 h-4" /> : <CalendarDays className="w-4 h-4" />}
+                </div>
+                <div className="text-left">
+                  <span className="font-display font-semibold text-lg">Rental Period</span>
+                  {step4Complete && startDate && (
+                    <span className="text-sm text-muted-foreground ml-3">
+                      {format(startDate, 'MMM d')} • {rentalDays} days
+                    </span>
+                  )}
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6">
+              <RentalDatePicker
+                startDate={startDate}
+                duration={rentalDuration}
+                onStartDateChange={setStartDate}
+                onDurationChange={setRentalDuration}
+              />
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Step 5: Materials & Consumables */}
+          <AccordionItem value="step-5" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
@@ -346,15 +385,18 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           <Button 
             size="lg" 
             className="w-full"
-            disabled={!step1Complete}
+            disabled={!step1Complete || !step4Complete}
             onClick={() => setShowCheckout(true)}
           >
             View Checkout Summary
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
-          {!step1Complete && (
+          {(!step1Complete || !step4Complete) && (
             <p className="text-center text-sm text-muted-foreground mt-2">
-              Please complete the tile sizing step to continue
+              {!step1Complete 
+                ? 'Please complete the tile sizing step to continue'
+                : 'Please select a rental period to continue'
+              }
             </p>
           )}
         </div>

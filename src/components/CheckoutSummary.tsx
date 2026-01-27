@@ -2,16 +2,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ShoppingCart, TrendingDown, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, TrendingDown, ArrowLeft, CalendarDays } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
+import { format, addDays } from 'date-fns';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
   rentalDays: number;
+  startDate?: Date;
   onBack: () => void;
 }
 
-const CheckoutSummary = ({ items, rentalDays, onBack }: CheckoutSummaryProps) => {
+const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const rentals = items.filter(item => !item.isConsumable && item.quantity > 0);
   const consumables = items.filter(item => item.isConsumable && item.quantity > 0);
 
@@ -42,9 +44,18 @@ const CheckoutSummary = ({ items, rentalDays, onBack }: CheckoutSummaryProps) =>
             <ShoppingCart className="w-6 h-6 text-primary" />
             Order Summary
           </CardTitle>
-          <p className="text-muted-foreground">
-            {rentalDays}-day rental period
-          </p>
+          {startDate ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CalendarDays className="w-4 h-4" />
+              <span>
+                {format(startDate, 'EEE, MMM d')} → {format(addDays(startDate, rentalDays), 'EEE, MMM d, yyyy')}
+              </span>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">
+              {rentalDays}-day rental period
+            </p>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-6">
