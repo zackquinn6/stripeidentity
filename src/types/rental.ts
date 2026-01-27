@@ -5,6 +5,7 @@ export interface RentalItem {
   dailyRate: number;
   quantity: number;
   isConsumable?: boolean;
+  imageUrl?: string;
 }
 
 export interface EquipmentCategory {

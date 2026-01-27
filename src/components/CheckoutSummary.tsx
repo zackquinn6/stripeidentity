@@ -57,8 +57,11 @@ const CheckoutSummary = ({ items, rentalDays, onBack }: CheckoutSummaryProps) =>
               </h3>
               <div className="space-y-2">
                 {rentals.map((item) => (
-                  <div key={item.id} className="flex justify-between py-2 px-3 bg-secondary/30 rounded-lg">
-                    <div>
+                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover" />
+                    )}
+                    <div className="flex-1">
                       <span className="font-medium">{item.name}</span>
                       <span className="text-muted-foreground ml-2">×{item.quantity}</span>
                     </div>
@@ -88,8 +91,11 @@ const CheckoutSummary = ({ items, rentalDays, onBack }: CheckoutSummaryProps) =>
               </h3>
               <div className="space-y-2">
                 {consumables.map((item) => (
-                  <div key={item.id} className="flex justify-between py-2 px-3 bg-amber-soft rounded-lg">
-                    <div>
+                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-amber-soft rounded-lg">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover" />
+                    )}
+                    <div className="flex-1">
                       <span className="font-medium">{item.name}</span>
                       <span className="text-muted-foreground ml-2">×{item.quantity}</span>
                     </div>
