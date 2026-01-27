@@ -100,10 +100,14 @@ export const consumables: RentalItem[] = [
 ];
 
 export const tileSizes = [
-  { value: '12x12', label: '12" x 12"' },
-  { value: '12x24', label: '12" x 24"' },
-  { value: '18x18', label: '18" x 18"' },
-  { value: '24x24', label: '24" x 24"' },
-  { value: '6x24', label: '6" x 24" (Plank)' },
-  { value: '8x48', label: '8" x 48" (Large Plank)' },
+  { value: 'small', label: 'Small (<6")' },
+  { value: 'medium', label: 'Medium (6–12")' },
+  { value: 'low-large', label: 'Low-Large (12–18")' },
+  { value: 'large-format', label: 'Large Format (18"+)' },
+];
+
+export const squareFootageBuckets = [
+  { value: '10-50', label: '10–50 sq ft', min: 10, max: 50 },
+  { value: '50-100', label: '50–100 sq ft', min: 50, max: 100 },
+  { value: '100+', label: '100+ sq ft', min: 100, max: 500 },
 ];
