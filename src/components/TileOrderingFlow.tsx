@@ -14,6 +14,7 @@ import AddOnModal from './AddOnModal';
 import CheckoutSummary from './CheckoutSummary';
 import QuantitySelector from './QuantitySelector';
 import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDatePicker';
+import PackageValueCard from './PackageValueCard';
 import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
 
 interface TileOrderingFlowProps {
@@ -126,11 +127,9 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
         </Button>
 
         <div className="mb-8">
-          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-2">
-            Tile Flooring Package
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Configure your rental package in a few simple steps.
+          <PackageValueCard retailValue={900} packagePrice={495} />
+          <p className="text-muted-foreground text-center mt-4">
+            Configure your rental package in a few simple steps below.
           </p>
         </div>
 
