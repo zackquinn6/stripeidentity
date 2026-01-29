@@ -1,0 +1,280 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Pencil, Trash2, GripVertical, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface Section {
+  id: string;
+  project_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  section_type: string;
+  is_visible: boolean;
+  display_order: number;
+}
+
+interface SectionsTabProps {
+  projectId: string | null;
+  onSelectSection: (id: string) => void;
+  selectedSectionId: string | null;
+}
+
+const SECTION_TYPES = ['equipment', 'addon', 'consumable'];
+
+export default function SectionsTab({ projectId, onSelectSection, selectedSectionId }: SectionsTabProps) {
+  const [sections, setSections] = useState<Section[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    slug: '',
+    description: '',
+    section_type: 'equipment',
+    is_visible: true
+  });
+
+  useEffect(() => {
+    if (projectId) {
+      fetchSections();
+    } else {
+      setSections([]);
+    }
+  }, [projectId]);
+
+  const fetchSections = async () => {
+    if (!projectId) return;
+    setIsLoading(true);
+    
+    const { data, error } = await supabase
+      .from('ordering_sections')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('display_order');
+    
+    if (error) {
+      toast.error('Failed to load sections');
+      console.error(error);
+    } else {
+      setSections(data || []);
+    }
+    setIsLoading(false);
+  };
+
+  const handleOpenDialog = (section?: Section) => {
+    if (section) {
+      setEditingSection(section);
+      setFormData({
+        name: section.name,
+        slug: section.slug,
+        description: section.description || '',
+        section_type: section.section_type,
+        is_visible: section.is_visible
+      });
+    } else {
+      setEditingSection(null);
+      setFormData({ name: '', slug: '', description: '', section_type: 'equipment', is_visible: true });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!projectId || !formData.name || !formData.slug) {
+      toast.error('Name and slug are required');
+      return;
+    }
+
+    if (editingSection) {
+      const { error } = await supabase
+        .from('ordering_sections')
+        .update({
+          name: formData.name,
+          slug: formData.slug,
+          description: formData.description || null,
+          section_type: formData.section_type,
+          is_visible: formData.is_visible
+        })
+        .eq('id', editingSection.id);
+
+      if (error) {
+        toast.error('Failed to update section');
+        console.error(error);
+      } else {
+        toast.success('Section updated');
+        fetchSections();
+        setIsDialogOpen(false);
+      }
+    } else {
+      const { error } = await supabase
+        .from('ordering_sections')
+        .insert({
+          project_id: projectId,
+          name: formData.name,
+          slug: formData.slug,
+          description: formData.description || null,
+          section_type: formData.section_type,
+          is_visible: formData.is_visible,
+          display_order: sections.length
+        });
+
+      if (error) {
+        toast.error('Failed to create section');
+        console.error(error);
+      } else {
+        toast.success('Section created');
+        fetchSections();
+        setIsDialogOpen(false);
+      }
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this section and all its items?')) return;
+    
+    const { error } = await supabase.from('ordering_sections').delete().eq('id', id);
+    if (error) {
+      toast.error('Failed to delete section');
+    } else {
+      toast.success('Section deleted');
+      fetchSections();
+    }
+  };
+
+  const handleToggleVisible = async (section: Section) => {
+    const { error } = await supabase
+      .from('ordering_sections')
+      .update({ is_visible: !section.is_visible })
+      .eq('id', section.id);
+
+    if (error) {
+      toast.error('Failed to update section');
+    } else {
+      fetchSections();
+    }
+  };
+
+  if (!projectId) {
+    return (
+      <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-2">
+        <AlertCircle className="h-8 w-8" />
+        <p>Select a project first to manage its sections</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">Manage ordering sections (Equipment, Add-ons, etc.)</p>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4 mr-1" /> Add Section
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingSection ? 'Edit Section' : 'New Section'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Safety Equipment"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Slug</Label>
+                <Input
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  placeholder="safety"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Essential safety gear..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={formData.section_type} onValueChange={(v) => setFormData({ ...formData, section_type: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECTION_TYPES.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={formData.is_visible}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
+                />
+                <Label>Visible to users</Label>
+              </div>
+              <Button onClick={handleSave} className="w-full">Save</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="space-y-2">
+        {sections.map((section) => (
+          <Card 
+            key={section.id} 
+            className={`cursor-pointer transition-colors ${selectedSectionId === section.id ? 'border-primary' : ''}`}
+            onClick={() => onSelectSection(section.id)}
+          >
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{section.name}</p>
+                  <p className="text-sm text-muted-foreground">{section.section_type} • {section.slug}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={section.is_visible}
+                  onCheckedChange={() => handleToggleVisible(section)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleOpenDialog(section); }}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(section.id); }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {sections.length === 0 && (
+          <p className="text-center py-8 text-muted-foreground">No sections yet. Create your first one!</p>
+        )}
+      </div>
+    </div>
+  );
+}
