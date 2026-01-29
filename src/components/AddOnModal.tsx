@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AddOnCategory } from '@/types/rental';
@@ -11,6 +12,24 @@ interface AddOnModalProps {
 }
 
 const AddOnModal = ({ category, open, onClose, onQuantityChange }: AddOnModalProps) => {
+  const hasInitialized = useRef<string | null>(null);
+
+  // Default all items to quantity 1 when modal opens for a new category
+  useEffect(() => {
+    if (open && category && hasInitialized.current !== category.id) {
+      const hasNoSelections = category.items.every(item => item.quantity === 0);
+      if (hasNoSelections) {
+        category.items.forEach(item => {
+          onQuantityChange(category.id, item.id, 1);
+        });
+      }
+      hasInitialized.current = category.id;
+    }
+    if (!open) {
+      hasInitialized.current = null;
+    }
+  }, [open, category, onQuantityChange]);
+
   if (!category) return null;
 
   const totalItems = category.items.reduce((sum, item) => sum + item.quantity, 0);
