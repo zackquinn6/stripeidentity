@@ -49,48 +49,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const exactSqft = parseFloat(exactSquareFootage) || 0;
   const thinsetBags = Math.ceil(exactSqft / 10);
 
-  // Load Booqable script and refresh when accordion changes
-  useEffect(() => {
-    const scriptId = 'booqable-script';
-    const existingScript = document.getElementById(scriptId);
-    
-    const refreshBooqable = () => {
-      // Booqable exposes a global (usually `window.Booqable`).
-      // We try common variants and defer until available.
-      const w = window as any;
-
-      const doRefresh = () => {
-        const api = w.Booqable || w.booqable;
-        if (api?.refresh) api.refresh();
-        // Some embeds re-scan on page-change.
-        if (api?.trigger) api.trigger('page-change');
-      };
-
-      const api = w.Booqable || w.booqable;
-      if (api?._defer) {
-        api._defer(() => !!(w.Booqable || w.booqable), doRefresh);
-        return;
-      }
-
-      // React renders async; wait a tick + next frame so the button nodes exist.
-      setTimeout(() => requestAnimationFrame(doRefresh), 0);
-    };
-
-    if (!existingScript) {
-      const script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://feeebb8b-2583-4689-b2f6-d488f8220b65.assets.booqable.com/v2/booqable.js';
-      script.async = true;
-      script.onload = () => {
-        // Give Booqable time to initialize, then refresh
-        setTimeout(refreshBooqable, 800);
-      };
-      document.body.appendChild(script);
-    } else {
-      // Script already loaded, just refresh
-      setTimeout(refreshBooqable, 150);
-    }
-  }, [openAccordion]); // Re-run when accordion changes
+  // Booqable script is now loaded globally in App via useBooqable().
 
   const step1Complete = tileAreas.length > 0 && tileAreas.every(area => area.squareFootageBucket !== '' && area.tileSize !== '');
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
