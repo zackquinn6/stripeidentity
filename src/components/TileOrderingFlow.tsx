@@ -337,7 +337,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
             <AccordionContent className="px-6 pb-6">
               <Button 
                 variant="outline" 
-                className="w-full mb-6 border-dashed border-2 py-6 hover:border-primary hover:bg-primary/5 text-foreground"
+                className="w-full mb-6 border-dashed border-2 py-6 hover:border-primary hover:bg-primary/5 text-foreground hover:text-black"
                 onClick={handleSelectComprehensive}
               >
                 <Sparkles className="w-5 h-5 mr-2 text-primary" />
