@@ -30,7 +30,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const [materials, setMaterials] = useState<RentalItem[]>(consumables);
   const [activeAddOn, setActiveAddOn] = useState<AddOnCategory | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [openAccordions, setOpenAccordions] = useState<string[]>(['step-1']);
+  const [openAccordion, setOpenAccordion] = useState<string>('step-1');
   
   // Rental date state
   const [rentalDuration, setRentalDuration] = useState<RentalDuration>('1-weekend');
@@ -97,7 +97,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
         items: cat.items.map(item => ({ ...item, quantity: 1 })),
       }))
     );
-    setOpenAccordions(prev => [...new Set([...prev, 'step-2'])]);
+    setOpenAccordion('step-2');
   };
 
   const getAllSelectedItems = useMemo((): RentalItem[] => {
@@ -143,9 +143,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
         </div>
 
         <Accordion 
-          type="multiple" 
-          value={openAccordions}
-          onValueChange={setOpenAccordions}
+          type="single" 
+          collapsible
+          value={openAccordion}
+          onValueChange={(value) => setOpenAccordion(value || '')}
           className="space-y-4"
         >
           {/* Step 1: Tile Sizing */}
