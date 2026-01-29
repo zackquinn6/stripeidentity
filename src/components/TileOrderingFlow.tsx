@@ -100,12 +100,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
     }
   }, [step2Complete, openAccordion, advancedSteps]);
 
-  useEffect(() => {
-    if (step3Complete && openAccordion === 'step-3' && !advancedSteps.has('step-3')) {
-      setAdvancedSteps(prev => new Set(prev).add('step-3'));
-      setOpenAccordion('step-4');
-    }
-  }, [step3Complete, openAccordion, advancedSteps]);
+  // Note: Add-ons step does not auto-advance - users should manually proceed
 
   useEffect(() => {
     if (step4Complete && openAccordion === 'step-4' && !advancedSteps.has('step-4')) {
