@@ -15,6 +15,7 @@ import CheckoutSummary from './CheckoutSummary';
 import QuantitySelector from './QuantitySelector';
 import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDatePicker';
 import PackageValueCard from './PackageValueCard';
+import ItemDetailsModal from './ItemDetailsModal';
 import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
 
 interface TileOrderingFlowProps {
@@ -29,6 +30,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const [addOns, setAddOns] = useState<AddOnCategory[]>(addOnCategories);
   const [materials, setMaterials] = useState<RentalItem[]>(consumables);
   const [activeAddOn, setActiveAddOn] = useState<AddOnCategory | null>(null);
+  const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string>('step-1');
   
@@ -141,6 +143,35 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
     setMaterials(prev =>
       prev.map(item => (item.id === itemId ? { ...item, quantity } : item))
     );
+  };
+
+  const handleItemClick = (item: RentalItem) => {
+    setSelectedItem(item);
+  };
+
+  const handleItemQuantityChangeFromModal = (itemId: string, quantity: number) => {
+    // Check if item is in equipment
+    for (const cat of equipment) {
+      if (cat.items.some(i => i.id === itemId)) {
+        handleEquipmentQuantityChange(cat.id, itemId, quantity);
+        // Update selectedItem to reflect new quantity
+        setSelectedItem(prev => prev?.id === itemId ? { ...prev, quantity } : prev);
+        return;
+      }
+    }
+    // Check if item is in addOns
+    for (const cat of addOns) {
+      if (cat.items.some(i => i.id === itemId)) {
+        handleAddOnQuantityChange(cat.id, itemId, quantity);
+        setSelectedItem(prev => prev?.id === itemId ? { ...prev, quantity } : prev);
+        return;
+      }
+    }
+    // Check materials
+    if (materials.some(i => i.id === itemId)) {
+      handleMaterialQuantityChange(itemId, quantity);
+      setSelectedItem(prev => prev?.id === itemId ? { ...prev, quantity } : prev);
+    }
   };
 
   const handleSelectComprehensive = () => {
@@ -298,6 +329,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                           key={item.id}
                           item={item}
                           onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)}
+                          onItemClick={handleItemClick}
                         />
                       ))}
                     </div>
@@ -502,6 +534,13 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
         open={!!activeAddOn}
         onClose={() => setActiveAddOn(null)}
         onQuantityChange={handleAddOnQuantityChange}
+      />
+
+      <ItemDetailsModal
+        item={selectedItem}
+        open={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+        onQuantityChange={handleItemQuantityChangeFromModal}
       />
     </div>
   );
