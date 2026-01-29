@@ -69,12 +69,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
     }
   }, [step1Complete, openAccordion, advancedSteps]);
 
-  useEffect(() => {
-    if (step2Complete && openAccordion === 'step-2' && !advancedSteps.has('step-2')) {
-      setAdvancedSteps(prev => new Set(prev).add('step-2'));
-      setOpenAccordion('step-3');
-    }
-  }, [step2Complete, openAccordion, advancedSteps]);
+  // Note: Equipment selection (step-2) does not auto-advance - only via comprehensive button
 
   // Note: Add-ons step does not auto-advance - users should manually proceed
 
@@ -166,7 +161,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
         items: cat.items.map(item => ({ ...item, quantity: 1 })),
       }))
     );
-    setOpenAccordion('step-2');
+    setOpenAccordion('step-3');
   };
 
   const getAllSelectedItems = useMemo((): RentalItem[] => {
