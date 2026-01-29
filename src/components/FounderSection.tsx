@@ -1,4 +1,9 @@
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+
 const FounderSection = () => {
+  const navigate = useNavigate();
+
   return (
     <section id="about" className="py-24 bg-muted/30">
       <div className="container mx-auto px-6 max-w-3xl">
@@ -33,6 +38,12 @@ const FounderSection = () => {
             you need in one package. Customize to skip what you own, pick your timeline, and we deliver. 
             No guesswork. No multiple trips. Just results.
           </p>
+          
+          <div className="mt-8 text-center">
+            <Button variant="hero" size="lg" onClick={() => navigate('/projects')}>
+              Get Started
+            </Button>
+          </div>
         </div>
       </div>
     </section>
