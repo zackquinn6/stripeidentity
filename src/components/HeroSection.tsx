@@ -1,11 +1,14 @@
 import { Button } from '@/components/ui/button';
-import { Wrench, ArrowRight } from 'lucide-react';
+import { Wrench, ArrowDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface HeroSectionProps {
-  onOrderClick: () => void;
+  onLearnMoreClick: () => void;
 }
 
-const HeroSection = ({ onOrderClick }: HeroSectionProps) => {
+const HeroSection = ({ onLearnMoreClick }: HeroSectionProps) => {
+  const navigate = useNavigate();
+
   return (
     <section className="hero-gradient min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Background pattern */}
@@ -33,15 +36,25 @@ const HeroSection = ({ onOrderClick }: HeroSectionProps) => {
             No guesswork, no multiple trips—just results.
           </p>
 
-          <Button 
-            variant="hero" 
-            size="xl" 
-            onClick={onOrderClick}
-            className="group"
-          >
-            Order Today
-            <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              variant="hero" 
+              size="xl" 
+              onClick={() => navigate('/projects')}
+              className="group"
+            >
+              Get Started
+            </Button>
+            <Button 
+              variant="outline" 
+              size="xl" 
+              onClick={onLearnMoreClick}
+              className="group border-white/30 text-white hover:bg-white/10"
+            >
+              Learn More
+              <ArrowDown className="w-5 h-5 transition-transform group-hover:translate-y-1" />
+            </Button>
+          </div>
         </div>
       </div>
 
