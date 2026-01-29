@@ -14,10 +14,15 @@ import {
   Wrench,
   Package,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  Loader2,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
+import { useBooqableOrder } from '@/hooks/useBooqableOrder';
+import { useToast } from '@/hooks/use-toast';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -31,6 +36,8 @@ const DAY_2_PLUS_RATE = 25; // Flat fee per additional day
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const [showDetails, setShowDetails] = useState(false);
+  const { toast } = useToast();
+  const { isCreating, error: orderError, checkoutUrl, createOrder, redirectToCheckout, reset } = useBooqableOrder();
   
   const rentals = items.filter(item => !item.isConsumable && item.quantity > 0);
   const consumables = items.filter(item => item.isConsumable && item.quantity > 0);
@@ -259,9 +266,86 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </p>
           </div>
 
-          <Button size="lg" className="w-full">
-            Proceed to Checkout
-          </Button>
+          {orderError && (
+            <div className="flex items-center gap-2 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm">{orderError}</p>
+              <Button variant="ghost" size="sm" onClick={reset} className="ml-auto">
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {checkoutUrl ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-4 bg-success/10 border border-success/30 rounded-lg text-success">
+                <Check className="w-5 h-5" />
+                <p className="font-medium">Order created! Complete your booking on Booqable.</p>
+              </div>
+              <Button 
+                size="lg" 
+                className="w-full" 
+                onClick={redirectToCheckout}
+              >
+                Complete Checkout
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          ) : (
+            <Button 
+              size="lg" 
+              className="w-full"
+              disabled={isCreating || !startDate}
+              onClick={async () => {
+                if (!startDate) {
+                  toast({
+                    title: "Start date required",
+                    description: "Please select a rental start date",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+
+                const booqableItems = rentals.filter(item => item.booqableId);
+                if (booqableItems.length === 0) {
+                  toast({
+                    title: "No items available",
+                    description: "None of the selected items can be booked online. Please contact us for availability.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+
+                try {
+                  const endDate = addDays(startDate, rentalDays);
+                  await createOrder({
+                    items: rentals,
+                    startDate,
+                    endDate,
+                  });
+                  toast({
+                    title: "Order created!",
+                    description: "Click the button to complete checkout.",
+                  });
+                } catch {
+                  toast({
+                    title: "Order failed",
+                    description: "There was an error creating your order. Please try again.",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating Order...
+                </>
+              ) : (
+                'Proceed to Checkout'
+              )}
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
