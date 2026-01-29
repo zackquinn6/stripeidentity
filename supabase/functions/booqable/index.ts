@@ -153,43 +153,36 @@ serve(async (req) => {
       case 'create-order': {
         const { starts_at, stops_at, customer_id } = params;
         
+        // Booqable v1 API uses a simpler structure
         const orderData: Record<string, unknown> = {
-          data: {
-            type: 'orders',
-            attributes: {
-              starts_at,
-              stops_at,
-            },
+          order: {
+            starts_at,
+            stops_at,
           },
         };
 
         if (customer_id) {
-          orderData.data = {
-            ...(orderData.data as Record<string, unknown>),
-            relationships: {
-              customer: {
-                data: { type: 'customers', id: customer_id }
-              }
-            }
-          };
+          (orderData.order as Record<string, unknown>).customer_id = customer_id;
         }
 
         const response = await booqableRequest('/orders', 'POST', orderData);
+        const responseText = await response.text();
         
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[Booqable] Error creating order:', errorText);
+          console.error('[Booqable] Error creating order:', responseText);
           return new Response(
-            JSON.stringify({ error: 'Failed to create order', details: errorText }),
+            JSON.stringify({ error: 'Failed to create order', details: responseText }),
             { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        const data = await response.json();
-        console.log(`[Booqable] Order created: ${data.data?.id}`);
+        const data = JSON.parse(responseText);
+        // Handle both v1 (data.order) and JSON:API (data.data) formats
+        const order = data.order || data.data;
+        console.log(`[Booqable] Order created: ${order?.id}`, JSON.stringify(order).slice(0, 200));
 
         return new Response(
-          JSON.stringify({ order: data.data }),
+          JSON.stringify({ order }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -197,39 +190,62 @@ serve(async (req) => {
       case 'add-line': {
         const { order_id, product_id, quantity } = params;
         
-        const lineData = {
-          data: {
-            type: 'lines',
-            attributes: {
-              quantity: quantity || 1,
-            },
-            relationships: {
-              order: {
-                data: { type: 'orders', id: order_id }
-              },
-              item: {
-                data: { type: 'product_groups', id: product_id }
-              }
+        // First, check if product_id is a UUID or a slug
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(product_id);
+        
+        let actualProductId = product_id;
+        
+        // If it's a slug, look up the actual product ID
+        if (!isUUID) {
+          console.log(`[Booqable] Looking up product by slug: ${product_id}`);
+          // Fetch all products and find exact slug match (API filter may not be exact)
+          const lookupResponse = await booqableRequest(`/product_groups?per=100&filter[archived]=false`);
+          
+          if (lookupResponse.ok) {
+            const lookupData = await lookupResponse.json();
+            const products = lookupData.product_groups || lookupData.data || [];
+            // Find exact slug match
+            const matchedProduct = products.find((p: { slug: string }) => p.slug === product_id);
+            
+            if (matchedProduct) {
+              actualProductId = matchedProduct.id;
+              console.log(`[Booqable] Found product ID: ${actualProductId} for slug: ${product_id}`);
+            } else {
+              console.log(`[Booqable] No product found for slug: ${product_id}. Available slugs: ${products.slice(0, 5).map((p: { slug: string }) => p.slug).join(', ')}...`);
+              return new Response(
+                JSON.stringify({ error: `Product not found: ${product_id}` }),
+                { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
             }
+          }
+        }
+        
+        // Booqable v1 API: add line via POST to /orders/{id}/lines
+        const lineData = {
+          line: {
+            item_id: actualProductId,
+            item_type: 'ProductGroup',
+            quantity: quantity || 1,
           }
         };
 
-        const response = await booqableRequest('/lines', 'POST', lineData);
+        const response = await booqableRequest(`/orders/${order_id}/lines`, 'POST', lineData);
+        const responseText = await response.text();
         
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[Booqable] Error adding line:', errorText);
+          console.error('[Booqable] Error adding line:', responseText);
           return new Response(
-            JSON.stringify({ error: 'Failed to add line item', details: errorText }),
+            JSON.stringify({ error: 'Failed to add line item', details: responseText }),
             { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        const data = await response.json();
-        console.log(`[Booqable] Line added: ${data.data?.id}`);
+        const data = JSON.parse(responseText);
+        const line = data.line || data.data;
+        console.log(`[Booqable] Line added: ${line?.id}`);
 
         return new Response(
-          JSON.stringify({ line: data.data }),
+          JSON.stringify({ line }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
