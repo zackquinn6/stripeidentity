@@ -9,8 +9,7 @@ const FounderSection = () => {
         {/* Founder Message */}
         <div className="bg-card rounded-2xl p-8 shadow-sm border border-border mb-12">
           <blockquote className="text-lg md:text-xl text-muted-foreground leading-relaxed mb-6">
-            "I lived the frustration of DIY—endless trips to the hardware store, renting tools I didn't know I needed, 
-            returning ones I forgot to use. I decided to make a better way."
+            "I lived the frustration of DIY—not having the right tools at the right time. I decided to make a better way."
           </blockquote>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
