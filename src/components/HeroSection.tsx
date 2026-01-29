@@ -43,13 +43,13 @@ const HeroSection = ({ onLearnMoreClick }: HeroSectionProps) => {
               onClick={() => navigate('/projects')}
               className="group"
             >
-              Get Started
+              Rent Today
             </Button>
             <Button 
               variant="outline" 
               size="xl" 
               onClick={onLearnMoreClick}
-              className="group border-white/30 text-white hover:bg-white/10"
+              className="group bg-white/10 border-white text-white hover:bg-white/20"
             >
               Learn More
               <ArrowDown className="w-5 h-5 transition-transform group-hover:translate-y-1" />
