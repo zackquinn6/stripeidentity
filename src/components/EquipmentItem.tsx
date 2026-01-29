@@ -44,10 +44,15 @@ const EquipmentItem = ({ item, onQuantityChange }: EquipmentItemProps) => {
         </div>
       </div>
       
-      <QuantitySelector
-        quantity={item.quantity}
-        onQuantityChange={(qty) => onQuantityChange(item.id, qty)}
-      />
+      <div className="flex items-center gap-3">
+        {item.booqableId && (
+          <div className="booqable-product-button" data-id={item.booqableId}></div>
+        )}
+        <QuantitySelector
+          quantity={item.quantity}
+          onQuantityChange={(qty) => onQuantityChange(item.id, qty)}
+        />
+      </div>
     </div>
   );
 };
