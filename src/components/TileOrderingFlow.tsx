@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays } from 'lucide-react';
+import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2 } from 'lucide-react';
 import { equipmentCategories, addOnCategories, consumables, tileSizes, squareFootageBuckets } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
@@ -22,10 +22,17 @@ interface TileOrderingFlowProps {
   onBack: () => void;
 }
 
+interface TileArea {
+  id: string;
+  squareFootageBucket: string;
+  tileSize: string;
+}
+
 const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
-  const [squareFootageBucket, setSquareFootageBucket] = useState<string>('');
+  const [tileAreas, setTileAreas] = useState<TileArea[]>([
+    { id: '1', squareFootageBucket: '', tileSize: '' }
+  ]);
   const [exactSquareFootage, setExactSquareFootage] = useState<string>('');
-  const [tileSize, setTileSize] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentCategory[]>(equipmentCategories);
   const [addOns, setAddOns] = useState<AddOnCategory[]>(addOnCategories);
   const [materials, setMaterials] = useState<RentalItem[]>(consumables);
@@ -70,7 +77,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
     }
   }, [openAccordion]); // Re-run when accordion changes
 
-  const step1Complete = squareFootageBucket !== '' && tileSize !== '';
+  const step1Complete = tileAreas.length > 0 && tileAreas.every(area => area.squareFootageBucket !== '' && area.tileSize !== '');
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
@@ -250,47 +257,91 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                   {step1Complete ? <Check className="w-4 h-4" /> : '1'}
                 </div>
                 <div className="text-left">
-                  <span className="font-display font-semibold text-lg">Tile Sizing</span>
+                  <span className="font-display font-semibold text-lg">Project Sizing</span>
                   {step1Complete && (
                     <span className="text-sm text-muted-foreground ml-3">
-                      {squareFootageBuckets.find(b => b.value === squareFootageBucket)?.label} • {tileSizes.find(t => t.value === tileSize)?.label}
+                      {tileAreas.length} area{tileAreas.length > 1 ? 's' : ''} configured
                     </span>
                   )}
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <div className="grid gap-6 md:grid-cols-2 pt-2">
-                <div className="space-y-2">
-                  <Label>Square Footage Range</Label>
-                  <Select value={squareFootageBucket} onValueChange={setSquareFootageBucket}>
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Select range" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover z-50">
-                      {squareFootageBuckets.map((bucket) => (
-                        <SelectItem key={bucket.value} value={bucket.value}>
-                          {bucket.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tile Size</Label>
-                  <Select value={tileSize} onValueChange={setTileSize}>
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Select tile size" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover z-50">
-                      {tileSizes.map((size) => (
-                        <SelectItem key={size.value} value={size.value}>
-                          {size.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-4 pt-2">
+                {tileAreas.map((area, index) => (
+                  <div key={area.id} className="p-4 border rounded-lg bg-secondary/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        Area {index + 1}
+                      </span>
+                      {tileAreas.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => setTileAreas(prev => prev.filter(a => a.id !== area.id))}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Square Footage Range</Label>
+                        <Select 
+                          value={area.squareFootageBucket} 
+                          onValueChange={(value) => setTileAreas(prev => 
+                            prev.map(a => a.id === area.id ? { ...a, squareFootageBucket: value } : a)
+                          )}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue placeholder="Select range" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-50">
+                            {squareFootageBuckets.map((bucket) => (
+                              <SelectItem key={bucket.value} value={bucket.value}>
+                                {bucket.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tile Size</Label>
+                        <Select 
+                          value={area.tileSize} 
+                          onValueChange={(value) => setTileAreas(prev => 
+                            prev.map(a => a.id === area.id ? { ...a, tileSize: value } : a)
+                          )}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue placeholder="Select tile size" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-50">
+                            {tileSizes.map((size) => (
+                              <SelectItem key={size.value} value={size.value}>
+                                {size.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() => setTileAreas(prev => [...prev, { 
+                    id: String(Date.now()), 
+                    squareFootageBucket: '', 
+                    tileSize: '' 
+                  }])}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Another Tile Area
+                </Button>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -444,12 +495,17 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              {/* Show selected square footage bucket */}
-              {squareFootageBucket && (
+              {/* Show selected tile areas summary */}
+              {tileAreas.some(a => a.squareFootageBucket) && (
                 <div className="mb-4 p-3 bg-secondary/50 rounded-lg">
                   <p className="text-sm">
-                    <span className="font-medium">Selected Range: </span>
-                    {squareFootageBuckets.find(b => b.value === squareFootageBucket)?.label}
+                    <span className="font-medium">Selected Areas: </span>
+                    {tileAreas.filter(a => a.squareFootageBucket).map((area, idx) => (
+                      <span key={area.id}>
+                        {idx > 0 && ', '}
+                        {squareFootageBuckets.find(b => b.value === area.squareFootageBucket)?.label}
+                      </span>
+                    ))}
                   </p>
                 </div>
               )}
