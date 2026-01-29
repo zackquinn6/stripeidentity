@@ -6,6 +6,7 @@ export interface RentalItem {
   quantity: number;
   isConsumable?: boolean;
   imageUrl?: string;
+  booqableId?: string;
 }
 
 export interface EquipmentCategory {

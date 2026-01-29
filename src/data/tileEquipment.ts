@@ -30,7 +30,7 @@ export const equipmentCategories: EquipmentCategory[] = [
     id: 'cutting',
     name: 'Cutting Tools',
     items: [
-      { id: 'wet-saw-large', name: 'Wet Saw (Large)', retailPrice: 600, dailyRate: 30.00, quantity: 0, imageUrl: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=100&h=100&fit=crop' },
+      { id: 'wet-saw-large', name: 'Wet Saw (Large)', retailPrice: 600, dailyRate: 30.00, quantity: 0, imageUrl: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=100&h=100&fit=crop', booqableId: 'tile-saw' },
       { id: 'wet-saw-small', name: 'Wet Saw (Small)', retailPrice: 300, dailyRate: 15.00, quantity: 0, imageUrl: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=100&h=100&fit=crop' },
       { id: 'manual-cutter', name: 'Manual Tile Cutter', retailPrice: 80, dailyRate: 4.00, quantity: 0, imageUrl: 'https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=100&h=100&fit=crop' },
       { id: 'angle-grinder', name: 'Angle Grinder', retailPrice: 120, dailyRate: 6.00, quantity: 0, imageUrl: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=100&h=100&fit=crop' },
