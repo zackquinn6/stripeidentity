@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,18 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
 
   const exactSqft = parseFloat(exactSquareFootage) || 0;
   const thinsetBags = Math.ceil(exactSqft / 10);
+
+  // Load Booqable script
+  useEffect(() => {
+    const scriptId = 'booqable-script';
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://feeebb8b-2583-4689-b2f6-d488f8220b65.assets.booqable.com/v2/booqable.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   const step1Complete = squareFootageBucket !== '' && tileSize !== '';
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
