@@ -7,6 +7,11 @@ export interface RentalItem {
   isConsumable?: boolean;
   imageUrl?: string;
   booqableId?: string;
+  // Extended details for modal
+  description?: string;
+  usage?: string;
+  images?: string[];
+  specifications?: { label: string; value: string }[];
 }
 
 export interface EquipmentCategory {
