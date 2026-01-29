@@ -207,12 +207,16 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
             <Button 
               variant="default" 
               className="w-full"
-              onClick={() => {
-                window.open(`https://feeebb8b-2583-4689-b2f6-d488f8220b65.booqable.shop/product/${item.booqableId}`, '_blank');
-              }}
+              asChild
             >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Book on Booqable
+              <a 
+                href={`https://feeebb8b-2583-4689-b2f6-d488f8220b65.booqable.shop/product/${item.booqableId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Book on Booqable
+              </a>
             </Button>
           </div>
         )}
