@@ -55,10 +55,25 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
     const existingScript = document.getElementById(scriptId);
     
     const refreshBooqable = () => {
-      // Booqable v2 uses window.booqable to refresh/reinitialize
-      if ((window as any).booqable?.refresh) {
-        (window as any).booqable.refresh();
+      // Booqable exposes a global (usually `window.Booqable`).
+      // We try common variants and defer until available.
+      const w = window as any;
+
+      const doRefresh = () => {
+        const api = w.Booqable || w.booqable;
+        if (api?.refresh) api.refresh();
+        // Some embeds re-scan on page-change.
+        if (api?.trigger) api.trigger('page-change');
+      };
+
+      const api = w.Booqable || w.booqable;
+      if (api?._defer) {
+        api._defer(() => !!(w.Booqable || w.booqable), doRefresh);
+        return;
       }
+
+      // React renders async; wait a tick + next frame so the button nodes exist.
+      setTimeout(() => requestAnimationFrame(doRefresh), 0);
     };
 
     if (!existingScript) {
@@ -68,12 +83,12 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
       script.async = true;
       script.onload = () => {
         // Give Booqable time to initialize, then refresh
-        setTimeout(refreshBooqable, 500);
+        setTimeout(refreshBooqable, 800);
       };
       document.body.appendChild(script);
     } else {
       // Script already loaded, just refresh
-      setTimeout(refreshBooqable, 100);
+      setTimeout(refreshBooqable, 150);
     }
   }, [openAccordion]); // Re-run when accordion changes
 
