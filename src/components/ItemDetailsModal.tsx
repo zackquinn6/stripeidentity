@@ -2,14 +2,15 @@ import { RentalItem } from '@/types/rental';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Info, DollarSign, Wrench, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { Info, DollarSign, Wrench, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import QuantitySelector from './QuantitySelector';
 
 interface ItemDetailsModalProps {
@@ -21,6 +22,20 @@ interface ItemDetailsModalProps {
 
 const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetailsModalProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const booqableButtonRef = useRef<HTMLDivElement>(null);
+
+  // Trigger Booqable refresh when modal opens with an item that has a booqableId
+  useEffect(() => {
+    if (open && item?.booqableId) {
+      // Give DOM time to render, then trigger Booqable refresh
+      const timer = setTimeout(() => {
+        const api = (window as any).Booqable || (window as any).booqable;
+        if (api?.refresh) api.refresh();
+        if (api?.trigger) api.trigger('page-change');
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [open, item?.booqableId]);
 
   if (!item) return null;
 
@@ -49,6 +64,9 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
               <Badge variant="outline" className="text-xs">Purchase</Badge>
             )}
           </DialogTitle>
+          <DialogDescription>
+            {item.isConsumable ? 'Purchase item details' : 'Rental equipment details and booking'}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Image Gallery */}
@@ -165,6 +183,37 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        <Separator />
+
+        {/* Booqable Add to Cart (if available) */}
+        {item.booqableId && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-primary" />
+              <span className="font-semibold text-sm">Add to Cart</span>
+            </div>
+            
+            {/* Booqable embed button */}
+            <div 
+              ref={booqableButtonRef}
+              className="booqable-product-button" 
+              data-id={item.booqableId}
+            />
+            
+            {/* Fallback link button */}
+            <Button 
+              variant="default" 
+              className="w-full"
+              onClick={() => {
+                window.open(`https://feeebb8b-2583-4689-b2f6-d488f8220b65.booqable.shop/product/${item.booqableId}`, '_blank');
+              }}
+            >
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              Book on Booqable
+            </Button>
           </div>
         )}
 
