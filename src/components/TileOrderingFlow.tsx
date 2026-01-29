@@ -40,17 +40,33 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const exactSqft = parseFloat(exactSquareFootage) || 0;
   const thinsetBags = Math.ceil(exactSqft / 10);
 
-  // Load Booqable script
+  // Load Booqable script and refresh when accordion changes
   useEffect(() => {
     const scriptId = 'booqable-script';
-    if (!document.getElementById(scriptId)) {
+    const existingScript = document.getElementById(scriptId);
+    
+    const refreshBooqable = () => {
+      // Booqable v2 uses window.booqable to refresh/reinitialize
+      if ((window as any).booqable?.refresh) {
+        (window as any).booqable.refresh();
+      }
+    };
+
+    if (!existingScript) {
       const script = document.createElement('script');
       script.id = scriptId;
       script.src = 'https://feeebb8b-2583-4689-b2f6-d488f8220b65.assets.booqable.com/v2/booqable.js';
       script.async = true;
+      script.onload = () => {
+        // Give Booqable time to initialize, then refresh
+        setTimeout(refreshBooqable, 500);
+      };
       document.body.appendChild(script);
+    } else {
+      // Script already loaded, just refresh
+      setTimeout(refreshBooqable, 100);
     }
-  }, []);
+  }, [openAccordion]); // Re-run when accordion changes
 
   const step1Complete = squareFootageBucket !== '' && tileSize !== '';
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
