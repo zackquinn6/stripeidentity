@@ -75,30 +75,37 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
   
-  // Auto-advance to next step when current step is complete
+  // Track which steps have already auto-advanced (only advance once)
+  const [advancedSteps, setAdvancedSteps] = useState<Set<string>>(new Set());
+
+  // Auto-advance to next step when current step is complete (only once per step)
   useEffect(() => {
-    if (step1Complete && openAccordion === 'step-1') {
+    if (step1Complete && openAccordion === 'step-1' && !advancedSteps.has('step-1')) {
+      setAdvancedSteps(prev => new Set(prev).add('step-1'));
       setOpenAccordion('step-2');
     }
-  }, [step1Complete, openAccordion]);
+  }, [step1Complete, openAccordion, advancedSteps]);
 
   useEffect(() => {
-    if (step2Complete && openAccordion === 'step-2') {
+    if (step2Complete && openAccordion === 'step-2' && !advancedSteps.has('step-2')) {
+      setAdvancedSteps(prev => new Set(prev).add('step-2'));
       setOpenAccordion('step-3');
     }
-  }, [step2Complete, openAccordion]);
+  }, [step2Complete, openAccordion, advancedSteps]);
 
   useEffect(() => {
-    if (step3Complete && openAccordion === 'step-3') {
+    if (step3Complete && openAccordion === 'step-3' && !advancedSteps.has('step-3')) {
+      setAdvancedSteps(prev => new Set(prev).add('step-3'));
       setOpenAccordion('step-4');
     }
-  }, [step3Complete, openAccordion]);
+  }, [step3Complete, openAccordion, advancedSteps]);
 
   useEffect(() => {
-    if (step4Complete && openAccordion === 'step-4') {
+    if (step4Complete && openAccordion === 'step-4' && !advancedSteps.has('step-4')) {
+      setAdvancedSteps(prev => new Set(prev).add('step-4'));
       setOpenAccordion('step-5');
     }
-  }, [step4Complete, openAccordion]);
+  }, [step4Complete, openAccordion, advancedSteps]);
   
   const getRentalDays = () => {
     if (rentalDuration === 'daily' && startDate && endDate) {
