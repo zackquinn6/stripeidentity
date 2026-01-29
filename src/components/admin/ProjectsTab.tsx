@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDragReorder } from '@/hooks/useDragReorder';
 
 interface Project {
   id: string;
@@ -39,6 +40,36 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
     icon: 'tile',
     is_available: false
   });
+
+  const handleReorder = async (reorderedProjects: Project[]) => {
+    setProjects(reorderedProjects);
+    
+    // Update display_order in database
+    const updates = reorderedProjects.map((project, index) => 
+      supabase
+        .from('projects')
+        .update({ display_order: index })
+        .eq('id', project.id)
+    );
+    
+    const results = await Promise.all(updates);
+    const hasError = results.some(r => r.error);
+    
+    if (hasError) {
+      toast.error('Failed to save order');
+      fetchProjects(); // Revert on error
+    }
+  };
+
+  const {
+    draggedIndex,
+    dragOverIndex,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useDragReorder(projects, handleReorder);
 
   useEffect(() => {
     fetchProjects();
@@ -232,15 +263,27 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
       </Dialog>
 
       <div className="space-y-2">
-        {projects.map((project) => (
+        {projects.map((project, index) => (
           <Card 
             key={project.id} 
-            className={`cursor-pointer transition-colors ${selectedProjectId === project.id ? 'border-primary' : ''}`}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
+            className={`cursor-pointer transition-all ${
+              selectedProjectId === project.id ? 'border-primary' : ''
+            } ${
+              draggedIndex === index ? 'opacity-50' : ''
+            } ${
+              dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-primary' : ''
+            }`}
             onClick={() => onSelectProject(project.id)}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                 <div>
                   <p className="font-medium">{project.name}</p>
                   <p className="text-sm text-muted-foreground">{project.slug}</p>
