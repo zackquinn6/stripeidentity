@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package } from 'lucide-react';
 import { toast } from 'sonner';
@@ -90,7 +90,9 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
     }
   };
 
-  const handleOpenDialog = (item?: SectionItem) => {
+  const handleOpenDialog = (e: React.MouseEvent, item?: SectionItem) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (item) {
       setEditingItem(item);
       setSelectedBooqableId(item.booqable_product_id);
@@ -111,7 +113,10 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!sectionId || !formData.name || !selectedBooqableId) {
       toast.error('Select a Booqable product and provide a name');
       return;
@@ -171,7 +176,9 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm('Remove this item from the section?')) return;
     
     const { error } = await supabase.from('section_items').delete().eq('id', id);
@@ -183,7 +190,10 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
     }
   };
 
-  const handleToggleVisible = async (item: SectionItem) => {
+  const handleToggleVisible = async (e: React.MouseEvent, item: SectionItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     const { error } = await supabase
       .from('section_items')
       .update({ is_visible: !item.is_visible })
@@ -194,6 +204,12 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
     } else {
       fetchItems();
     }
+  };
+
+  const handleRefresh = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    refetchProducts();
   };
 
   if (!sectionId) {
@@ -214,104 +230,106 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">Add Booqable products to this section</p>
-          <Button variant="ghost" size="icon" onClick={() => refetchProducts()} title="Refresh Booqable inventory">
+          <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh Booqable inventory">
             <RefreshCw className={`h-4 w-4 ${isLoadingProducts ? 'animate-spin' : ''}`} />
           </Button>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-1" /> Add Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingItem ? 'Edit Item' : 'Add Item from Booqable'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
+        <Button size="sm" onClick={(e) => handleOpenDialog(e)}>
+          <Plus className="h-4 w-4 mr-1" /> Add Item
+        </Button>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto z-[10000]">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? 'Edit Item' : 'Add Item from Booqable'}</DialogTitle>
+            <DialogDescription>
+              {editingItem ? 'Update the item details below.' : 'Select a product from Booqable inventory.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Booqable Product</Label>
+              <Select value={selectedBooqableId} onValueChange={handleSelectBooqableProduct}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a product..." />
+                </SelectTrigger>
+                <SelectContent className="z-[10001]">
+                  {booqableProducts?.map(product => (
+                    <SelectItem key={product.booqableId} value={product.booqableId}>
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        {product.name} - ${product.dailyRate.toFixed(2)}/day
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isLoadingProducts && <p className="text-xs text-muted-foreground">Loading Booqable inventory...</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Display Name</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Safety Glasses"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="ANSI-rated safety glasses..."
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Booqable Product</Label>
-                <Select value={selectedBooqableId} onValueChange={handleSelectBooqableProduct}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a product..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {booqableProducts?.map(product => (
-                      <SelectItem key={product.booqableId} value={product.booqableId}>
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4" />
-                          {product.name} - ${product.dailyRate.toFixed(2)}/day
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isLoadingProducts && <p className="text-xs text-muted-foreground">Loading Booqable inventory...</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Display Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Safety Glasses"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="ANSI-rated safety glasses..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Daily Rate ($)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.daily_rate}
-                    onChange={(e) => setFormData({ ...formData, daily_rate: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Retail Price ($)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.retail_price}
-                    onChange={(e) => setFormData({ ...formData, retail_price: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Image URL</Label>
-                <Input
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Default Quantity</Label>
+                <Label>Daily Rate ($)</Label>
                 <Input
                   type="number"
-                  value={formData.default_quantity}
-                  onChange={(e) => setFormData({ ...formData, default_quantity: parseInt(e.target.value) || 0 })}
+                  step="0.01"
+                  value={formData.daily_rate}
+                  onChange={(e) => setFormData({ ...formData, daily_rate: parseFloat(e.target.value) || 0 })}
                 />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={formData.is_visible}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
+              <div className="space-y-2">
+                <Label>Retail Price ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.retail_price}
+                  onChange={(e) => setFormData({ ...formData, retail_price: parseFloat(e.target.value) || 0 })}
                 />
-                <Label>Visible to users</Label>
               </div>
-              <Button onClick={handleSave} className="w-full">Save</Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <div className="space-y-2">
+              <Label>Image URL</Label>
+              <Input
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Default Quantity</Label>
+              <Input
+                type="number"
+                value={formData.default_quantity}
+                onChange={(e) => setFormData({ ...formData, default_quantity: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={formData.is_visible}
+                onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
+              />
+              <Label>Visible to users</Label>
+            </div>
+            <Button onClick={handleSave} className="w-full">Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-2">
         {items.map((item) => (
@@ -329,12 +347,13 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
               <div className="flex items-center gap-2">
                 <Switch
                   checked={item.is_visible}
-                  onCheckedChange={() => handleToggleVisible(item)}
+                  onCheckedChange={() => {}}
+                  onClick={(e) => handleToggleVisible(e, item)}
                 />
-                <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(item)}>
+                <Button variant="ghost" size="icon" onClick={(e) => handleOpenDialog(e, item)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
+                <Button variant="ghost" size="icon" onClick={(e) => handleDelete(e, item.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>

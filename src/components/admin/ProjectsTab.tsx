@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,7 +25,7 @@ interface ProjectsTabProps {
   selectedProjectId: string | null;
 }
 
-const ICONS = ['tile', 'paint', 'landscape', 'carpentry'];
+const ICONS = ['tile', 'paint', 'landscape', 'carpentry', 'plumbing', 'electrical', 'general', 'home'];
 
 export default function ProjectsTab({ onSelectProject, selectedProjectId }: ProjectsTabProps) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -59,7 +59,9 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
     setIsLoading(false);
   };
 
-  const handleOpenDialog = (project?: Project) => {
+  const handleOpenDialog = (e: React.MouseEvent, project?: Project) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (project) {
       setEditingProject(project);
       setFormData({
@@ -76,7 +78,10 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!formData.name || !formData.slug) {
       toast.error('Name and slug are required');
       return;
@@ -125,7 +130,9 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm('Delete this project and all its sections?')) return;
     
     const { error } = await supabase.from('projects').delete().eq('id', id);
@@ -137,7 +144,10 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
     }
   };
 
-  const handleToggleAvailable = async (project: Project) => {
+  const handleToggleAvailable = async (e: React.MouseEvent, project: Project) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     const { error } = await supabase
       .from('projects')
       .update({ is_available: !project.is_available })
@@ -158,66 +168,68 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground">Manage project types shown in the catalog</p>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-1" /> Add Project
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingProject ? 'Edit Project' : 'New Project'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Tile Flooring"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Slug</Label>
-                <Input
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="tile-flooring"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Complete tile installation toolkit..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Icon</Label>
-                <Select value={formData.icon} onValueChange={(v) => setFormData({ ...formData, icon: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ICONS.map(icon => (
-                      <SelectItem key={icon} value={icon}>{icon}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={formData.is_available}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_available: v })}
-                />
-                <Label>Available to users</Label>
-              </div>
-              <Button onClick={handleSave} className="w-full">Save</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" onClick={(e) => handleOpenDialog(e)}>
+          <Plus className="h-4 w-4 mr-1" /> Add Project
+        </Button>
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="z-[10000]">
+          <DialogHeader>
+            <DialogTitle>{editingProject ? 'Edit Project' : 'New Project'}</DialogTitle>
+            <DialogDescription>
+              {editingProject ? 'Update the project details below.' : 'Create a new project type for the catalog.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Tile Flooring"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Slug</Label>
+              <Input
+                value={formData.slug}
+                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                placeholder="tile-flooring"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Complete tile installation toolkit..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Icon</Label>
+              <Select value={formData.icon} onValueChange={(v) => setFormData({ ...formData, icon: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[10001]">
+                  {ICONS.map(icon => (
+                    <SelectItem key={icon} value={icon}>{icon}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={formData.is_available}
+                onCheckedChange={(v) => setFormData({ ...formData, is_available: v })}
+              />
+              <Label>Available to users</Label>
+            </div>
+            <Button onClick={handleSave} className="w-full">Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-2">
         {projects.map((project) => (
@@ -237,13 +249,13 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
               <div className="flex items-center gap-2">
                 <Switch
                   checked={project.is_available}
-                  onCheckedChange={() => handleToggleAvailable(project)}
-                  onClick={(e) => e.stopPropagation()}
+                  onCheckedChange={() => {}}
+                  onClick={(e) => handleToggleAvailable(e, project)}
                 />
-                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleOpenDialog(project); }}>
+                <Button variant="ghost" size="icon" onClick={(e) => handleOpenDialog(e, project)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(project.id); }}>
+                <Button variant="ghost" size="icon" onClick={(e) => handleDelete(e, project.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>

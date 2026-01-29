@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, GripVertical, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -69,7 +69,9 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
     setIsLoading(false);
   };
 
-  const handleOpenDialog = (section?: Section) => {
+  const handleOpenDialog = (e: React.MouseEvent, section?: Section) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (section) {
       setEditingSection(section);
       setFormData({
@@ -86,7 +88,10 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!projectId || !formData.name || !formData.slug) {
       toast.error('Name and slug are required');
       return;
@@ -136,7 +141,9 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm('Delete this section and all its items?')) return;
     
     const { error } = await supabase.from('ordering_sections').delete().eq('id', id);
@@ -148,7 +155,10 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
     }
   };
 
-  const handleToggleVisible = async (section: Section) => {
+  const handleToggleVisible = async (e: React.MouseEvent, section: Section) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     const { error } = await supabase
       .from('ordering_sections')
       .update({ is_visible: !section.is_visible })
@@ -178,66 +188,68 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground">Manage ordering sections (Equipment, Add-ons, etc.)</p>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-1" /> Add Section
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingSection ? 'Edit Section' : 'New Section'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Safety Equipment"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Slug</Label>
-                <Input
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="safety"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Essential safety gear..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select value={formData.section_type} onValueChange={(v) => setFormData({ ...formData, section_type: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SECTION_TYPES.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={formData.is_visible}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
-                />
-                <Label>Visible to users</Label>
-              </div>
-              <Button onClick={handleSave} className="w-full">Save</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" onClick={(e) => handleOpenDialog(e)}>
+          <Plus className="h-4 w-4 mr-1" /> Add Section
+        </Button>
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="z-[10000]">
+          <DialogHeader>
+            <DialogTitle>{editingSection ? 'Edit Section' : 'New Section'}</DialogTitle>
+            <DialogDescription>
+              {editingSection ? 'Update the section details below.' : 'Create a new ordering section.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Safety Equipment"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Slug</Label>
+              <Input
+                value={formData.slug}
+                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                placeholder="safety"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Essential safety gear..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={formData.section_type} onValueChange={(v) => setFormData({ ...formData, section_type: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[10001]">
+                  {SECTION_TYPES.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={formData.is_visible}
+                onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
+              />
+              <Label>Visible to users</Label>
+            </div>
+            <Button onClick={handleSave} className="w-full">Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-2">
         {sections.map((section) => (
@@ -257,13 +269,13 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
               <div className="flex items-center gap-2">
                 <Switch
                   checked={section.is_visible}
-                  onCheckedChange={() => handleToggleVisible(section)}
-                  onClick={(e) => e.stopPropagation()}
+                  onCheckedChange={() => {}}
+                  onClick={(e) => handleToggleVisible(e, section)}
                 />
-                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleOpenDialog(section); }}>
+                <Button variant="ghost" size="icon" onClick={(e) => handleOpenDialog(e, section)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(section.id); }}>
+                <Button variant="ghost" size="icon" onClick={(e) => handleDelete(e, section.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
