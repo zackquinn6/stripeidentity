@@ -81,6 +81,8 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
+  const [step5Visited, setStep5Visited] = useState(false);
+  const step5Complete = step5Visited && openAccordion !== 'step-5';
   
   // Track which steps have already auto-advanced (only advance once)
   const [advancedSteps, setAdvancedSteps] = useState<Set<string>>(new Set());
@@ -239,7 +241,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           type="single" 
           collapsible
           value={openAccordion}
-          onValueChange={(value) => setOpenAccordion(value || '')}
+          onValueChange={(value) => {
+            if (value === 'step-5') setStep5Visited(true);
+            setOpenAccordion(value || '');
+          }}
           className="space-y-4"
         >
           {/* Step 1: Tile Sizing */}
@@ -481,8 +486,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           <AccordionItem value="step-5" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
-                  <Package className="w-4 h-4" />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  step5Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {step5Complete ? <Check className="w-4 h-4" /> : <Package className="w-4 h-4" />}
                 </div>
                 <span className="font-display font-semibold text-lg text-left">
                   Materials & Consumables
