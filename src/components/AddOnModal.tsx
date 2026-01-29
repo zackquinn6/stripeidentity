@@ -42,6 +42,22 @@ const AddOnModal = ({ category, open, onClose, onQuantityChange }: AddOnModalPro
           <DialogTitle className="font-display text-2xl">{category.name}</DialogTitle>
         </DialogHeader>
 
+        {(category.description || category.selectionGuidance) && (
+          <div className="space-y-3 pt-2 pb-4 border-b border-border">
+            {category.description && (
+              <p className="text-sm text-foreground">{category.description}</p>
+            )}
+            {category.selectionGuidance && (
+              <div className="bg-secondary/50 rounded-lg p-3">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Selection guidance: </span>
+                  {category.selectionGuidance}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-3 mt-4">
           {category.items.map((item) => (
             <EquipmentItem

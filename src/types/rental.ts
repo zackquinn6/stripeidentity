@@ -23,6 +23,8 @@ export interface EquipmentCategory {
 export interface AddOnCategory {
   id: string;
   name: string;
+  description?: string;
+  selectionGuidance?: string;
   items: RentalItem[];
 }
 
