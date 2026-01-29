@@ -73,6 +73,31 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
   
+  // Auto-advance to next step when current step is complete
+  useEffect(() => {
+    if (step1Complete && openAccordion === 'step-1') {
+      setOpenAccordion('step-2');
+    }
+  }, [step1Complete, openAccordion]);
+
+  useEffect(() => {
+    if (step2Complete && openAccordion === 'step-2') {
+      setOpenAccordion('step-3');
+    }
+  }, [step2Complete, openAccordion]);
+
+  useEffect(() => {
+    if (step3Complete && openAccordion === 'step-3') {
+      setOpenAccordion('step-4');
+    }
+  }, [step3Complete, openAccordion]);
+
+  useEffect(() => {
+    if (step4Complete && openAccordion === 'step-4') {
+      setOpenAccordion('step-5');
+    }
+  }, [step4Complete, openAccordion]);
+  
   const getRentalDays = () => {
     if (rentalDuration === 'daily' && startDate && endDate) {
       return Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
