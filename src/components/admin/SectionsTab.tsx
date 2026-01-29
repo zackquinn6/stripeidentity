@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, GripVertical, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDragReorder } from '@/hooks/useDragReorder';
 
 interface Section {
   id: string;
@@ -41,6 +42,35 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
     section_type: 'equipment',
     is_visible: true
   });
+
+  const handleReorder = async (reorderedSections: Section[]) => {
+    setSections(reorderedSections);
+    
+    const updates = reorderedSections.map((section, index) => 
+      supabase
+        .from('ordering_sections')
+        .update({ display_order: index })
+        .eq('id', section.id)
+    );
+    
+    const results = await Promise.all(updates);
+    const hasError = results.some(r => r.error);
+    
+    if (hasError) {
+      toast.error('Failed to save order');
+      fetchSections();
+    }
+  };
+
+  const {
+    draggedIndex,
+    dragOverIndex,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useDragReorder(sections, handleReorder);
 
   useEffect(() => {
     if (projectId) {
@@ -252,15 +282,27 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
       </Dialog>
 
       <div className="space-y-2">
-        {sections.map((section) => (
+        {sections.map((section, index) => (
           <Card 
             key={section.id} 
-            className={`cursor-pointer transition-colors ${selectedSectionId === section.id ? 'border-primary' : ''}`}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
+            className={`cursor-pointer transition-all ${
+              selectedSectionId === section.id ? 'border-primary' : ''
+            } ${
+              draggedIndex === index ? 'opacity-50' : ''
+            } ${
+              dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-primary' : ''
+            }`}
             onClick={() => onSelectSection(section.id)}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                 <div>
                   <p className="font-medium">{section.name}</p>
                   <p className="text-sm text-muted-foreground">{section.section_type} • {section.slug}</p>
