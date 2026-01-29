@@ -223,6 +223,8 @@ export const addOnCategories: AddOnCategory[] = [
   {
     id: 'demo',
     name: 'Tile Flooring Demo',
+    description: 'Tools for removing existing tile, vinyl, or other flooring materials before installing new tile.',
+    selectionGuidance: 'If you have tile or mortar bed, choose the jackhammer. For vinyl or thin-set only, the pry bar alone may suffice.',
     items: [
       { 
         id: 'pry-bar', 
@@ -253,6 +255,8 @@ export const addOnCategories: AddOnCategory[] = [
   {
     id: 'leveler',
     name: 'Self-Leveler Application',
+    description: 'Equipment for applying self-leveling compound to create a flat substrate before tile installation.',
+    selectionGuidance: 'Both items are recommended if your floor has dips or unevenness greater than 1/4". The spiked shoes let you spread to all edges.',
     items: [
       { 
         id: 'gauge-rake', 
@@ -279,6 +283,8 @@ export const addOnCategories: AddOnCategory[] = [
   {
     id: 'baseboard',
     name: 'Wood Baseboard Install',
+    description: 'Professional tools for cutting and installing wood baseboards after tile installation is complete.',
+    selectionGuidance: 'The miter saw and nail gun are essential. Add the angle finder only if your home has non-standard (non-90°) corners.',
     items: [
       { 
         id: 'miter-saw', 
@@ -319,6 +325,8 @@ export const addOnCategories: AddOnCategory[] = [
   {
     id: 'toilet',
     name: 'Toilet Install',
+    description: 'Tools and supplies for removing and reinstalling a toilet when tiling a bathroom floor.',
+    selectionGuidance: 'You\'ll need both items—the wax ring creates the seal and the wrenches tighten the mounting bolts.',
     items: [
       { 
         id: 'adjustable-wrench', 
@@ -346,6 +354,8 @@ export const addOnCategories: AddOnCategory[] = [
   {
     id: 'dishwasher',
     name: 'Dishwasher Removal / Install',
+    description: 'Equipment for safely disconnecting, moving, and reinstalling a dishwasher during kitchen floor tiling.',
+    selectionGuidance: 'The dolly is essential for moving the appliance safely. Pliers are needed for water line connections.',
     items: [
       { 
         id: 'appliance-dolly', 
