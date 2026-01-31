@@ -42,7 +42,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const [openAccordion, setOpenAccordion] = useState<string>('step-1');
   
   // Rental date state
-  const [rentalDuration, setRentalDuration] = useState<RentalDuration>('1-weekend');
+  const [rentalDuration, setRentalDuration] = useState<RentalDuration>('daily');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
