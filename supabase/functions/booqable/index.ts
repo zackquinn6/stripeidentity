@@ -34,6 +34,87 @@ interface BooqableResponse {
   };
 }
 
+function getSlug(p: any): string | undefined {
+  return p?.slug ?? p?.attributes?.slug;
+}
+
+function getId(p: any): string | undefined {
+  return p?.id;
+}
+
+async function findProductGroupIdBySlug(slug: string): Promise<string | null> {
+  // Booqable v1 typically supports pagination via the `page` param.
+  // We loop pages defensively to avoid "not found" when the item isn't in the first page.
+  const per = 100;
+  const maxPages = 25; // safety cap
+
+  for (let page = 1; page <= maxPages; page++) {
+    const endpoint = `/product_groups?per=${per}&page=${page}&filter[archived]=false`;
+    const resp = await booqableRequest(endpoint);
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error('[Booqable] Error fetching product_groups during slug lookup:', errorText);
+      break;
+    }
+
+    const payload: any = await resp.json();
+    const products: any[] = payload?.product_groups ?? payload?.data ?? [];
+
+    if (!Array.isArray(products) || products.length === 0) {
+      // no more pages
+      break;
+    }
+
+    const matched = products.find((p) => getSlug(p) === slug);
+    if (matched) {
+      const id = getId(matched);
+      return id ?? null;
+    }
+
+    // If meta is present, stop once we've reached the last page.
+    const meta = payload?.meta;
+    if (meta?.total_count && meta?.per_page && meta?.page) {
+      const totalPages = Math.ceil(Number(meta.total_count) / Number(meta.per_page));
+      if (page >= totalPages) break;
+    }
+  }
+
+  return null;
+}
+
+async function fetchAllProductGroups(): Promise<any[]> {
+  const per = 100;
+  const maxPages = 25;
+  const all: any[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    const resp = await booqableRequest(`/product_groups?per=${per}&page=${page}&filter[archived]=false`);
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error('[Booqable] Error fetching product_groups:', errorText);
+      break;
+    }
+
+    const payload: any = await resp.json();
+    const products: any[] = payload?.product_groups ?? payload?.data ?? [];
+    if (!Array.isArray(products) || products.length === 0) break;
+
+    all.push(...products);
+
+    const meta = payload?.meta;
+    if (meta?.total_count && meta?.per_page && meta?.page) {
+      const totalPages = Math.ceil(Number(meta.total_count) / Number(meta.per_page));
+      if (page >= totalPages) break;
+    }
+
+    // Heuristic fallback: stop if page returned less than requested size.
+    if (products.length < per) break;
+  }
+
+  return all;
+}
+
 async function booqableRequest(
   endpoint: string, 
   method: string = 'GET', 
@@ -84,23 +165,9 @@ serve(async (req) => {
 
     switch (action) {
       case 'get-products': {
-        // Fetch all product groups from Booqable
-        const response = await booqableRequest('/product_groups?per=100&filter[archived]=false');
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[Booqable] Error fetching products:', errorText);
-          return new Response(
-            JSON.stringify({ error: 'Failed to fetch products from Booqable', details: errorText }),
-            { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const responseData = await response.json();
-        console.log('[Booqable] Raw response structure:', JSON.stringify(Object.keys(responseData)));
-        
-        // Handle different response formats
-        const data = responseData.data || responseData.product_groups || [];
+        // Fetch product groups from Booqable (paged)
+        const data = await fetchAllProductGroups();
+        console.log(`[Booqable] Raw product_groups fetched: ${data.length}`);
         console.log(`[Booqable] Fetched ${Array.isArray(data) ? data.length : 0} products`);
 
         // Handle case where API returns no products or empty response
@@ -198,25 +265,20 @@ serve(async (req) => {
         // If it's a slug, look up the actual product ID
         if (!isUUID) {
           console.log(`[Booqable] Looking up product by slug: ${product_id}`);
-          // Fetch all products and find exact slug match (API filter may not be exact)
-          const lookupResponse = await booqableRequest(`/product_groups?per=100&filter[archived]=false`);
-          
-          if (lookupResponse.ok) {
-            const lookupData = await lookupResponse.json();
-            const products = lookupData.product_groups || lookupData.data || [];
-            // Find exact slug match
-            const matchedProduct = products.find((p: { slug: string }) => p.slug === product_id);
-            
-            if (matchedProduct) {
-              actualProductId = matchedProduct.id;
-              console.log(`[Booqable] Found product ID: ${actualProductId} for slug: ${product_id}`);
-            } else {
-              console.log(`[Booqable] No product found for slug: ${product_id}. Available slugs: ${products.slice(0, 5).map((p: { slug: string }) => p.slug).join(', ')}...`);
-              return new Response(
-                JSON.stringify({ error: `Product not found: ${product_id}` }),
-                { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
-            }
+
+          const foundId = await findProductGroupIdBySlug(String(product_id));
+          if (foundId) {
+            actualProductId = foundId;
+            console.log(`[Booqable] Found product ID: ${actualProductId} for slug: ${product_id}`);
+          } else {
+            console.log(`[Booqable] No product found for slug after paged lookup: ${product_id}`);
+            return new Response(
+              JSON.stringify({
+                error: `Product not found: ${product_id}`,
+                hint: 'This usually means your local booqableId does not match the product group slug in Booqable.',
+              }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           }
         }
         
