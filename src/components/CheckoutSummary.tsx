@@ -49,6 +49,10 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const rentalTotal = DAY_1_FEE + (additionalDays * DAY_2_PLUS_RATE);
   const grandTotal = rentalTotal + consumableTotal;
 
+  // Comparison totals (purchase instead of rent)
+  const proPurchaseTotal = items.reduce((sum, item) => sum + (item.retailPrice * item.quantity), 0);
+  const budgetPurchaseTotal = proPurchaseTotal * 0.5;
+
   const benefits = [
     { icon: Truck, text: 'Free delivery & pickup' },
     { icon: Shield, text: 'Damage waiver included' },
@@ -210,15 +214,23 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                   <p className="font-medium text-destructive">Amazon (pro-grade)</p>
                   <p className="text-sm text-muted-foreground">Buy it all, store it forever</p>
                 </div>
-                <span className="font-bold text-lg text-destructive">$1,000+</span>
+                <span className="font-bold text-lg text-destructive">${proPurchaseTotal.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between items-center p-4 bg-accent/50 rounded-lg border border-accent">
                 <div>
-                  <p className="font-medium text-accent-foreground">FB Marketplace</p>
-                  <p className="text-sm text-muted-foreground">Mystery quality, your problem now</p>
+                  <p className="font-medium text-accent-foreground">Home Depot (pro-grade)</p>
+                  <p className="text-sm text-muted-foreground">Buy it all new, keep it forever</p>
                 </div>
-                <span className="font-bold text-lg text-accent-foreground">~$600</span>
+                <span className="font-bold text-lg text-accent-foreground">${proPurchaseTotal.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between items-center p-4 bg-muted/50 rounded-lg border border-border">
+                <div>
+                  <p className="font-medium">Budget/DIY options</p>
+                  <p className="text-sm text-muted-foreground">Estimated ~50% of pro-grade purchases</p>
+                </div>
+                <span className="font-bold text-lg">${budgetPurchaseTotal.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between items-center p-4 bg-success/10 rounded-lg border border-success/30">
