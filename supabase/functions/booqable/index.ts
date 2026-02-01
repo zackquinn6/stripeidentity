@@ -283,10 +283,10 @@ serve(async (req) => {
         }
         
         // Booqable v1 API: add line via POST to /orders/{id}/lines
+        // Use product_id (not item_id) to reference the product group
         const lineData = {
           line: {
-            item_id: actualProductId,
-            item_type: 'ProductGroup',
+            product_group_id: actualProductId,
             quantity: quantity || 1,
           }
         };
