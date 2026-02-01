@@ -133,7 +133,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         className="mb-6"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Benefits
+        Back to Ordering
       </Button>
 
       <Card className="shadow-elevated">
