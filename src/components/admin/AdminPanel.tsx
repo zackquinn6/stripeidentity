@@ -19,16 +19,12 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader className="flex flex-row items-center justify-between">
+      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto flex flex-col">
+        <SheetHeader>
           <SheetTitle className="font-display text-xl">Admin Panel</SheetTitle>
-          <Button variant="ghost" size="sm" onClick={onSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
         </SheetHeader>
 
-        <Tabs defaultValue="projects" className="mt-6">
+        <Tabs defaultValue="projects" className="mt-6 flex-1">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="sections">Sections</TabsTrigger>
@@ -57,6 +53,13 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
             <ItemsTab sectionId={selectedSectionId} />
           </TabsContent>
         </Tabs>
+
+        <div className="pt-4 mt-auto border-t">
+          <Button variant="outline" className="w-full" onClick={onSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   );
