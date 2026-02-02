@@ -420,16 +420,10 @@ const TileOrderingFlow = ({
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label>Square Footage</Label>
-                          <Input 
-                            type="number" 
-                            placeholder="Enter sq ft" 
-                            value={area.squareFootage} 
-                            onChange={e => setTileAreas(prev => prev.map(a => a.id === area.id ? {
-                              ...a,
-                              squareFootage: e.target.value
-                            } : a))}
-                            className="bg-background"
-                          />
+                          <Input type="number" placeholder="Enter sq ft" value={area.squareFootage} onChange={e => setTileAreas(prev => prev.map(a => a.id === area.id ? {
+                        ...a,
+                        squareFootage: e.target.value
+                      } : a))} className="bg-background" />
                         </div>
                         <div className="space-y-2">
                           <Label>Tile Size</Label>
@@ -460,15 +454,7 @@ const TileOrderingFlow = ({
                   </Button>
 
                   {/* Exact Square Footage Input */}
-                  <div className="mt-4 p-4 border border-dashed border-primary/30 rounded-lg bg-primary/5">
-                    <Label htmlFor="exact-sqft" className="text-sm font-medium">
-                      Enter exact square footage for precise material calculation:
-                    </Label>
-                    <Input id="exact-sqft" type="number" placeholder="e.g., 75" value={exactSquareFootage} onChange={e => setExactSquareFootage(e.target.value)} className="mt-2 max-w-[200px]" />
-                    {exactSqft > 0 && <p className="mt-2 text-sm text-primary">
-                        Suggested thinset: {thinsetBags} bag{thinsetBags > 1 ? 's' : ''} for {exactSqft} sq ft
-                      </p>}
-                  </div>
+                  
                 </div>
               </div>
 
