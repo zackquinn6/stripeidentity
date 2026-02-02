@@ -401,67 +401,59 @@ const TileOrderingFlow = ({
                   <h4 className="font-semibold text-base">Materials Calculator</h4>
                 </div>
                 
-                <div className="space-y-4">
-                  {tileAreas.map((area, index) => <div key={area.id} className="p-4 border rounded-lg bg-background">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Area {index + 1}
-                        </span>
-                        {tileAreas.length > 1 && <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => setTileAreas(prev => prev.filter(a => a.id !== area.id))}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>}
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Square Footage</Label>
-                          <Input type="number" placeholder="Enter sq ft" value={area.squareFootage} onChange={e => setTileAreas(prev => prev.map(a => a.id === area.id ? {
-                        ...a,
-                        squareFootage: e.target.value
-                      } : a))} className="bg-background" />
+                {selectedTileSizes.length > 0 ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Enter the exact square footage for each tile size you selected in Project Sizing.
+                    </p>
+                    {selectedTileSizes.map((sizeValue) => {
+                      const sizeInfo = tileSizes.find(t => t.value === sizeValue);
+                      const area = tileAreas.find(a => a.tileSize === sizeValue);
+                      return (
+                        <div key={sizeValue} className="p-4 border rounded-lg bg-background">
+                          <div className="flex items-center gap-3 mb-3">
+                            {sizeInfo?.imageUrl && (
+                              <img 
+                                src={sizeInfo.imageUrl} 
+                                alt={sizeInfo.label}
+                                className="w-12 h-12 rounded-lg object-cover"
+                              />
+                            )}
+                            <div>
+                              <span className="font-medium">{sizeInfo?.label}</span>
+                              <p className="text-xs text-muted-foreground">{sizeInfo?.description}</p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Square Footage</Label>
+                            <Input 
+                              type="number" 
+                              placeholder="Enter sq ft" 
+                              value={area?.squareFootage || ''} 
+                              onChange={e => {
+                                const newValue = e.target.value;
+                                setTileAreas(prev => {
+                                  const existing = prev.find(a => a.tileSize === sizeValue);
+                                  if (existing) {
+                                    return prev.map(a => a.tileSize === sizeValue ? { ...a, squareFootage: newValue } : a);
+                                  } else {
+                                    return [...prev, { id: sizeValue, squareFootage: newValue, tileSize: sizeValue }];
+                                  }
+                                });
+                              }} 
+                              className="bg-background" 
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Tile Size</Label>
-                          <Select value={area.tileSize} onValueChange={value => setTileAreas(prev => prev.map(a => a.id === area.id ? {
-                        ...a,
-                        tileSize: value
-                      } : a))}>
-                            <SelectTrigger className="bg-background">
-                              <SelectValue placeholder="Select tile size" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-popover z-50">
-                              {tileSizes.map(size => <SelectItem key={size.value} value={size.value}>
-                                  {size.label}
-                                </SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>)}
-                  
-                  <Button variant="outline" className="w-full border-dashed" onClick={() => setTileAreas(prev => [...prev, {
-                  id: String(Date.now()),
-                  squareFootage: '',
-                  tileSize: ''
-                }])}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Another Tile Area
-                  </Button>
-
-                  {/* Exact Square Footage Input */}
-                  
-                </div>
-              </div>
-
-              {/* Show selected tile sizes summary from Step 1 */}
-              {selectedTileSizes.length > 0 && <div className="mb-4 p-4 bg-secondary/50 rounded-lg">
-                  <p className="text-base">
-                    <span className="font-semibold text-lg">Selected Tile Sizes: </span>
-                    {selectedTileSizes.map((size, idx) => <span key={size} className="text-base">
-                        {idx > 0 && ', '}
-                        {tileSizes.find(t => t.value === size)?.label}
-                      </span>)}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    Please select tile sizes in the Project Sizing step first.
                   </p>
-                </div>}
+                )}
+              </div>
 
               <p className="text-muted-foreground mb-4">
                 Purchase materials for your project.
