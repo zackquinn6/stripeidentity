@@ -506,7 +506,7 @@ const TileOrderingFlow = ({
         </div>
       </div>
 
-      <AddOnModal category={activeAddOn ? addOns.find(c => c.id === activeAddOn.id) || null : null} open={!!activeAddOn} onClose={() => setActiveAddOn(null)} onQuantityChange={handleAddOnQuantityChange} />
+      <AddOnModal category={activeAddOn ? addOns.find(c => c.id === activeAddOn.id) || null : null} open={!!activeAddOn} onClose={() => setActiveAddOn(null)} onQuantityChange={handleAddOnQuantityChange} onItemClick={handleItemClick} />
 
       <ItemDetailsModal item={selectedItem} open={!!selectedItem} onClose={() => setSelectedItem(null)} onQuantityChange={handleItemQuantityChangeFromModal} />
     </div>;
