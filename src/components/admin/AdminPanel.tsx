@@ -15,7 +15,9 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [selectedSectionName, setSelectedSectionName] = useState<string | null>(null);
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -33,9 +35,11 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
 
           <TabsContent value="projects" className="mt-4">
             <ProjectsTab 
-              onSelectProject={(id) => {
+              onSelectProject={(id, name) => {
                 setSelectedProjectId(id);
+                setSelectedProjectName(name);
                 setSelectedSectionId(null);
+                setSelectedSectionName(null);
               }}
               selectedProjectId={selectedProjectId}
             />
@@ -44,13 +48,21 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
           <TabsContent value="sections" className="mt-4">
             <SectionsTab
               projectId={selectedProjectId}
-              onSelectSection={setSelectedSectionId}
+              projectName={selectedProjectName}
+              onSelectSection={(id, name) => {
+                setSelectedSectionId(id);
+                setSelectedSectionName(name);
+              }}
               selectedSectionId={selectedSectionId}
             />
           </TabsContent>
 
           <TabsContent value="items" className="mt-4">
-            <ItemsTab sectionId={selectedSectionId} />
+            <ItemsTab 
+              sectionId={selectedSectionId}
+              projectName={selectedProjectName}
+              sectionName={selectedSectionName}
+            />
           </TabsContent>
         </Tabs>
 

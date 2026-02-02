@@ -22,7 +22,7 @@ interface Project {
 }
 
 interface ProjectsTabProps {
-  onSelectProject: (id: string) => void;
+  onSelectProject: (id: string, name: string) => void;
   selectedProjectId: string | null;
 }
 
@@ -279,7 +279,7 @@ export default function ProjectsTab({ onSelectProject, selectedProjectId }: Proj
             } ${
               dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-primary' : ''
             }`}
-            onClick={() => onSelectProject(project.id)}
+            onClick={() => onSelectProject(project.id, project.name)}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
