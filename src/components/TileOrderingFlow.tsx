@@ -427,10 +427,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   step4Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
                 }`}>
-                  {step4Complete ? <Check className="w-4 h-4" /> : <CalendarDays className="w-4 h-4" />}
+                  {step4Complete ? <Check className="w-4 h-4" /> : '4'}
                 </div>
                 <div className="text-left">
-                  <span className="font-display font-semibold text-lg">4. Rental Period</span>
+                  <span className="font-display font-semibold text-lg">Rental Period</span>
                   {step4Complete && startDate && (
                     <span className="text-sm text-muted-foreground ml-3">
                       {format(startDate, 'MMM d')} • {rentalDays} days
@@ -458,10 +458,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   step5Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
                 }`}>
-                  {step5Complete ? <Check className="w-4 h-4" /> : <Package className="w-4 h-4" />}
+                  {step5Complete ? <Check className="w-4 h-4" /> : '5'}
                 </div>
                 <span className="font-display font-semibold text-lg text-left">
-                  5. Materials & Consumables
+                  Materials & Consumables
                 </span>
               </div>
             </AccordionTrigger>
