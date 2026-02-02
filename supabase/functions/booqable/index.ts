@@ -180,10 +180,14 @@ serve(async (req) => {
         }
 
         // Map Booqable products to our format - handle both JSON:API and standard formats
+        // Booqable product_type: 'rental' for rentals, 'consumable' or 'service' for sales items
         const products = data.map((product: BooqableProduct | Record<string, unknown>) => {
           // JSON:API format
           if ('attributes' in product) {
             const p = product as BooqableProduct;
+            const attrs = p.attributes as Record<string, unknown>;
+            const productType = String(attrs.product_type || 'rental');
+            const isSalesItem = productType === 'consumable' || productType === 'service';
             return {
               booqableId: p.id,
               slug: p.attributes.slug,
@@ -195,10 +199,14 @@ serve(async (req) => {
               stockCount: p.attributes.stock_count || 0,
               trackable: p.attributes.trackable || false,
               hasVariations: false,
+              productType,
+              isSalesItem,
             };
           }
-          // Standard format
+          // Standard format - check product_type field
           const std = product as Record<string, unknown>;
+          const productType = String(std.product_type || 'rental');
+          const isSalesItem = productType === 'consumable' || productType === 'service';
           return {
             booqableId: String(std.id || ''),
             slug: String(std.slug || ''),
@@ -210,6 +218,8 @@ serve(async (req) => {
             stockCount: Number(std.stock_count) || 0,
             trackable: Boolean(std.trackable),
             hasVariations: Boolean(std.has_variations),
+            productType,
+            isSalesItem,
           };
         });
 
@@ -253,6 +263,9 @@ serve(async (req) => {
           quantity: Number(p.quantity) || 0,
         }));
 
+        const productType = String(pg.product_type || 'rental');
+        const isSalesItem = productType === 'consumable' || productType === 'service';
+        
         const productDetails = {
           booqableId: String(pg.id || ''),
           slug: String(pg.slug || ''),
@@ -266,6 +279,8 @@ serve(async (req) => {
           hasVariations: Boolean(pg.has_variations),
           variationFields: Array.isArray(pg.variation_fields) ? pg.variation_fields : [],
           variants,
+          productType,
+          isSalesItem,
         };
 
         console.log(`[Booqable] Product has ${variants.length} variants, hasVariations: ${productDetails.hasVariations}`);

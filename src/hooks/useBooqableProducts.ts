@@ -13,6 +13,9 @@ interface BooqableProduct {
   depositAmount: number;
   stockCount: number;
   trackable: boolean;
+  hasVariations?: boolean;
+  productType: string;
+  isSalesItem: boolean;
 }
 
 interface BooqableProductsResponse {

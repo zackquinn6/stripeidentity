@@ -49,6 +49,8 @@ interface ProductDetails {
   hasVariations: boolean;
   variationFields: string[];
   variants: ProductVariant[];
+  productType: string;
+  isSalesItem: boolean;
 }
 
 interface ItemsTabProps {
@@ -411,7 +413,10 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                             <Package className="mr-2 h-4 w-4 text-muted-foreground" />
                             <span className="flex-1 truncate">{product.name}</span>
                             <span className="text-xs text-muted-foreground ml-2">
-                              ${product.dailyRate.toFixed(2)}/day
+                              {product.isSalesItem 
+                                ? `$${product.dailyRate.toFixed(2)} (sale)`
+                                : `$${product.dailyRate.toFixed(2)}/day`
+                              }
                             </span>
                           </CommandItem>
                         ))}
