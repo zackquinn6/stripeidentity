@@ -468,11 +468,11 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
             <AccordionContent className="px-6 pb-6">
               {/* Show selected tile areas summary */}
               {tileAreas.some(a => a.squareFootageBucket) && (
-                <div className="mb-4 p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-sm">
-                    <span className="font-medium">Selected Areas: </span>
+                <div className="mb-4 p-4 bg-secondary/50 rounded-lg">
+                  <p className="text-base">
+                    <span className="font-semibold text-lg">Total Project Sizing: </span>
                     {tileAreas.filter(a => a.squareFootageBucket).map((area, idx) => (
-                      <span key={area.id}>
+                      <span key={area.id} className="text-base">
                         {idx > 0 && ', '}
                         {squareFootageBuckets.find(b => b.value === area.squareFootageBucket)?.label}
                       </span>
