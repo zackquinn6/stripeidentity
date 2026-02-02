@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import useBooqableProducts from '@/hooks/useBooqableProducts';
+import { cn } from '@/lib/utils';
 
 interface SectionItem {
   id: string;
@@ -37,6 +39,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<SectionItem | null>(null);
   const [selectedBooqableId, setSelectedBooqableId] = useState<string>('');
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -269,21 +272,53 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Booqable Product</Label>
-              <Select value={selectedBooqableId} onValueChange={handleSelectBooqableProduct}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a product..." />
-                </SelectTrigger>
-                <SelectContent className="z-[10001]">
-                  {booqableProducts?.map(product => (
-                    <SelectItem key={product.booqableId} value={product.booqableId}>
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4" />
-                        {product.name} - ${product.dailyRate.toFixed(2)}/day
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={productSearchOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedBooqableId
+                      ? booqableProducts?.find((p) => p.booqableId === selectedBooqableId)?.name || "Select product..."
+                      : "Search products..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0 z-[10001]" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search products..." />
+                    <CommandList>
+                      <CommandEmpty>No product found.</CommandEmpty>
+                      <CommandGroup className="max-h-[300px] overflow-auto">
+                        {booqableProducts?.map((product) => (
+                          <CommandItem
+                            key={product.booqableId}
+                            value={product.name}
+                            onSelect={() => {
+                              handleSelectBooqableProduct(product.booqableId);
+                              setProductSearchOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedBooqableId === product.booqableId ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <Package className="mr-2 h-4 w-4 text-muted-foreground" />
+                            <span className="flex-1 truncate">{product.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ${product.dailyRate.toFixed(2)}/day
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {isLoadingProducts && <p className="text-xs text-muted-foreground">Loading Booqable inventory...</p>}
             </div>
             <div className="space-y-2">
