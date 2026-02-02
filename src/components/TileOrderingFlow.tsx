@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge';
 import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { equipmentCategories, addOnCategories, consumables, tileSizes, squareFootageBuckets, underlaymentOptions } from '@/data/tileEquipment';
+import { equipmentCategories, addOnCategories, consumables, tileSizes, underlaymentOptions } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
 import AddOnModal from './AddOnModal';
@@ -23,7 +23,7 @@ interface TileOrderingFlowProps {
 }
 interface TileArea {
   id: string;
-  squareFootageBucket: string;
+  squareFootage: string;
   tileSize: string;
 }
 const TileOrderingFlow = ({
@@ -36,7 +36,7 @@ const TileOrderingFlow = ({
   // Materials auto-calculator state (moved from step 1)
   const [tileAreas, setTileAreas] = useState<TileArea[]>([{
     id: '1',
-    squareFootageBucket: '',
+    squareFootage: '',
     tileSize: ''
   }]);
   const [exactSquareFootage, setExactSquareFootage] = useState<string>('');
@@ -419,20 +419,17 @@ const TileOrderingFlow = ({
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>Square Footage Range</Label>
-                          <Select value={area.squareFootageBucket} onValueChange={value => setTileAreas(prev => prev.map(a => a.id === area.id ? {
-                        ...a,
-                        squareFootageBucket: value
-                      } : a))}>
-                            <SelectTrigger className="bg-background">
-                              <SelectValue placeholder="Select range" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-popover z-50">
-                              {squareFootageBuckets.map(bucket => <SelectItem key={bucket.value} value={bucket.value}>
-                                  {bucket.label}
-                                </SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <Label>Square Footage</Label>
+                          <Input 
+                            type="number" 
+                            placeholder="Enter sq ft" 
+                            value={area.squareFootage} 
+                            onChange={e => setTileAreas(prev => prev.map(a => a.id === area.id ? {
+                              ...a,
+                              squareFootage: e.target.value
+                            } : a))}
+                            className="bg-background"
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Tile Size</Label>
@@ -455,7 +452,7 @@ const TileOrderingFlow = ({
                   
                   <Button variant="outline" className="w-full border-dashed" onClick={() => setTileAreas(prev => [...prev, {
                   id: String(Date.now()),
-                  squareFootageBucket: '',
+                  squareFootage: '',
                   tileSize: ''
                 }])}>
                     <Plus className="w-4 h-4 mr-2" />
