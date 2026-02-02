@@ -194,6 +194,7 @@ serve(async (req) => {
               depositAmount: (p.attributes.deposit_in_cents || 0) / 100,
               stockCount: p.attributes.stock_count || 0,
               trackable: p.attributes.trackable || false,
+              hasVariations: false,
             };
           }
           // Standard format
@@ -208,11 +209,69 @@ serve(async (req) => {
             depositAmount: (Number(std.deposit_in_cents) || 0) / 100,
             stockCount: Number(std.stock_count) || 0,
             trackable: Boolean(std.trackable),
+            hasVariations: Boolean(std.has_variations),
           };
         });
 
         return new Response(
           JSON.stringify({ products }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'get-product-details': {
+        const { product_id } = params;
+        
+        if (!product_id) {
+          return new Response(
+            JSON.stringify({ error: 'product_id is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`[Booqable] Fetching product details for: ${product_id}`);
+        const response = await booqableRequest(`/product_groups/${product_id}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Booqable] Error fetching product details:', errorText);
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch product details', details: errorText }),
+            { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        const pg = data.product_group || data;
+        
+        // Extract variants (nested products) if they exist
+        const variants = (pg.products || []).map((p: Record<string, unknown>) => ({
+          id: String(p.id || ''),
+          name: String(p.name || ''),
+          sku: String(p.sku || ''),
+          variationValues: Array.isArray(p.variation_values) ? p.variation_values : [],
+          quantity: Number(p.quantity) || 0,
+        }));
+
+        const productDetails = {
+          booqableId: String(pg.id || ''),
+          slug: String(pg.slug || ''),
+          name: String(pg.name || ''),
+          description: String(pg.description || ''),
+          imageUrl: String(pg.photo_url || ''),
+          dailyRate: (Number(pg.base_price_in_cents) || 0) / 100,
+          depositAmount: (Number(pg.deposit_in_cents) || 0) / 100,
+          stockCount: Number(pg.stock_count) || 0,
+          trackable: Boolean(pg.trackable),
+          hasVariations: Boolean(pg.has_variations),
+          variationFields: Array.isArray(pg.variation_fields) ? pg.variation_fields : [],
+          variants,
+        };
+
+        console.log(`[Booqable] Product has ${variants.length} variants, hasVariations: ${productDetails.hasVariations}`);
+
+        return new Response(
+          JSON.stringify({ product: productDetails }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

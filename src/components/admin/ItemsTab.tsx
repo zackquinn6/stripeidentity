@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import useBooqableProducts from '@/hooks/useBooqableProducts';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,29 @@ interface SectionItem {
   display_order: number;
 }
 
+interface ProductVariant {
+  id: string;
+  name: string;
+  sku: string;
+  variationValues: string[];
+  quantity: number;
+}
+
+interface ProductDetails {
+  booqableId: string;
+  slug: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  dailyRate: number;
+  depositAmount: number;
+  stockCount: number;
+  trackable: boolean;
+  hasVariations: boolean;
+  variationFields: string[];
+  variants: ProductVariant[];
+}
+
 interface ItemsTabProps {
   sectionId: string | null;
   projectName: string | null;
@@ -39,7 +63,10 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<SectionItem | null>(null);
   const [selectedBooqableId, setSelectedBooqableId] = useState<string>('');
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
   const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -79,25 +106,90 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
     setIsLoading(false);
   };
 
+  const fetchProductDetails = async (productId: string) => {
+    setIsLoadingDetails(true);
+    setProductDetails(null);
+    setSelectedVariantId('');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('booqable', {
+        body: { action: 'get-product-details', product_id: productId }
+      });
+
+      if (error) {
+        console.error('[ItemsTab] Error fetching product details:', error);
+        return;
+      }
+
+      const details = data.product as ProductDetails;
+      setProductDetails(details);
+      
+      // Auto-populate form with product group info
+      setFormData({
+        name: details.name,
+        description: details.description || '',
+        daily_rate: details.dailyRate,
+        retail_price: 0,
+        image_url: details.imageUrl || '',
+        default_quantity: 1,
+        is_visible: true
+      });
+
+      // If no variants, use the slug as the booqable_product_id
+      if (!details.hasVariations || details.variants.length === 0) {
+        // Product has no variants, we use the slug for lookup
+      } else if (details.variants.length === 1) {
+        // Only one variant, auto-select it
+        setSelectedVariantId(details.variants[0].id);
+        const variant = details.variants[0];
+        if (variant.variationValues.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            name: `${details.name} - ${variant.variationValues.join(', ')}`
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('[ItemsTab] Error:', err);
+    } finally {
+      setIsLoadingDetails(false);
+    }
+  };
+
   const handleSelectBooqableProduct = (booqableId: string) => {
     setSelectedBooqableId(booqableId);
     const product = booqableProducts?.find(p => p.booqableId === booqableId);
     if (product) {
-      setFormData({
-        name: product.name,
-        description: product.description || '',
-        daily_rate: product.dailyRate,
-        retail_price: 0,
-        image_url: product.imageUrl || '',
-        default_quantity: 1,
-        is_visible: true
-      });
+      // Fetch full product details to check for variants
+      fetchProductDetails(booqableId);
+    }
+  };
+
+  const handleSelectVariant = (variantId: string) => {
+    setSelectedVariantId(variantId);
+    if (productDetails) {
+      const variant = productDetails.variants.find(v => v.id === variantId);
+      if (variant && variant.variationValues.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          name: `${productDetails.name} - ${variant.variationValues.join(', ')}`
+        }));
+      } else if (variant) {
+        setFormData(prev => ({
+          ...prev,
+          name: variant.name || productDetails.name
+        }));
+      }
     }
   };
 
   const handleOpenDialog = (e: React.MouseEvent, item?: SectionItem) => {
     e.preventDefault();
     e.stopPropagation();
+    // Reset variant state when opening dialog
+    setProductDetails(null);
+    setSelectedVariantId('');
+    
     if (item) {
       setEditingItem(item);
       setSelectedBooqableId(item.booqable_product_id);
@@ -127,11 +219,20 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
       return;
     }
 
+    // If product has variants and user hasn't selected one, show error
+    if (productDetails?.hasVariations && productDetails.variants.length > 1 && !selectedVariantId) {
+      toast.error('Please select a variant');
+      return;
+    }
+
+    // Determine which ID to use: variant ID if selected, otherwise product slug for lookup
+    const booqableProductId = selectedVariantId || productDetails?.slug || selectedBooqableId;
+
     if (editingItem) {
       const { error } = await supabase
         .from('section_items')
         .update({
-          booqable_product_id: selectedBooqableId,
+          booqable_product_id: booqableProductId,
           name: formData.name,
           description: formData.description || null,
           daily_rate: formData.daily_rate,
@@ -155,7 +256,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         .from('section_items')
         .insert({
           section_id: sectionId,
-          booqable_product_id: selectedBooqableId,
+          booqable_product_id: booqableProductId,
           name: formData.name,
           description: formData.description || null,
           daily_rate: formData.daily_rate,
@@ -321,6 +422,46 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
               </Popover>
               {isLoadingProducts && <p className="text-xs text-muted-foreground">Loading Booqable inventory...</p>}
             </div>
+            
+            {/* Variant selector - shown when product has variations */}
+            {isLoadingDetails && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading product variants...
+              </div>
+            )}
+            
+            {productDetails?.hasVariations && productDetails.variants.length > 1 && (
+              <div className="space-y-2">
+                <Label>
+                  Select Variant
+                  {productDetails.variationFields.length > 0 && (
+                    <span className="text-muted-foreground ml-1">
+                      ({productDetails.variationFields.join(', ')})
+                    </span>
+                  )}
+                </Label>
+                <Select value={selectedVariantId} onValueChange={handleSelectVariant}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a variant..." />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10002]">
+                    {productDetails.variants.map((variant) => (
+                      <SelectItem key={variant.id} value={variant.id}>
+                        {variant.variationValues.length > 0 
+                          ? variant.variationValues.join(' / ')
+                          : variant.name}
+                        {variant.quantity > 0 && (
+                          <span className="text-muted-foreground ml-2">
+                            ({variant.quantity} in stock)
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Display Name</Label>
               <Input
