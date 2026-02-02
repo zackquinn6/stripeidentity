@@ -18,26 +18,27 @@ import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDateP
 import PackageValueCard from './PackageValueCard';
 import ItemDetailsModal from './ItemDetailsModal';
 import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
-
 interface TileOrderingFlowProps {
   onBack: () => void;
 }
-
 interface TileArea {
   id: string;
   squareFootageBucket: string;
   tileSize: string;
 }
-
-const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
+const TileOrderingFlow = ({
+  onBack
+}: TileOrderingFlowProps) => {
   // Step 1: Multi-select for tile sizes and underlayment
   const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
   const [selectedUnderlayment, setSelectedUnderlayment] = useState<string[]>([]);
-  
+
   // Materials auto-calculator state (moved from step 1)
-  const [tileAreas, setTileAreas] = useState<TileArea[]>([
-    { id: '1', squareFootageBucket: '', tileSize: '' }
-  ]);
+  const [tileAreas, setTileAreas] = useState<TileArea[]>([{
+    id: '1',
+    squareFootageBucket: '',
+    tileSize: ''
+  }]);
   const [exactSquareFootage, setExactSquareFootage] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentCategory[]>(equipmentCategories);
   const [addOns, setAddOns] = useState<AddOnCategory[]>(addOnCategories);
@@ -46,12 +47,11 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
   const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string>('step-1');
-  
+
   // Rental date state
   const [rentalDuration, setRentalDuration] = useState<RentalDuration>('daily');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-
   const exactSqft = parseFloat(exactSquareFootage) || 0;
   const thinsetBags = Math.ceil(exactSqft / 10);
 
@@ -59,29 +59,20 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
 
   // Step 1 is complete when at least one tile size is selected
   const step1Complete = selectedTileSizes.length > 0;
-  
+
   // Toggle functions for multi-select
   const toggleTileSize = (value: string) => {
-    setSelectedTileSizes(prev => 
-      prev.includes(value) 
-        ? prev.filter(v => v !== value)
-        : [...prev, value]
-    );
+    setSelectedTileSizes(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   };
-
   const toggleUnderlayment = (value: string) => {
-    setSelectedUnderlayment(prev => 
-      prev.includes(value) 
-        ? prev.filter(v => v !== value)
-        : [...prev, value]
-    );
+    setSelectedUnderlayment(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   };
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
   const [step5Visited, setStep5Visited] = useState(false);
   const step5Complete = step5Visited && openAccordion !== 'step-5';
-  
+
   // Track which steps have already auto-advanced (only advance once)
   const [advancedSteps, setAdvancedSteps] = useState<Set<string>>(new Set());
 
@@ -103,63 +94,50 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
       setOpenAccordion('step-5');
     }
   }, [step4Complete, openAccordion, advancedSteps]);
-  
   const getRentalDays = () => {
     if (rentalDuration === 'daily' && startDate && endDate) {
       return Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     }
     return durationOptions.find(o => o.value === rentalDuration)?.days || 3;
   };
-  
   const rentalDays = getRentalDays();
-
   const handleEquipmentQuantityChange = (categoryId: string, itemId: string, quantity: number) => {
-    setEquipment(prev =>
-      prev.map(cat =>
-        cat.id === categoryId
-          ? {
-              ...cat,
-              items: cat.items.map(item =>
-                item.id === itemId ? { ...item, quantity } : item
-              ),
-            }
-          : cat
-      )
-    );
+    setEquipment(prev => prev.map(cat => cat.id === categoryId ? {
+      ...cat,
+      items: cat.items.map(item => item.id === itemId ? {
+        ...item,
+        quantity
+      } : item)
+    } : cat));
   };
-
   const handleAddOnQuantityChange = (categoryId: string, itemId: string, quantity: number) => {
-    setAddOns(prev =>
-      prev.map(cat =>
-        cat.id === categoryId
-          ? {
-              ...cat,
-              items: cat.items.map(item =>
-                item.id === itemId ? { ...item, quantity } : item
-              ),
-            }
-          : cat
-      )
-    );
+    setAddOns(prev => prev.map(cat => cat.id === categoryId ? {
+      ...cat,
+      items: cat.items.map(item => item.id === itemId ? {
+        ...item,
+        quantity
+      } : item)
+    } : cat));
   };
-
   const handleMaterialQuantityChange = (itemId: string, quantity: number) => {
-    setMaterials(prev =>
-      prev.map(item => (item.id === itemId ? { ...item, quantity } : item))
-    );
+    setMaterials(prev => prev.map(item => item.id === itemId ? {
+      ...item,
+      quantity
+    } : item));
   };
-
   const handleItemClick = (item: RentalItem) => {
     setSelectedItem(item);
   };
-
   const handleItemQuantityChangeFromModal = (itemId: string, quantity: number) => {
     // Check if item is in equipment
     for (const cat of equipment) {
       if (cat.items.some(i => i.id === itemId)) {
         handleEquipmentQuantityChange(cat.id, itemId, quantity);
         // Update selectedItem to reflect new quantity
-        setSelectedItem(prev => prev?.id === itemId ? { ...prev, quantity } : prev);
+        setSelectedItem(prev => prev?.id === itemId ? {
+          ...prev,
+          quantity
+        } : prev);
         return;
       }
     }
@@ -167,56 +145,49 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
     for (const cat of addOns) {
       if (cat.items.some(i => i.id === itemId)) {
         handleAddOnQuantityChange(cat.id, itemId, quantity);
-        setSelectedItem(prev => prev?.id === itemId ? { ...prev, quantity } : prev);
+        setSelectedItem(prev => prev?.id === itemId ? {
+          ...prev,
+          quantity
+        } : prev);
         return;
       }
     }
     // Check materials
     if (materials.some(i => i.id === itemId)) {
       handleMaterialQuantityChange(itemId, quantity);
-      setSelectedItem(prev => prev?.id === itemId ? { ...prev, quantity } : prev);
+      setSelectedItem(prev => prev?.id === itemId ? {
+        ...prev,
+        quantity
+      } : prev);
     }
   };
-
   const handleSelectComprehensive = () => {
-    setEquipment(prev =>
-      prev.map(cat => ({
-        ...cat,
-        items: cat.items.map(item => ({ ...item, quantity: 1 })),
+    setEquipment(prev => prev.map(cat => ({
+      ...cat,
+      items: cat.items.map(item => ({
+        ...item,
+        quantity: 1
       }))
-    );
+    })));
     setOpenAccordion('step-3');
   };
-
   const getAllSelectedItems = useMemo((): RentalItem[] => {
     const equipmentItems = equipment.flatMap(cat => cat.items).filter(item => item.quantity > 0);
     const addOnItems = addOns.flatMap(cat => cat.items).filter(item => item.quantity > 0);
     const materialItems = materials.filter(item => item.quantity > 0);
-
     return [...equipmentItems, ...addOnItems, ...materialItems];
   }, [equipment, addOns, materials]);
-
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
     if (selected.length === 0) return 'Click to add';
     return `${selected.length} items selected`;
   };
-
   if (showCheckout) {
-    return (
-      <div className="py-12 px-6">
-        <CheckoutSummary 
-          items={getAllSelectedItems} 
-          rentalDays={rentalDays}
-          startDate={startDate}
-          onBack={() => setShowCheckout(false)} 
-        />
-      </div>
-    );
+    return <div className="py-12 px-6">
+        <CheckoutSummary items={getAllSelectedItems} rentalDays={rentalDays} startDate={startDate} onBack={() => setShowCheckout(false)} />
+      </div>;
   }
-
-  return (
-    <div className="py-12 px-6 bg-background min-h-screen">
+  return <div className="py-12 px-6 bg-background min-h-screen">
       <div className="max-w-3xl mx-auto">
         <Button variant="ghost" onClick={onBack} className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -230,32 +201,22 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           </p>
         </div>
 
-        <Accordion 
-          type="single" 
-          collapsible
-          value={openAccordion}
-          onValueChange={(value) => {
-            if (value === 'step-5') setStep5Visited(true);
-            setOpenAccordion(value || '');
-          }}
-          className="space-y-4"
-        >
+        <Accordion type="single" collapsible value={openAccordion} onValueChange={value => {
+        if (value === 'step-5') setStep5Visited(true);
+        setOpenAccordion(value || '');
+      }} className="space-y-4">
           {/* Step 1: Tile Sizing */}
           <AccordionItem value="step-1" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step1Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step1Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
                   {step1Complete ? <Check className="w-4 h-4" /> : '1'}
                 </div>
                 <div className="text-left">
                   <span className="font-display font-semibold text-lg">Project Sizing</span>
-                  {step1Complete && (
-                    <span className="text-sm text-muted-foreground ml-3">
+                  {step1Complete && <span className="text-sm text-muted-foreground ml-3">
                       {selectedTileSizes.length} tile size{selectedTileSizes.length > 1 ? 's' : ''} selected
-                    </span>
-                  )}
+                    </span>}
                 </div>
               </div>
             </AccordionTrigger>
@@ -278,35 +239,21 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                     </TooltipProvider>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {tileSizes.map((size) => {
-                      const isSelected = selectedTileSizes.includes(size.value);
-                      return (
-                        <Card
-                          key={size.value}
-                          className={`cursor-pointer transition-all hover:shadow-md overflow-hidden ${
-                            isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'
-                          }`}
-                          onClick={() => toggleTileSize(size.value)}
-                        >
+                    {tileSizes.map(size => {
+                    const isSelected = selectedTileSizes.includes(size.value);
+                    return <Card key={size.value} className={`cursor-pointer transition-all hover:shadow-md overflow-hidden ${isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'}`} onClick={() => toggleTileSize(size.value)}>
                           <div className="relative">
-                            <img 
-                              src={size.imageUrl} 
-                              alt={size.label}
-                              className="w-full h-20 object-cover"
-                            />
-                            {isSelected && (
-                              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                            <img src={size.imageUrl} alt={size.label} className="w-full h-20 object-cover" />
+                            {isSelected && <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
                                 <Check className="w-4 h-4 text-primary-foreground" />
-                              </div>
-                            )}
+                              </div>}
                           </div>
                           <CardContent className="p-3">
                             <p className="font-medium text-sm">{size.label}</p>
                             <p className="text-xs text-muted-foreground">{size.description}</p>
                           </CardContent>
-                        </Card>
-                      );
-                    })}
+                        </Card>;
+                  })}
                   </div>
                 </div>
 
@@ -327,35 +274,21 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                     </TooltipProvider>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    {underlaymentOptions.map((option) => {
-                      const isSelected = selectedUnderlayment.includes(option.value);
-                      return (
-                        <Card
-                          key={option.value}
-                          className={`cursor-pointer transition-all hover:shadow-md overflow-hidden ${
-                            isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'
-                          }`}
-                          onClick={() => toggleUnderlayment(option.value)}
-                        >
+                    {underlaymentOptions.map(option => {
+                    const isSelected = selectedUnderlayment.includes(option.value);
+                    return <Card key={option.value} className={`cursor-pointer transition-all hover:shadow-md overflow-hidden ${isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'}`} onClick={() => toggleUnderlayment(option.value)}>
                           <div className="relative">
-                            <img 
-                              src={option.imageUrl} 
-                              alt={option.label}
-                              className="w-full h-20 object-cover"
-                            />
-                            {isSelected && (
-                              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                            <img src={option.imageUrl} alt={option.label} className="w-full h-20 object-cover" />
+                            {isSelected && <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
                                 <Check className="w-4 h-4 text-primary-foreground" />
-                              </div>
-                            )}
+                              </div>}
                           </div>
                           <CardContent className="p-3">
                             <p className="font-medium text-sm">{option.label}</p>
                             <p className="text-xs text-muted-foreground">{option.description}</p>
                           </CardContent>
-                        </Card>
-                      );
-                    })}
+                        </Card>;
+                  })}
                   </div>
                 </div>
               </div>
@@ -366,49 +299,32 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           <AccordionItem value="step-2" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step2Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step2Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
                   {step2Complete ? <Check className="w-4 h-4" /> : '2'}
                 </div>
                 <div className="text-left">
                   <span className="font-display font-semibold text-lg">Equipment Selection</span>
-                  {step2Complete && (
-                    <Badge variant="secondary" className="ml-3">
+                  {step2Complete && <Badge variant="secondary" className="ml-3">
                       {equipment.flatMap(c => c.items).filter(i => i.quantity > 0).length} items
-                    </Badge>
-                  )}
+                    </Badge>}
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <Button 
-                variant="outline" 
-                className="w-full mb-6 border-dashed border-2 py-6 hover:border-primary hover:bg-primary/5 text-foreground hover:text-black"
-                onClick={handleSelectComprehensive}
-              >
+              <Button variant="outline" className="w-full mb-6 border-dashed border-2 py-6 hover:border-primary hover:bg-primary/5 text-foreground hover:text-black" onClick={handleSelectComprehensive}>
                 <Sparkles className="w-5 h-5 mr-2 text-primary" />
                 Select for me
               </Button>
 
               <div className="space-y-6">
-                {equipment.map((category) => (
-                  <div key={category.id}>
+                {equipment.map(category => <div key={category.id}>
                     <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
                       {category.name}
                     </h4>
                     <div className="space-y-2">
-                      {category.items.map((item) => (
-                        <EquipmentItem
-                          key={item.id}
-                          item={item}
-                          onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)}
-                          onItemClick={handleItemClick}
-                        />
-                      ))}
+                      {category.items.map(item => <EquipmentItem key={item.id} item={item} onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)} onItemClick={handleItemClick} />)}
                     </div>
-                  </div>
-                ))}
+                  </div>)}
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -417,18 +333,14 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           <AccordionItem value="step-3" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step3Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step3Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
                   {step3Complete ? <Check className="w-4 h-4" /> : '3'}
                 </div>
                 <div className="text-left">
                   <span className="font-display font-semibold text-lg">Add-ons</span>
-                  {step3Complete && (
-                    <Badge variant="secondary" className="ml-3">
+                  {step3Complete && <Badge variant="secondary" className="ml-3">
                       {addOns.filter(c => c.items.some(i => i.quantity > 0)).length} packages
-                    </Badge>
-                  )}
+                    </Badge>}
                 </div>
               </div>
             </AccordionTrigger>
@@ -437,16 +349,9 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                 Optional add-on packages for related tasks.
               </p>
               <div className="grid gap-3 md:grid-cols-2">
-                {addOns.map((category) => {
-                  const hasSelection = category.items.some(item => item.quantity > 0);
-                  return (
-                    <Card
-                      key={category.id}
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        hasSelection ? 'border-primary bg-primary/5' : ''
-                      }`}
-                      onClick={() => setActiveAddOn(category)}
-                    >
+                {addOns.map(category => {
+                const hasSelection = category.items.some(item => item.quantity > 0);
+                return <Card key={category.id} className={`cursor-pointer transition-all hover:shadow-md ${hasSelection ? 'border-primary bg-primary/5' : ''}`} onClick={() => setActiveAddOn(category)}>
                       <CardContent className="p-4 flex items-center justify-between">
                         <div>
                           <h4 className="font-semibold">{category.name}</h4>
@@ -454,15 +359,10 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                             {getAddOnSummary(category)}
                           </p>
                         </div>
-                        {hasSelection ? (
-                          <Check className="w-5 h-5 text-primary" />
-                        ) : (
-                          <Plus className="w-5 h-5 text-muted-foreground" />
-                        )}
+                        {hasSelection ? <Check className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-muted-foreground" />}
                       </CardContent>
-                    </Card>
-                  );
-                })}
+                    </Card>;
+              })}
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -471,30 +371,19 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           <AccordionItem value="step-4" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step4Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step4Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
                   {step4Complete ? <Check className="w-4 h-4" /> : '4'}
                 </div>
                 <div className="text-left">
                   <span className="font-display font-semibold text-lg">Rental Period</span>
-                  {step4Complete && startDate && (
-                    <span className="text-sm text-muted-foreground ml-3">
+                  {step4Complete && startDate && <span className="text-sm text-muted-foreground ml-3">
                       {format(startDate, 'MMM d')} • {rentalDays} days
-                    </span>
-                  )}
+                    </span>}
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <RentalDatePicker
-                startDate={startDate}
-                endDate={endDate}
-                duration={rentalDuration}
-                onStartDateChange={setStartDate}
-                onEndDateChange={setEndDate}
-                onDurationChange={setRentalDuration}
-              />
+              <RentalDatePicker startDate={startDate} endDate={endDate} duration={rentalDuration} onStartDateChange={setStartDate} onEndDateChange={setEndDate} onDurationChange={setRentalDuration} />
             </AccordionContent>
           </AccordionItem>
 
@@ -502,9 +391,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
           <AccordionItem value="step-5" className="border rounded-xl overflow-hidden bg-card shadow-card">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step5Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step5Complete ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
                   {step5Complete ? <Check className="w-4 h-4" /> : '5'}
                 </div>
                 <span className="font-display font-semibold text-lg text-left">
@@ -517,81 +404,60 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
               <div className="mb-6 p-4 border rounded-lg bg-secondary/30">
                 <div className="flex items-center gap-2 mb-4">
                   <Calculator className="w-5 h-5 text-primary" />
-                  <h4 className="font-semibold text-base">Materials Auto-Calculator</h4>
+                  <h4 className="font-semibold text-base">Materials Calculator</h4>
                 </div>
                 
                 <div className="space-y-4">
-                  {tileAreas.map((area, index) => (
-                    <div key={area.id} className="p-4 border rounded-lg bg-background">
+                  {tileAreas.map((area, index) => <div key={area.id} className="p-4 border rounded-lg bg-background">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium text-muted-foreground">
                           Area {index + 1}
                         </span>
-                        {tileAreas.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => setTileAreas(prev => prev.filter(a => a.id !== area.id))}
-                          >
+                        {tileAreas.length > 1 && <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => setTileAreas(prev => prev.filter(a => a.id !== area.id))}>
                             <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
+                          </Button>}
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label>Square Footage Range</Label>
-                          <Select 
-                            value={area.squareFootageBucket} 
-                            onValueChange={(value) => setTileAreas(prev => 
-                              prev.map(a => a.id === area.id ? { ...a, squareFootageBucket: value } : a)
-                            )}
-                          >
+                          <Select value={area.squareFootageBucket} onValueChange={value => setTileAreas(prev => prev.map(a => a.id === area.id ? {
+                        ...a,
+                        squareFootageBucket: value
+                      } : a))}>
                             <SelectTrigger className="bg-background">
                               <SelectValue placeholder="Select range" />
                             </SelectTrigger>
                             <SelectContent className="bg-popover z-50">
-                              {squareFootageBuckets.map((bucket) => (
-                                <SelectItem key={bucket.value} value={bucket.value}>
+                              {squareFootageBuckets.map(bucket => <SelectItem key={bucket.value} value={bucket.value}>
                                   {bucket.label}
-                                </SelectItem>
-                              ))}
+                                </SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
                           <Label>Tile Size</Label>
-                          <Select 
-                            value={area.tileSize} 
-                            onValueChange={(value) => setTileAreas(prev => 
-                              prev.map(a => a.id === area.id ? { ...a, tileSize: value } : a)
-                            )}
-                          >
+                          <Select value={area.tileSize} onValueChange={value => setTileAreas(prev => prev.map(a => a.id === area.id ? {
+                        ...a,
+                        tileSize: value
+                      } : a))}>
                             <SelectTrigger className="bg-background">
                               <SelectValue placeholder="Select tile size" />
                             </SelectTrigger>
                             <SelectContent className="bg-popover z-50">
-                              {tileSizes.map((size) => (
-                                <SelectItem key={size.value} value={size.value}>
+                              {tileSizes.map(size => <SelectItem key={size.value} value={size.value}>
                                   {size.label}
-                                </SelectItem>
-                              ))}
+                                </SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    </div>)}
                   
-                  <Button
-                    variant="outline"
-                    className="w-full border-dashed"
-                    onClick={() => setTileAreas(prev => [...prev, { 
-                      id: String(Date.now()), 
-                      squareFootageBucket: '', 
-                      tileSize: '' 
-                    }])}
-                  >
+                  <Button variant="outline" className="w-full border-dashed" onClick={() => setTileAreas(prev => [...prev, {
+                  id: String(Date.now()),
+                  squareFootageBucket: '',
+                  tileSize: ''
+                }])}>
                     <Plus className="w-4 h-4 mr-2" />
                     Add Another Tile Area
                   </Button>
@@ -601,70 +467,44 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                     <Label htmlFor="exact-sqft" className="text-sm font-medium">
                       Enter exact square footage for precise material calculation:
                     </Label>
-                    <Input
-                      id="exact-sqft"
-                      type="number"
-                      placeholder="e.g., 75"
-                      value={exactSquareFootage}
-                      onChange={(e) => setExactSquareFootage(e.target.value)}
-                      className="mt-2 max-w-[200px]"
-                    />
-                    {exactSqft > 0 && (
-                      <p className="mt-2 text-sm text-primary">
+                    <Input id="exact-sqft" type="number" placeholder="e.g., 75" value={exactSquareFootage} onChange={e => setExactSquareFootage(e.target.value)} className="mt-2 max-w-[200px]" />
+                    {exactSqft > 0 && <p className="mt-2 text-sm text-primary">
                         Suggested thinset: {thinsetBags} bag{thinsetBags > 1 ? 's' : ''} for {exactSqft} sq ft
-                      </p>
-                    )}
+                      </p>}
                   </div>
                 </div>
               </div>
 
               {/* Show selected tile sizes summary from Step 1 */}
-              {selectedTileSizes.length > 0 && (
-                <div className="mb-4 p-4 bg-secondary/50 rounded-lg">
+              {selectedTileSizes.length > 0 && <div className="mb-4 p-4 bg-secondary/50 rounded-lg">
                   <p className="text-base">
                     <span className="font-semibold text-lg">Selected Tile Sizes: </span>
-                    {selectedTileSizes.map((size, idx) => (
-                      <span key={size} className="text-base">
+                    {selectedTileSizes.map((size, idx) => <span key={size} className="text-base">
                         {idx > 0 && ', '}
                         {tileSizes.find(t => t.value === size)?.label}
-                      </span>
-                    ))}
+                      </span>)}
                   </p>
-                </div>
-              )}
+                </div>}
 
               <p className="text-muted-foreground mb-4">
                 Purchase materials for your project.
               </p>
               <div className="space-y-3">
-                {materials.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
+                {materials.map(item => <div key={item.id} className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
                     <div className="flex items-center gap-3">
-                      {item.imageUrl && (
-                        <img 
-                          src={item.imageUrl} 
-                          alt={item.name}
-                          className="w-12 h-12 rounded-lg object-cover bg-muted"
-                        />
-                      )}
+                      {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-lg object-cover bg-muted" />}
                       <div>
                         <span className="font-medium">{item.name}</span>
                         <p className="text-sm text-muted-foreground">
                           ${item.dailyRate.toFixed(2)} each
-                          {item.id === 'thinset' && exactSqft > 0 && (
-                            <span className="ml-2 text-primary">
+                          {item.id === 'thinset' && exactSqft > 0 && <span className="ml-2 text-primary">
                               (Suggested: {thinsetBags} for {exactSqft} sq ft)
-                            </span>
-                          )}
+                            </span>}
                         </p>
                       </div>
                     </div>
-                    <QuantitySelector
-                      quantity={item.quantity}
-                      onQuantityChange={(qty) => handleMaterialQuantityChange(item.id, qty)}
-                    />
-                  </div>
-                ))}
+                    <QuantitySelector quantity={item.quantity} onQuantityChange={qty => handleMaterialQuantityChange(item.id, qty)} />
+                  </div>)}
               </div>
 
               <div className="mt-6 p-4 bg-amber-soft rounded-lg border border-amber-glow/20">
@@ -679,41 +519,19 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
 
         {/* Checkout Button */}
         <div className="mt-8">
-          <Button 
-            size="lg" 
-            className="w-full"
-            disabled={!step1Complete || !step4Complete}
-            onClick={() => setShowCheckout(true)}
-          >
+          <Button size="lg" className="w-full" disabled={!step1Complete || !step4Complete} onClick={() => setShowCheckout(true)}>
             View Checkout Summary
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
-          {(!step1Complete || !step4Complete) && (
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              {!step1Complete 
-                ? 'Please complete the tile sizing step to continue'
-                : 'Please select a rental period to continue'
-              }
-            </p>
-          )}
+          {(!step1Complete || !step4Complete) && <p className="text-center text-sm text-muted-foreground mt-2">
+              {!step1Complete ? 'Please complete the tile sizing step to continue' : 'Please select a rental period to continue'}
+            </p>}
         </div>
       </div>
 
-      <AddOnModal
-        category={activeAddOn ? addOns.find(c => c.id === activeAddOn.id) || null : null}
-        open={!!activeAddOn}
-        onClose={() => setActiveAddOn(null)}
-        onQuantityChange={handleAddOnQuantityChange}
-      />
+      <AddOnModal category={activeAddOn ? addOns.find(c => c.id === activeAddOn.id) || null : null} open={!!activeAddOn} onClose={() => setActiveAddOn(null)} onQuantityChange={handleAddOnQuantityChange} />
 
-      <ItemDetailsModal
-        item={selectedItem}
-        open={!!selectedItem}
-        onClose={() => setSelectedItem(null)}
-        onQuantityChange={handleItemQuantityChangeFromModal}
-      />
-    </div>
-  );
+      <ItemDetailsModal item={selectedItem} open={!!selectedItem} onClose={() => setSelectedItem(null)} onQuantityChange={handleItemQuantityChangeFromModal} />
+    </div>;
 };
-
 export default TileOrderingFlow;
