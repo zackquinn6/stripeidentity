@@ -43,7 +43,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
     daily_rate: 0,
     retail_price: 0,
     image_url: '',
-    default_quantity: 0,
+    default_quantity: 1,
     is_visible: true
   });
 
@@ -86,7 +86,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         daily_rate: product.dailyRate,
         retail_price: 0,
         image_url: product.imageUrl || '',
-        default_quantity: 0,
+        default_quantity: 1,
         is_visible: true
       });
     }
@@ -110,7 +110,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
     } else {
       setEditingItem(null);
       setSelectedBooqableId('');
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, is_visible: true });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true });
     }
     setIsDialogOpen(true);
   };
@@ -304,12 +304,11 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Daily Rate ($)</Label>
+                <Label>Default Quantity</Label>
                 <Input
                   type="number"
-                  step="0.01"
-                  value={formData.daily_rate}
-                  onChange={(e) => setFormData({ ...formData, daily_rate: parseFloat(e.target.value) || 0 })}
+                  value={formData.default_quantity}
+                  onChange={(e) => setFormData({ ...formData, default_quantity: parseInt(e.target.value) || 1 })}
                 />
               </div>
               <div className="space-y-2">
@@ -321,22 +320,6 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                   onChange={(e) => setFormData({ ...formData, retail_price: parseFloat(e.target.value) || 0 })}
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Image URL</Label>
-              <Input
-                value={formData.image_url}
-                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                placeholder="https://..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Default Quantity</Label>
-              <Input
-                type="number"
-                value={formData.default_quantity}
-                onChange={(e) => setFormData({ ...formData, default_quantity: parseInt(e.target.value) || 0 })}
-              />
             </div>
             <div className="flex items-center space-x-2">
               <Switch
