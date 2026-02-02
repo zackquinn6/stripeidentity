@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AddOnCategory } from '@/types/rental';
+import { AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
 
 interface AddOnModalProps {
@@ -9,9 +9,10 @@ interface AddOnModalProps {
   open: boolean;
   onClose: () => void;
   onQuantityChange: (categoryId: string, itemId: string, quantity: number) => void;
+  onItemClick?: (item: RentalItem) => void;
 }
 
-const AddOnModal = ({ category, open, onClose, onQuantityChange }: AddOnModalProps) => {
+const AddOnModal = ({ category, open, onClose, onQuantityChange, onItemClick }: AddOnModalProps) => {
   const hasInitialized = useRef<string | null>(null);
 
   // Default all items to quantity 1 when modal opens for a new category
@@ -64,6 +65,7 @@ const AddOnModal = ({ category, open, onClose, onQuantityChange }: AddOnModalPro
               key={item.id}
               item={item}
               onQuantityChange={(id, qty) => onQuantityChange(category.id, id, qty)}
+              onItemClick={onItemClick}
             />
           ))}
         </div>
