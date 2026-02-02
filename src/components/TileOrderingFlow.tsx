@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator } from 'lucide-react';
+import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { equipmentCategories, addOnCategories, consumables, tileSizes, squareFootageBuckets, underlaymentOptions } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
@@ -262,7 +263,20 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
               <div className="space-y-6 pt-2">
                 {/* Tile Size Multi-Select */}
                 <div className="space-y-3">
-                  <Label className="text-base font-semibold">Tile Size (select all that apply)</Label>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-base font-semibold">Tile Size (select all that apply)</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[280px] bg-popover text-popover-foreground">
+                          <p className="font-semibold mb-1">Why tile size matters</p>
+                          <p className="text-sm">Larger tiles require specialized equipment like lippage leveling systems and larger trowels. Select all sizes you'll be working with to ensure the right tools are recommended.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {tileSizes.map((size) => {
                       const isSelected = selectedTileSizes.includes(size.value);
@@ -298,7 +312,20 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
 
                 {/* Underlayment Options Multi-Select */}
                 <div className="space-y-3">
-                  <Label className="text-base font-semibold">Underlayment Options (optional)</Label>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-base font-semibold">Underlayment Options (optional)</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[280px] bg-popover text-popover-foreground">
+                          <p className="font-semibold mb-1">Why underlayment matters</p>
+                          <p className="text-sm">Different underlayment types require specific cutting and installation tools. Membrane needs rollers and seam tape tools, while concrete board requires scoring tools and special screws.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     {underlaymentOptions.map((option) => {
                       const isSelected = selectedUnderlayment.includes(option.value);
