@@ -24,13 +24,14 @@ interface Section {
 
 interface SectionsTabProps {
   projectId: string | null;
-  onSelectSection: (id: string) => void;
+  projectName: string | null;
+  onSelectSection: (id: string, name: string) => void;
   selectedSectionId: string | null;
 }
 
 const SECTION_TYPES = ['equipment', 'addon', 'consumable'];
 
-export default function SectionsTab({ projectId, onSelectSection, selectedSectionId }: SectionsTabProps) {
+export default function SectionsTab({ projectId, projectName, onSelectSection, selectedSectionId }: SectionsTabProps) {
   const [sections, setSections] = useState<Section[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -216,6 +217,12 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
 
   return (
     <div className="space-y-4">
+      {projectName && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+          <span className="font-medium text-foreground">Project:</span>
+          <span>{projectName}</span>
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground">Manage ordering sections (Equipment, Add-ons, etc.)</p>
         <Button size="sm" onClick={(e) => handleOpenDialog(e)}>
@@ -298,7 +305,7 @@ export default function SectionsTab({ projectId, onSelectSection, selectedSectio
             } ${
               dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-primary' : ''
             }`}
-            onClick={() => onSelectSection(section.id)}
+            onClick={() => onSelectSection(section.id, section.name)}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

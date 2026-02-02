@@ -27,9 +27,11 @@ interface SectionItem {
 
 interface ItemsTabProps {
   sectionId: string | null;
+  projectName: string | null;
+  sectionName: string | null;
 }
 
-export default function ItemsTab({ sectionId }: ItemsTabProps) {
+export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsTabProps) {
   const [items, setItems] = useState<SectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -227,6 +229,23 @@ export default function ItemsTab({ sectionId }: ItemsTabProps) {
 
   return (
     <div className="space-y-4">
+      {(projectName || sectionName) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md flex-wrap">
+          {projectName && (
+            <>
+              <span className="font-medium text-foreground">Project:</span>
+              <span>{projectName}</span>
+            </>
+          )}
+          {projectName && sectionName && <span className="text-muted-foreground/50">→</span>}
+          {sectionName && (
+            <>
+              <span className="font-medium text-foreground">Section:</span>
+              <span>{sectionName}</span>
+            </>
+          )}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">Add Booqable products to this section</p>
