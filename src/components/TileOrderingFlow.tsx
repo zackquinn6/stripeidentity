@@ -430,7 +430,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                   {step4Complete ? <Check className="w-4 h-4" /> : <CalendarDays className="w-4 h-4" />}
                 </div>
                 <div className="text-left">
-                  <span className="font-display font-semibold text-lg">Rental Period</span>
+                  <span className="font-display font-semibold text-lg">4. Rental Period</span>
                   {step4Complete && startDate && (
                     <span className="text-sm text-muted-foreground ml-3">
                       {format(startDate, 'MMM d')} • {rentalDays} days
@@ -461,7 +461,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                   {step5Complete ? <Check className="w-4 h-4" /> : <Package className="w-4 h-4" />}
                 </div>
                 <span className="font-display font-semibold text-lg text-left">
-                  Materials & Consumables
+                  5. Materials & Consumables
                 </span>
               </div>
             </AccordionTrigger>
