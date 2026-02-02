@@ -429,10 +429,45 @@ export const consumables: RentalItem[] = [
 ];
 
 export const tileSizes = [
-  { value: 'small', label: 'Small (<6")' },
-  { value: 'medium', label: 'Medium (6–12")' },
-  { value: 'low-large', label: 'Low-Large (12–18")' },
-  { value: 'large-format', label: 'Large Format (18"+)' },
+  { 
+    value: 'small', 
+    label: 'Small (<6")', 
+    imageUrl: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&h=200&fit=crop',
+    description: 'Mosaic & small format tiles'
+  },
+  { 
+    value: 'medium', 
+    label: 'Medium (6–12")', 
+    imageUrl: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=200&h=200&fit=crop',
+    description: 'Standard bathroom & kitchen tiles'
+  },
+  { 
+    value: 'low-large', 
+    label: 'Low-Large (12–18")', 
+    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&h=200&fit=crop',
+    description: 'Floor tiles & accent walls'
+  },
+  { 
+    value: 'large-format', 
+    label: 'Large Format (18"+)', 
+    imageUrl: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=200&h=200&fit=crop',
+    description: 'Modern floor & wall panels'
+  },
+];
+
+export const underlaymentOptions = [
+  { 
+    value: 'membrane', 
+    label: 'Membrane', 
+    imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200&h=200&fit=crop',
+    description: 'Waterproof & crack isolation'
+  },
+  { 
+    value: 'concrete-board', 
+    label: 'Concrete Board', 
+    imageUrl: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=200&h=200&fit=crop',
+    description: 'Cement backer board substrate'
+  },
 ];
 
 export const squareFootageBuckets = [

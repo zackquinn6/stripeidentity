@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2 } from 'lucide-react';
-import { equipmentCategories, addOnCategories, consumables, tileSizes, squareFootageBuckets } from '@/data/tileEquipment';
+import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator } from 'lucide-react';
+import { equipmentCategories, addOnCategories, consumables, tileSizes, squareFootageBuckets, underlaymentOptions } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
 import AddOnModal from './AddOnModal';
@@ -29,6 +29,11 @@ interface TileArea {
 }
 
 const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
+  // Step 1: Multi-select for tile sizes and underlayment
+  const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
+  const [selectedUnderlayment, setSelectedUnderlayment] = useState<string[]>([]);
+  
+  // Materials auto-calculator state (moved from step 1)
   const [tileAreas, setTileAreas] = useState<TileArea[]>([
     { id: '1', squareFootageBucket: '', tileSize: '' }
   ]);
@@ -51,7 +56,25 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
 
   // Booqable script is now loaded globally in App via useBooqable().
 
-  const step1Complete = tileAreas.length > 0 && tileAreas.every(area => area.squareFootageBucket !== '' && area.tileSize !== '');
+  // Step 1 is complete when at least one tile size is selected
+  const step1Complete = selectedTileSizes.length > 0;
+  
+  // Toggle functions for multi-select
+  const toggleTileSize = (value: string) => {
+    setSelectedTileSizes(prev => 
+      prev.includes(value) 
+        ? prev.filter(v => v !== value)
+        : [...prev, value]
+    );
+  };
+
+  const toggleUnderlayment = (value: string) => {
+    setSelectedUnderlayment(prev => 
+      prev.includes(value) 
+        ? prev.filter(v => v !== value)
+        : [...prev, value]
+    );
+  };
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
   const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
@@ -229,88 +252,85 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                   <span className="font-display font-semibold text-lg">Project Sizing</span>
                   {step1Complete && (
                     <span className="text-sm text-muted-foreground ml-3">
-                      {tileAreas.length} area{tileAreas.length > 1 ? 's' : ''} configured
+                      {selectedTileSizes.length} tile size{selectedTileSizes.length > 1 ? 's' : ''} selected
                     </span>
                   )}
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <div className="space-y-4 pt-2">
-                {tileAreas.map((area, index) => (
-                  <div key={area.id} className="p-4 border rounded-lg bg-secondary/30">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Area {index + 1}
-                      </span>
-                      {tileAreas.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => setTileAreas(prev => prev.filter(a => a.id !== area.id))}
+              <div className="space-y-6 pt-2">
+                {/* Tile Size Multi-Select */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Tile Size (select all that apply)</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {tileSizes.map((size) => {
+                      const isSelected = selectedTileSizes.includes(size.value);
+                      return (
+                        <Card
+                          key={size.value}
+                          className={`cursor-pointer transition-all hover:shadow-md overflow-hidden ${
+                            isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'
+                          }`}
+                          onClick={() => toggleTileSize(size.value)}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Square Footage Range</Label>
-                        <Select 
-                          value={area.squareFootageBucket} 
-                          onValueChange={(value) => setTileAreas(prev => 
-                            prev.map(a => a.id === area.id ? { ...a, squareFootageBucket: value } : a)
-                          )}
-                        >
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select range" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {squareFootageBuckets.map((bucket) => (
-                              <SelectItem key={bucket.value} value={bucket.value}>
-                                {bucket.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tile Size</Label>
-                        <Select 
-                          value={area.tileSize} 
-                          onValueChange={(value) => setTileAreas(prev => 
-                            prev.map(a => a.id === area.id ? { ...a, tileSize: value } : a)
-                          )}
-                        >
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select tile size" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {tileSizes.map((size) => (
-                              <SelectItem key={size.value} value={size.value}>
-                                {size.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                          <div className="relative">
+                            <img 
+                              src={size.imageUrl} 
+                              alt={size.label}
+                              className="w-full h-20 object-cover"
+                            />
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                                <Check className="w-4 h-4 text-primary-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <CardContent className="p-3">
+                            <p className="font-medium text-sm">{size.label}</p>
+                            <p className="text-xs text-muted-foreground">{size.description}</p>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
-                ))}
-                
-                <Button
-                  variant="outline"
-                  className="w-full border-dashed"
-                  onClick={() => setTileAreas(prev => [...prev, { 
-                    id: String(Date.now()), 
-                    squareFootageBucket: '', 
-                    tileSize: '' 
-                  }])}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Another Tile Area
-                </Button>
+                </div>
+
+                {/* Underlayment Options Multi-Select */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Underlayment Options (optional)</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {underlaymentOptions.map((option) => {
+                      const isSelected = selectedUnderlayment.includes(option.value);
+                      return (
+                        <Card
+                          key={option.value}
+                          className={`cursor-pointer transition-all hover:shadow-md overflow-hidden ${
+                            isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'
+                          }`}
+                          onClick={() => toggleUnderlayment(option.value)}
+                        >
+                          <div className="relative">
+                            <img 
+                              src={option.imageUrl} 
+                              alt={option.label}
+                              className="w-full h-20 object-cover"
+                            />
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                                <Check className="w-4 h-4 text-primary-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <CardContent className="p-3">
+                            <p className="font-medium text-sm">{option.label}</p>
+                            <p className="text-xs text-muted-foreground">{option.description}</p>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -466,39 +486,128 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              {/* Show selected tile areas summary */}
-              {tileAreas.some(a => a.squareFootageBucket) && (
+              {/* Materials Auto-Calculator Section */}
+              <div className="mb-6 p-4 border rounded-lg bg-secondary/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <Calculator className="w-5 h-5 text-primary" />
+                  <h4 className="font-semibold text-base">Materials Auto-Calculator</h4>
+                </div>
+                
+                <div className="space-y-4">
+                  {tileAreas.map((area, index) => (
+                    <div key={area.id} className="p-4 border rounded-lg bg-background">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Area {index + 1}
+                        </span>
+                        {tileAreas.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setTileAreas(prev => prev.filter(a => a.id !== area.id))}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Square Footage Range</Label>
+                          <Select 
+                            value={area.squareFootageBucket} 
+                            onValueChange={(value) => setTileAreas(prev => 
+                              prev.map(a => a.id === area.id ? { ...a, squareFootageBucket: value } : a)
+                            )}
+                          >
+                            <SelectTrigger className="bg-background">
+                              <SelectValue placeholder="Select range" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover z-50">
+                              {squareFootageBuckets.map((bucket) => (
+                                <SelectItem key={bucket.value} value={bucket.value}>
+                                  {bucket.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Tile Size</Label>
+                          <Select 
+                            value={area.tileSize} 
+                            onValueChange={(value) => setTileAreas(prev => 
+                              prev.map(a => a.id === area.id ? { ...a, tileSize: value } : a)
+                            )}
+                          >
+                            <SelectTrigger className="bg-background">
+                              <SelectValue placeholder="Select tile size" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover z-50">
+                              {tileSizes.map((size) => (
+                                <SelectItem key={size.value} value={size.value}>
+                                  {size.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <Button
+                    variant="outline"
+                    className="w-full border-dashed"
+                    onClick={() => setTileAreas(prev => [...prev, { 
+                      id: String(Date.now()), 
+                      squareFootageBucket: '', 
+                      tileSize: '' 
+                    }])}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Another Tile Area
+                  </Button>
+
+                  {/* Exact Square Footage Input */}
+                  <div className="mt-4 p-4 border border-dashed border-primary/30 rounded-lg bg-primary/5">
+                    <Label htmlFor="exact-sqft" className="text-sm font-medium">
+                      Enter exact square footage for precise material calculation:
+                    </Label>
+                    <Input
+                      id="exact-sqft"
+                      type="number"
+                      placeholder="e.g., 75"
+                      value={exactSquareFootage}
+                      onChange={(e) => setExactSquareFootage(e.target.value)}
+                      className="mt-2 max-w-[200px]"
+                    />
+                    {exactSqft > 0 && (
+                      <p className="mt-2 text-sm text-primary">
+                        Suggested thinset: {thinsetBags} bag{thinsetBags > 1 ? 's' : ''} for {exactSqft} sq ft
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Show selected tile sizes summary from Step 1 */}
+              {selectedTileSizes.length > 0 && (
                 <div className="mb-4 p-4 bg-secondary/50 rounded-lg">
                   <p className="text-base">
-                    <span className="font-semibold text-lg">Total Project Sizing: </span>
-                    {tileAreas.filter(a => a.squareFootageBucket).map((area, idx) => (
-                      <span key={area.id} className="text-base">
+                    <span className="font-semibold text-lg">Selected Tile Sizes: </span>
+                    {selectedTileSizes.map((size, idx) => (
+                      <span key={size} className="text-base">
                         {idx > 0 && ', '}
-                        {squareFootageBuckets.find(b => b.value === area.squareFootageBucket)?.label}
+                        {tileSizes.find(t => t.value === size)?.label}
                       </span>
                     ))}
                   </p>
                 </div>
               )}
-              
-              {/* Exact square footage input for materials calculation */}
-              <div className="mb-6 p-4 border border-dashed border-primary/30 rounded-lg bg-primary/5">
-                <Label htmlFor="exact-sqft" className="text-sm font-medium">
-                  To calculate materials, enter exact square footage:
-                </Label>
-                <Input
-                  id="exact-sqft"
-                  type="number"
-                  placeholder="e.g., 75"
-                  value={exactSquareFootage}
-                  onChange={(e) => setExactSquareFootage(e.target.value)}
-                  className="mt-2 max-w-[200px]"
-                />
-              </div>
 
               <p className="text-muted-foreground mb-4">
                 Purchase materials for your project.
-                {exactSqft > 0 && ' Thinset is pre-calculated based on your square footage.'}
               </p>
               <div className="space-y-3">
                 {materials.map((item) => (
