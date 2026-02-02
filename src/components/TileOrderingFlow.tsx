@@ -388,7 +388,7 @@ const TileOrderingFlow = ({ onBack }: TileOrderingFlowProps) => {
                 onClick={handleSelectComprehensive}
               >
                 <Sparkles className="w-5 h-5 mr-2 text-primary" />
-                Give me the comprehensive package
+                Select for me
               </Button>
 
               <div className="space-y-6">
