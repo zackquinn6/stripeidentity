@@ -76,13 +76,7 @@ const TileOrderingFlow = ({
   // Track which steps have already auto-advanced (only advance once)
   const [advancedSteps, setAdvancedSteps] = useState<Set<string>>(new Set());
 
-  // Auto-advance to next step when current step is complete (only once per step)
-  useEffect(() => {
-    if (step1Complete && openAccordion === 'step-1' && !advancedSteps.has('step-1')) {
-      setAdvancedSteps(prev => new Set(prev).add('step-1'));
-      setOpenAccordion('step-2');
-    }
-  }, [step1Complete, openAccordion, advancedSteps]);
+  // Note: Project sizing (step-1) does not auto-advance - users should manually proceed
 
   // Note: Equipment selection (step-2) does not auto-advance - only via comprehensive button
 
@@ -311,9 +305,9 @@ const TileOrderingFlow = ({
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <Button variant="outline" className="w-full mb-6 border-dashed border-2 py-6 hover:border-primary hover:bg-primary/5 text-foreground hover:text-black" onClick={handleSelectComprehensive}>
+              <Button variant="outline" className="w-full mb-6 border-dashed border-2 py-6 bg-highlight border-highlight-border hover:border-primary hover:bg-highlight-hover text-foreground" onClick={handleSelectComprehensive}>
                 <Sparkles className="w-5 h-5 mr-2 text-primary" />
-                Select for me
+                Make it Comprehensive - Pick For Me
               </Button>
 
               <div className="space-y-6">

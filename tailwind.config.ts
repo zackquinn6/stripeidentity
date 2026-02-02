@@ -63,6 +63,11 @@ export default {
           glow: "hsl(var(--amber-glow))",
           soft: "hsl(var(--amber-soft))",
         },
+        highlight: {
+          DEFAULT: "hsl(var(--highlight))",
+          border: "hsl(var(--highlight-border))",
+          hover: "hsl(var(--highlight-hover))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

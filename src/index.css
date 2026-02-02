@@ -43,6 +43,9 @@
     --amber-soft: 38 100% 95%;
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
+    --highlight: 33 100% 96%;
+    --highlight-border: 33 100% 70%;
+    --highlight-hover: 33 100% 92%;
 
     --font-display: 'Space Grotesk', sans-serif;
     --font-body: 'Inter', sans-serif;
