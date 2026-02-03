@@ -276,7 +276,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           {rentals.length > 0 && (
             <details className="group">
               <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
-                View {rentals.length} items included →
+                View {rentals.length} rental items included →
               </summary>
               <div className="mt-3 space-y-2 animate-fade-in">
                 {rentals.map((item) => (
@@ -286,6 +286,29 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                     )}
                     <span className="flex-1">{item.name}</span>
                     <span className="text-muted-foreground">×{item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Consumables/Purchase items (collapsible) */}
+          {consumables.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                View {consumables.length} purchase items →
+              </summary>
+              <div className="mt-3 space-y-2 animate-fade-in">
+                {consumables.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-amber-soft rounded-lg text-sm">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                    )}
+                    <span className="flex-1">{item.name}</span>
+                    <Badge variant="outline" className="text-xs">Purchase</Badge>
+                    <span className="text-muted-foreground">×{item.quantity}</span>
+                    <span className="font-medium">${(item.dailyRate * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
