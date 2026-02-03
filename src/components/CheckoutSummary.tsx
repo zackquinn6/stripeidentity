@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -18,16 +17,13 @@ import {
   Package,
   RefreshCw,
   Loader2,
-  ExternalLink,
   AlertCircle,
-  LogIn,
   TrendingDown
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { useBooqableCart } from '@/hooks/useBooqableCart';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -44,8 +40,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
-  const navigate = useNavigate();
-  const { user } = useAuth();
 
   // Auto-start generation on mount and handle progress
   useEffect(() => {
@@ -460,21 +454,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Ordering
-              </Button>
-            </div>
-          ) : !user ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 p-4 bg-warning/10 border border-warning/30 rounded-lg">
-                <LogIn className="w-5 h-5 text-warning flex-shrink-0" />
-                <p className="text-sm">Please sign in to complete your order.</p>
-              </div>
-              <Button 
-                size="lg" 
-                className="w-full"
-                onClick={() => navigate('/auth')}
-              >
-                <LogIn className="w-4 h-4 mr-2" />
-                Sign In to Checkout
               </Button>
             </div>
           ) : (
