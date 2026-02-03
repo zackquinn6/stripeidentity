@@ -41,7 +41,7 @@ const ProjectCatalog = ({ onProjectSelect }: ProjectCatalogProps) => {
         <div className="text-center mb-16">
           <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-4">Choose Your Project</h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Every Tool You Need To Start — And Finish — Like a Pro
+            Get Every Tool You Need To Start — And Finish — Like a Pro
           </p>
         </div>
 
