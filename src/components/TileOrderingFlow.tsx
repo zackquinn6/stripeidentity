@@ -212,7 +212,8 @@ const TileOrderingFlow = ({
       const guidance = category.selectionGuidance 
         || category.items[0]?.selectionGuidance 
         || 'Click to customize';
-      return guidance;
+      // Truncate to 50 characters for the front-facing card display
+      return guidance.length > 50 ? `${guidance.slice(0, 50)}...` : guidance;
     }
     return `${selected.length} items selected`;
   };
