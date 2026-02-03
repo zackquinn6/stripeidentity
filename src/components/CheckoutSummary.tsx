@@ -21,10 +21,8 @@ import {
   ExternalLink,
   AlertCircle,
   LogIn,
-  Info,
   TrendingDown
 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { useBooqableOrder } from '@/hooks/useBooqableOrder';
@@ -266,26 +264,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               <div className="p-4 bg-amber-soft rounded-lg space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">Materials / Sales</p>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
-                              <Info className="h-4 w-4" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs p-4 space-y-2">
-                            <p className="text-sm">
-                              We focus on tool rental, which often includes standard consumables—those everyday items where brand or type doesn't really change the outcome.
-                            </p>
-                            <p className="text-sm">
-                              For materials that are highly specific or visually important, like tiles or other finish surfaces, we recommend purchasing directly from a specialized retailer and using their home‑delivery options.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
+                    <p className="font-semibold">Materials / Sales</p>
                     <p className="text-sm text-muted-foreground">
                       {salesItems.filter(i => i.quantity > 0).length} items (one-time purchase)
                     </p>
@@ -319,14 +298,14 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
+              </div>
 
-                {/* Floor & Decor note - moved under materials/sales */}
-                <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground mt-2">
-                  <p>
-                    📝 <strong className="text-foreground">Note:</strong> You'll need to buy tile and underlayment separately — we'll bring the rest. 
-                    We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
-                  </p>
-                </div>
+              {/* Your Responsibility note - outside materials container */}
+              <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
+                <p>
+                  📝 <strong className="text-foreground">Your Responsibility:</strong> You'll need to buy tile and underlayment separately — we'll bring the rest. 
+                  We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
+                </p>
               </div>
             </div>
           </div>
