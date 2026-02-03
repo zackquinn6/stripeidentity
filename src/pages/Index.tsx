@@ -1,9 +1,13 @@
 import { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { LogIn } from 'lucide-react';
 import HeroSection from '@/components/HeroSection';
 import FounderSection from '@/components/FounderSection';
 
 const Index = () => {
   const aboutRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const scrollToAbout = () => {
     aboutRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -15,6 +19,17 @@ const Index = () => {
       <div ref={aboutRef}>
         <FounderSection />
       </div>
+      
+      {/* Admin login button - bottom right */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate('/auth')}
+        className="fixed bottom-4 right-4 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+      >
+        <LogIn className="w-3 h-3 mr-1" />
+        Admin
+      </Button>
     </div>
   );
 };
