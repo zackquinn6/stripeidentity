@@ -207,7 +207,13 @@ const TileOrderingFlow = ({
   }, [equipment, addOns, materials]);
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
-    if (selected.length === 0) return 'Click to add';
+    if (selected.length === 0) {
+      // Use category's selection guidance, or first item's guidance, or default
+      const guidance = category.selectionGuidance 
+        || category.items[0]?.selectionGuidance 
+        || 'Click to customize';
+      return guidance;
+    }
     return `${selected.length} items selected`;
   };
   if (showCheckout) {

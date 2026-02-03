@@ -140,6 +140,7 @@ export type Database = {
           name: string
           retail_price: number
           section_id: string
+          selection_guidance: string | null
           updated_at: string
         }
         Insert: {
@@ -157,6 +158,7 @@ export type Database = {
           name: string
           retail_price?: number
           section_id: string
+          selection_guidance?: string | null
           updated_at?: string
         }
         Update: {
@@ -174,6 +176,7 @@ export type Database = {
           name?: string
           retail_price?: number
           section_id?: string
+          selection_guidance?: string | null
           updated_at?: string
         }
         Relationships: [
