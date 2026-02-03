@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge';
 import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { equipmentCategories, addOnCategories, consumables, tileSizes, underlaymentOptions } from '@/data/tileEquipment';
+import { equipmentCategories, addOnCategories, tileSizes, underlaymentOptions } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
 import AddOnModal from './AddOnModal';
@@ -18,7 +18,8 @@ import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDateP
 import PackageValueCard from './PackageValueCard';
 import ItemDetailsModal from './ItemDetailsModal';
 import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
-import { useMergedEquipment, useMergedConsumables } from '@/hooks/useBooqableProducts';
+import { useMergedEquipment } from '@/hooks/useBooqableProducts';
+import { useProjectConsumables } from '@/hooks/useProjectItems';
 
 interface TileOrderingFlowProps {
   onBack: () => void;
@@ -31,9 +32,9 @@ interface TileArea {
 const TileOrderingFlow = ({
   onBack
 }: TileOrderingFlowProps) => {
-  // Fetch merged data from Booqable
+  // Fetch merged data from Booqable and database
   const { categories: booqableEquipment, isLoading: equipmentLoading } = useMergedEquipment();
-  const { consumables: booqableConsumables, isLoading: consumablesLoading } = useMergedConsumables();
+  const { data: dbConsumables, isLoading: consumablesLoading } = useProjectConsumables('tile-flooring');
 
   // Step 1: Multi-select for tile sizes and underlayment
   const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
@@ -48,7 +49,7 @@ const TileOrderingFlow = ({
   const [exactSquareFootage, setExactSquareFootage] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentCategory[]>(equipmentCategories);
   const [addOns, setAddOns] = useState<AddOnCategory[]>(addOnCategories);
-  const [materials, setMaterials] = useState<RentalItem[]>(consumables);
+  const [materials, setMaterials] = useState<RentalItem[]>([]);
   const [activeAddOn, setActiveAddOn] = useState<AddOnCategory | null>(null);
   const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -72,16 +73,18 @@ const TileOrderingFlow = ({
     }
   }, [booqableEquipment]);
 
+  // Update materials when database consumables load
   useEffect(() => {
-    if (booqableConsumables && booqableConsumables.length > 0) {
-      setMaterials(prev =>
-        booqableConsumables.map(item => {
+    if (dbConsumables && dbConsumables.length > 0) {
+      setMaterials(prev => {
+        // Preserve user-selected quantities
+        return dbConsumables.map(item => {
           const prevItem = prev.find(p => p.id === item.id);
-          return { ...item, quantity: prevItem?.quantity || item.quantity };
-        })
-      );
+          return { ...item, quantity: prevItem?.quantity ?? item.quantity };
+        });
+      });
     }
-  }, [booqableConsumables]);
+  }, [dbConsumables]);
   // Rental date state
   const [rentalDuration, setRentalDuration] = useState<RentalDuration>('daily');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
