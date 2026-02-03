@@ -428,29 +428,36 @@ export const consumables: RentalItem[] = [
   },
 ];
 
+import tileSmallImg from '@/assets/tile-small.png';
+import tileMediumImg from '@/assets/tile-medium.png';
+import tileLowLargeImg from '@/assets/tile-low-large.png';
+import tileLargeFormatImg from '@/assets/tile-large-format.png';
+import underlaymentMembraneImg from '@/assets/underlayment-membrane.jpg';
+import underlaymentConcreteBoardImg from '@/assets/underlayment-concrete-board.jpg';
+
 export const tileSizes = [
   { 
     value: 'small', 
     label: 'Small (<6")', 
-    imageUrl: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&h=200&fit=crop',
+    imageUrl: tileSmallImg,
     description: 'Mosaic & small format tiles'
   },
   { 
     value: 'medium', 
     label: 'Medium (6–12")', 
-    imageUrl: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=200&h=200&fit=crop',
+    imageUrl: tileMediumImg,
     description: 'Standard bathroom & kitchen tiles'
   },
   { 
     value: 'low-large', 
     label: 'Low-Large (12–18")', 
-    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&h=200&fit=crop',
+    imageUrl: tileLowLargeImg,
     description: 'Floor tiles & accent walls'
   },
   { 
     value: 'large-format', 
     label: 'Large Format (18"+)', 
-    imageUrl: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=200&h=200&fit=crop',
+    imageUrl: tileLargeFormatImg,
     description: 'Modern floor & wall panels'
   },
 ];
@@ -459,13 +466,13 @@ export const underlaymentOptions = [
   { 
     value: 'membrane', 
     label: 'Membrane', 
-    imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200&h=200&fit=crop',
+    imageUrl: underlaymentMembraneImg,
     description: 'Waterproof & crack isolation'
   },
   { 
     value: 'concrete-board', 
     label: 'Concrete Board', 
-    imageUrl: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=200&h=200&fit=crop',
+    imageUrl: underlaymentConcreteBoardImg,
     description: 'Cement backer board substrate'
   },
 ];
