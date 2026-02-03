@@ -548,10 +548,32 @@ serve(async (req) => {
       case 'get-checkout-url': {
         const { order_id } = params;
         
-        const checkoutUrl = `https://${BOOQABLE_COMPANY_ID}.booqable.shop/checkout/${order_id}`;
+        // The Booqable hosted shop uses booqableshop.com domain
+        // Orders created via API can be accessed at the admin portal or 
+        // customers can checkout via the hosted shop
+        const shopUrl = `https://${BOOQABLE_COMPANY_ID}.booqableshop.com`;
+        
+        // Alternatively, get the order details to provide more info
+        const orderResponse = await booqableRequest(`/orders/${order_id}`);
+        let orderNumber = null;
+        if (orderResponse.ok) {
+          const orderData = await orderResponse.json();
+          console.log(`[Booqable] Order response keys: ${Object.keys(orderData).join(', ')}`);
+          // Handle both possible response formats
+          const order = orderData.order || orderData.data || orderData;
+          orderNumber = order?.number;
+          console.log(`[Booqable] Order ${order_id} has number: ${orderNumber}`);
+        } else {
+          console.log(`[Booqable] Failed to fetch order ${order_id}: ${orderResponse.status}`);
+        }
         
         return new Response(
-          JSON.stringify({ checkoutUrl }),
+          JSON.stringify({ 
+            checkoutUrl: shopUrl,
+            orderId: order_id,
+            orderNumber,
+            message: 'Order created successfully. Visit the shop to complete checkout or contact us with your order number.'
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
