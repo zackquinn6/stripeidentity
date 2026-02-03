@@ -2,9 +2,16 @@ import { useState } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AdminPanel from './AdminPanel';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminButton() {
+  const { isAdmin, isLoading } = useAuth();
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+  // Only render for authenticated admins, hide during loading to prevent flash
+  if (isLoading || !isAdmin) {
+    return null;
+  }
 
   return (
     <>
