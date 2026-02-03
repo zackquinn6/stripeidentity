@@ -165,7 +165,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                   <Progress value={progress} className="h-2" />
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Calculating best pricing...</span>
+                    <span>Assembling your order...</span>
                   </div>
                 </div>
               )}
