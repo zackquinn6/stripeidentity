@@ -37,7 +37,7 @@ const EquipmentItem = ({ item, onQuantityChange, onItemClick }: EquipmentItemPro
             </div>
           </div>
         )}
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-foreground group-hover:text-primary transition-colors">
               {item.name}
@@ -46,6 +46,11 @@ const EquipmentItem = ({ item, onQuantityChange, onItemClick }: EquipmentItemPro
               <Badge variant="outline" className="text-xs">Purchase</Badge>
             )}
           </div>
+          {item.selectionGuidance && (
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+              {item.selectionGuidance}
+            </p>
+          )}
           <div className="flex items-center gap-3 mt-1">
             {item.isConsumable ? (
               <span className="text-sm text-muted-foreground">
