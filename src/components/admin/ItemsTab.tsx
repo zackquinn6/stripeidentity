@@ -42,6 +42,8 @@ interface ProductVariant {
   sku: string;
   variationValues: string[];
   quantity: number;
+  dailyRate?: number;
+  imageUrl?: string;
 }
 
 interface ProductDetails {
@@ -206,15 +208,18 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     setSelectedVariantId(variantId);
     if (productDetails) {
       const variant = productDetails.variants.find(v => v.id === variantId);
-      if (variant && variant.variationValues.length > 0) {
+      if (variant) {
+        // Update name based on variation values
+        const variantName = variant.variationValues.length > 0
+          ? `${productDetails.name} - ${variant.variationValues.join(', ')}`
+          : (variant.name || productDetails.name);
+        
+        // Use variant-specific pricing and image if available
         setFormData(prev => ({
           ...prev,
-          name: `${productDetails.name} - ${variant.variationValues.join(', ')}`
-        }));
-      } else if (variant) {
-        setFormData(prev => ({
-          ...prev,
-          name: variant.name || productDetails.name
+          name: variantName,
+          daily_rate: variant.dailyRate ?? productDetails.dailyRate,
+          image_url: variant.imageUrl || productDetails.imageUrl || prev.image_url,
         }));
       }
     }
@@ -272,6 +277,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     // Determine which ID to use: variant ID if selected, otherwise product slug for lookup
     const booqableProductId = selectedVariantId || productDetails?.slug || selectedBooqableId;
 
+    // Get is_sales_item from Booqable product details
+    const isSalesItem = productDetails?.isSalesItem || false;
+
     if (editingItem) {
       const { error } = await supabase
         .from('section_items')
@@ -284,7 +292,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
-          is_sales_item: formData.is_sales_item,
+          is_sales_item: isSalesItem,
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
@@ -315,7 +323,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
-          is_sales_item: formData.is_sales_item,
+          is_sales_item: isSalesItem,
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
@@ -667,19 +675,10 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
 
             {/* Sales item pricing - read-only */}
             {productDetails?.isSalesItem && (
-              <div className="space-y-3 p-4 bg-secondary/50 rounded-lg border border-secondary">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Sale Item Pricing (read-only)</Label>
-                  <Badge variant="secondary" className="text-xs">Consumable</Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Price per Item</p>
-                  <p className="text-lg font-semibold text-primary">
-                    ${productDetails.dailyRate.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> each</span>
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This is a one-time purchase item, not a rental.
+              <div className="space-y-2 p-4 bg-secondary/50 rounded-lg border border-secondary">
+                <Label className="text-sm font-medium">Sale Price</Label>
+                <p className="text-lg font-semibold text-primary">
+                  ${productDetails.dailyRate.toFixed(2)}
                 </p>
               </div>
             )}
@@ -777,21 +776,12 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               </div>
             </div>
             
-            <div className="flex items-center gap-6">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={formData.is_visible}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
-                />
-                <Label>Visible to users</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={formData.is_sales_item}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_sales_item: v })}
-                />
-                <Label>Sales item (purchase only)</Label>
-              </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={formData.is_visible}
+                onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
+              />
+              <Label>Visible to users</Label>
             </div>
             <Button onClick={handleSave} className="w-full">Save</Button>
           </div>

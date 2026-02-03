@@ -349,16 +349,41 @@ serve(async (req) => {
         const data = await response.json();
         const pg = data.product_group || data;
         
-        const variants = (pg.products || []).map((p: Record<string, unknown>) => ({
-          id: String(p.id || ''),
-          name: String(p.name || ''),
-          sku: String(p.sku || ''),
-          variationValues: Array.isArray(p.variation_values) ? p.variation_values : [],
-          quantity: Number(p.quantity) || 0,
-        }));
-
         const productType = String(pg.product_type || 'rental');
         const isSalesItem = productType === 'consumable' || productType === 'service';
+        
+        // Parse group-level pricing
+        const groupBasePriceInCents = Number(pg.base_price_in_cents) || 0;
+        const groupFlatFeeInCents = Number(pg.flat_fee_in_cents) || 0;
+        const groupPriceStructure = pg.price_structure as { day?: number } | undefined;
+        
+        // For sales items, use flat_fee if available, otherwise base_price
+        const groupSalePrice = (groupFlatFeeInCents > 0 ? groupFlatFeeInCents : groupBasePriceInCents) / 100;
+        const groupDailyRate = isSalesItem ? groupSalePrice : (groupPriceStructure?.day ?? (groupBasePriceInCents / 100));
+        
+        // Map variants with their own pricing
+        const variants = (pg.products || []).map((p: Record<string, unknown>) => {
+          const variantBasePriceInCents = Number(p.base_price_in_cents) || 0;
+          const variantFlatFeeInCents = Number(p.flat_fee_in_cents) || 0;
+          const variantPriceStructure = p.price_structure as { day?: number } | undefined;
+          
+          // For sales items, use flat_fee if available
+          const variantSalePrice = (variantFlatFeeInCents > 0 ? variantFlatFeeInCents : variantBasePriceInCents) / 100;
+          const variantDailyRate = isSalesItem 
+            ? variantSalePrice 
+            : (variantPriceStructure?.day ?? (variantBasePriceInCents / 100));
+          
+          return {
+            id: String(p.id || ''),
+            name: String(p.name || ''),
+            sku: String(p.sku || ''),
+            variationValues: Array.isArray(p.variation_values) ? p.variation_values : [],
+            quantity: Number(p.quantity) || 0,
+            // Variant-specific pricing
+            dailyRate: variantDailyRate,
+            imageUrl: String(p.photo_url || ''),
+          };
+        });
         
         const productDetails = {
           booqableId: String(pg.id || ''),
@@ -366,7 +391,7 @@ serve(async (req) => {
           name: String(pg.name || ''),
           description: String(pg.description || ''),
           imageUrl: String(pg.photo_url || ''),
-          dailyRate: (Number(pg.base_price_in_cents) || 0) / 100,
+          dailyRate: groupDailyRate,
           depositAmount: (Number(pg.deposit_in_cents) || 0) / 100,
           stockCount: Number(pg.stock_count) || 0,
           trackable: Boolean(pg.trackable),
