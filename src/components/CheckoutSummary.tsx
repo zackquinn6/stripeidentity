@@ -19,8 +19,10 @@ import {
   Loader2,
   ExternalLink,
   AlertCircle,
-  LogIn
+  LogIn,
+  Info
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { useBooqableOrder } from '@/hooks/useBooqableOrder';
@@ -316,7 +318,26 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           )}
 
           <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">📝 Note:</p>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="font-medium text-foreground">📝 Note:</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs p-4 space-y-2">
+                    <p className="text-sm">
+                      We focus on tool rental, which often includes standard consumables—those everyday items where brand or type doesn't really change the outcome.
+                    </p>
+                    <p className="text-sm">
+                      For materials that are highly specific or visually important, like tiles or other finish surfaces, we recommend purchasing directly from a specialized retailer and using their home‑delivery options.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <p>
               You'll need to buy tile and underlayment separately — we'll bring the rest. 
               We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
