@@ -429,12 +429,16 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
 
       setPricingComparisons(data.comparisons || []);
       
-      // Update retail_price with average
-      if (data.average_price > 0) {
-        setFormData(prev => ({ ...prev, retail_price: Math.round(data.average_price * 100) / 100 }));
+      // Update retail_price with recommended comparison (DIY average by default)
+      if (data.recommended_comparison > 0) {
+        setFormData(prev => ({ ...prev, retail_price: Math.round(data.recommended_comparison * 100) / 100 }));
       }
       
-      toast.success(`Found ${data.comparisons?.length || 0} pricing comparisons (avg: $${data.average_price?.toFixed(2)})`);
+      const tierAvgs = data.tier_averages;
+      const avgSummary = tierAvgs 
+        ? `Pro: $${tierAvgs.professional?.toFixed(0) || 'N/A'}, DIY: $${tierAvgs.diy?.toFixed(0) || 'N/A'}, Used: $${tierAvgs.used?.toFixed(0) || 'N/A'}`
+        : '';
+      toast.success(`Found ${data.comparisons?.length || 0} comparisons. ${avgSummary}`);
       fetchItems(); // Refresh to show updated average_market_price
     } catch (err) {
       console.error('[ItemsTab] Error:', err);
@@ -768,54 +772,77 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               )}
               
               {pricingComparisons.length > 0 && (
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">Level</th>
-                        <th className="px-3 py-2 text-left font-medium">Model</th>
-                        <th className="px-3 py-2 text-left font-medium">Retailer</th>
-                        <th className="px-3 py-2 text-right font-medium">Price</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pricingComparisons.map((comp, idx) => (
-                        <tr key={comp.id} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
-                          <td className="px-3 py-2">
-                            <Badge 
-                              variant={
-                                comp.comparison_level === 'exact' ? 'default' :
-                                comp.comparison_level === 'professional' ? 'secondary' :
-                                comp.comparison_level === 'diy' ? 'outline' : 'destructive'
-                              }
-                              className="text-xs capitalize"
-                            >
-                              {comp.comparison_level}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2 truncate max-w-[150px]" title={comp.model_name}>
-                            {comp.model_name}
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground">{comp.retailer}</td>
-                          <td className="px-3 py-2 text-right font-medium">${comp.price.toFixed(2)}</td>
+                <div className="space-y-3">
+                  {/* Tier Averages Summary */}
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    {['exact', 'professional', 'diy', 'used'].map(level => {
+                      const tierItems = pricingComparisons.filter(c => c.comparison_level === level);
+                      const avg = tierItems.length > 0 
+                        ? tierItems.reduce((sum, c) => sum + c.price, 0) / tierItems.length 
+                        : 0;
+                      return (
+                        <div key={level} className="bg-muted/50 rounded-lg p-2">
+                          <Badge 
+                            variant={
+                              level === 'exact' ? 'default' :
+                              level === 'professional' ? 'secondary' :
+                              level === 'diy' ? 'outline' : 'destructive'
+                            }
+                            className="text-xs capitalize mb-1"
+                          >
+                            {level}
+                          </Badge>
+                          <p className="text-sm font-bold">
+                            {avg > 0 ? `$${avg.toFixed(0)}` : 'N/A'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{tierItems.length} items</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Detailed Table */}
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Level</th>
+                          <th className="px-3 py-2 text-left font-medium">Model</th>
+                          <th className="px-3 py-2 text-left font-medium">Retailer</th>
+                          <th className="px-3 py-2 text-right font-medium">Price</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-muted/50 border-t">
-                      <tr>
-                        <td colSpan={3} className="px-3 py-2 font-medium">Average Market Price</td>
-                        <td className="px-3 py-2 text-right font-bold text-primary">
-                          ${(pricingComparisons.reduce((sum, c) => sum + c.price, 0) / pricingComparisons.length).toFixed(2)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {pricingComparisons.map((comp, idx) => (
+                          <tr key={comp.id} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+                            <td className="px-3 py-2">
+                              <Badge 
+                                variant={
+                                  comp.comparison_level === 'exact' ? 'default' :
+                                  comp.comparison_level === 'professional' ? 'secondary' :
+                                  comp.comparison_level === 'diy' ? 'outline' : 'destructive'
+                                }
+                                className="text-xs capitalize"
+                              >
+                                {comp.comparison_level}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2 truncate max-w-[150px]" title={comp.model_name}>
+                              {comp.model_name}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">{comp.retailer}</td>
+                            <td className="px-3 py-2 text-right font-medium">${comp.price.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
               
               <p className="text-xs text-muted-foreground">
-                AI-powered pricing uses fuzzy matching: Exact matches, Professional brands (DeWalt, Milwaukee, Makita), 
-                DIY brands (Ryobi, Harbor Freight), and Used marketplace pricing.
+                Professional brands: DeWalt, Milwaukee, Makita, Bosch. DIY brands: Ryobi, Kobalt, Harbor Freight tools.
+                Retail price is set to DIY average (most relevant for rental comparison).
               </p>
             </div>
             

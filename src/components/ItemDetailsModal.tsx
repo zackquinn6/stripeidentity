@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Info, DollarSign, Wrench, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
+import { Info, DollarSign, Wrench, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import QuantitySelector from './QuantitySelector';
+import PriceComparisonAccordion from './PriceComparisonAccordion';
 interface ItemDetailsModalProps {
   item: RentalItem | null;
   open: boolean;
@@ -121,7 +122,15 @@ const ItemDetailsModal = ({
           )}
         </div>
 
-        {/* Description */}
+        {/* Price Comparison Accordion - only for rental items */}
+        {!item.isConsumable && !item.isSalesItem && (
+          <PriceComparisonAccordion
+            itemId={item.id}
+            itemName={item.name}
+            rentalDailyRate={item.dailyRate}
+            rentalFirstDayRate={item.firstDayRate ?? item.dailyRate}
+          />
+        )}
         {item.description && <div>
             <div className="flex items-center gap-2 mb-2">
               <Info className="w-4 h-4 text-muted-foreground" />
