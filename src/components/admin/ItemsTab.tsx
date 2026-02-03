@@ -29,6 +29,7 @@ interface SectionItem {
   display_order: number;
   amazon_url: string | null;
   home_depot_url: string | null;
+  selection_guidance: string | null;
 }
 
 interface ProductVariant {
@@ -86,7 +87,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
     default_quantity: 1,
     is_visible: true,
     amazon_url: '',
-    home_depot_url: ''
+    home_depot_url: '',
+    selection_guidance: ''
   });
 
   const { data: booqableProducts, isLoading: isLoadingProducts, refetch: refetchProducts } = useBooqableProducts();
@@ -146,7 +148,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         default_quantity: 1,
         is_visible: true,
         amazon_url: '',
-        home_depot_url: ''
+        home_depot_url: '',
+        selection_guidance: ''
       });
 
       // If no variants, use the slug as the booqable_product_id
@@ -216,12 +219,13 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         default_quantity: item.default_quantity,
         is_visible: item.is_visible,
         amazon_url: item.amazon_url || '',
-        home_depot_url: item.home_depot_url || ''
+        home_depot_url: item.home_depot_url || '',
+        selection_guidance: item.selection_guidance || ''
       });
     } else {
       setEditingItem(null);
       setSelectedBooqableId('');
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true, amazon_url: '', home_depot_url: '' });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true, amazon_url: '', home_depot_url: '', selection_guidance: '' });
     }
     setIsDialogOpen(true);
   };
@@ -257,7 +261,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
           amazon_url: formData.amazon_url || null,
-          home_depot_url: formData.home_depot_url || null
+          home_depot_url: formData.home_depot_url || null,
+          selection_guidance: formData.selection_guidance || null
         })
         .eq('id', editingItem.id);
 
@@ -284,6 +289,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           is_visible: formData.is_visible,
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
+          selection_guidance: formData.selection_guidance || null,
           display_order: items.length
         });
 
@@ -533,6 +539,17 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="ANSI-rated safety glasses..."
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Selection Guidance</Label>
+              <Input
+                value={formData.selection_guidance}
+                onChange={(e) => setFormData({ ...formData, selection_guidance: e.target.value })}
+                placeholder="e.g., Do you have tile larger than 15 inches?"
+              />
+              <p className="text-xs text-muted-foreground">
+                Short question/statement to help users decide if they need this item
+              </p>
             </div>
             {/* Pricing from Booqable - read-only */}
             {productDetails && !productDetails.isSalesItem && (

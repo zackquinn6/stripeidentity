@@ -7,6 +7,7 @@ export interface RentalItem {
   isConsumable?: boolean;
   imageUrl?: string;
   booqableId?: string;
+  selectionGuidance?: string;
   // Extended details for modal
   description?: string;
   usage?: string;
