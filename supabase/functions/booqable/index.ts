@@ -207,7 +207,30 @@ serve(async (req) => {
       console.log(`[Booqable] Authenticated user ${userId} for action: ${action}`);
     }
 
-    switch (action) {
+      switch (action) {
+      case 'debug-product': {
+        // Debug action to see raw Booqable data for a specific product
+        const { slug } = params;
+        const data = await fetchAllProductGroups();
+        const product = data.find((p: any) => (p.slug || p.attributes?.slug) === slug);
+        
+        // Also fetch products (variants) for this product group if it has variations
+        let variants: any[] = [];
+        if (product?.id) {
+          const varResp = await booqableRequest(`/products?filter[product_group_id]=${product.id}`);
+          if (varResp.ok) {
+            const varData = await varResp.json();
+            variants = varData.products || varData.data || [];
+          }
+        }
+        
+        console.log(`[Booqable] Debug product ${slug}:`, JSON.stringify({ product, variants }, null, 2));
+        return new Response(
+          JSON.stringify({ raw: product, variants }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+        
       case 'get-products': {
         const data = await fetchAllProductGroups();
         console.log(`[Booqable] Raw product_groups fetched: ${data.length}`);
@@ -229,14 +252,22 @@ serve(async (req) => {
             const isSalesItem = productType === 'consumable' || productType === 'service';
             
             // Parse price structure for tiered pricing
+            // For rentals: base_price_in_cents = day 1 rate, price_structure.day = day 2+ rate
+            // For sales items: base_price_in_cents is the sale price
             const priceStructure = attrs.price_structure as { day?: number; hour?: number } | undefined;
             const basePriceInCents = Number(attrs.base_price_in_cents) || 0;
-            const dailyRate = basePriceInCents / 100;
             
-            // First day rate = base_price_in_cents (includes delivery/setup)
-            // Daily rate after = price_structure.day (flat daily rate)
-            // If no price_structure, fall back to base price for both
-            const dayRateFromStructure = priceStructure?.day ? priceStructure.day / 100 : dailyRate;
+            // For sales items, we need to check the flat_fee or price fields
+            // Booqable sometimes stores sale prices differently
+            const flatFee = Number(attrs.flat_fee_in_cents) || 0;
+            
+            // Use flat_fee if available, otherwise base_price
+            const salePrice = (flatFee > 0 ? flatFee : basePriceInCents) / 100;
+            const rentalFirstDayRate = basePriceInCents / 100;
+            
+            // For rentals, daily rate after day 1 comes from price_structure.day
+            // price_structure values are already in whole dollars (not cents)
+            const dayRateFromStructure = priceStructure?.day ?? rentalFirstDayRate;
             
             return {
               booqableId: p.id,
@@ -244,8 +275,8 @@ serve(async (req) => {
               name: p.attributes.name,
               description: p.attributes.description || '',
               imageUrl: p.attributes.photo_url || '',
-              firstDayRate: dailyRate, // Day 1 includes delivery/setup
-              dailyRate: dayRateFromStructure, // Day 2+ flat rate
+              firstDayRate: isSalesItem ? salePrice : rentalFirstDayRate,
+              dailyRate: isSalesItem ? salePrice : dayRateFromStructure,
               depositAmount: (p.attributes.deposit_in_cents || 0) / 100,
               stockCount: p.attributes.stock_count || 0,
               trackable: p.attributes.trackable || false,
@@ -261,8 +292,14 @@ serve(async (req) => {
           // Parse price structure for tiered pricing
           const priceStructure = std.price_structure as { day?: number; hour?: number } | undefined;
           const basePriceInCents = Number(std.base_price_in_cents) || 0;
-          const dailyRate = basePriceInCents / 100;
-          const dayRateFromStructure = priceStructure?.day ? priceStructure.day / 100 : dailyRate;
+          const flatFee = Number(std.flat_fee_in_cents) || 0;
+          
+          // For sales items, use flat_fee if available
+          const salePrice = (flatFee > 0 ? flatFee : basePriceInCents) / 100;
+          const rentalFirstDayRate = basePriceInCents / 100;
+          
+          // price_structure values are already in whole dollars
+          const dayRateFromStructure = priceStructure?.day ?? rentalFirstDayRate;
           
           return {
             booqableId: String(std.id || ''),
@@ -270,8 +307,8 @@ serve(async (req) => {
             name: String(std.name || ''),
             description: String(std.description || ''),
             imageUrl: String(std.photo_url || ''),
-            firstDayRate: dailyRate, // Day 1 includes delivery/setup
-            dailyRate: dayRateFromStructure, // Day 2+ flat rate
+            firstDayRate: isSalesItem ? salePrice : rentalFirstDayRate,
+            dailyRate: isSalesItem ? salePrice : dayRateFromStructure,
             depositAmount: (Number(std.deposit_in_cents) || 0) / 100,
             stockCount: Number(std.stock_count) || 0,
             trackable: Boolean(std.trackable),
