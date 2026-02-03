@@ -42,7 +42,7 @@ const EquipmentItem = ({ item, onQuantityChange, onItemClick }: EquipmentItemPro
             <span className="font-medium text-foreground group-hover:text-primary transition-colors">
               {item.name}
             </span>
-            {item.isConsumable && (
+            {(item.isConsumable || item.isSalesItem) && (
               <Badge variant="outline" className="text-xs">Purchase</Badge>
             )}
           </div>
@@ -52,7 +52,7 @@ const EquipmentItem = ({ item, onQuantityChange, onItemClick }: EquipmentItemPro
             </p>
           )}
           <div className="flex items-center gap-3 mt-1">
-            {item.isConsumable ? (
+            {(item.isConsumable || item.isSalesItem) ? (
               <span className="text-sm text-muted-foreground">
                 ${item.dailyRate.toFixed(2)} each
               </span>

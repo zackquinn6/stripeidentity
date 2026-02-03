@@ -33,6 +33,7 @@ interface SectionItem {
   scaling_tile_size: string | null;
   scaling_per_100_sqft: number | null;
   scaling_guidance: string | null;
+  is_sales_item: boolean;
 }
 
 interface ProductVariant {
@@ -95,8 +96,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     daily_rate: 0,
     retail_price: 0,
     image_url: '',
-    default_quantity: 1,
+    default_quantity: 0,
     is_visible: true,
+    is_sales_item: false,
     amazon_url: '',
     home_depot_url: '',
     selection_guidance: '',
@@ -159,8 +161,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         daily_rate: details.dailyRate,
         retail_price: 0,
         image_url: details.imageUrl || '',
-        default_quantity: 1,
+        default_quantity: 0,
         is_visible: true,
+        is_sales_item: details.isSalesItem || false,
         amazon_url: '',
         home_depot_url: '',
         selection_guidance: '',
@@ -235,6 +238,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         image_url: item.image_url || '',
         default_quantity: item.default_quantity,
         is_visible: item.is_visible,
+        is_sales_item: item.is_sales_item || false,
         amazon_url: item.amazon_url || '',
         home_depot_url: item.home_depot_url || '',
         selection_guidance: item.selection_guidance || '',
@@ -245,7 +249,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     } else {
       setEditingItem(null);
       setSelectedBooqableId('');
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true, amazon_url: '', home_depot_url: '', selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, is_visible: true, is_sales_item: false, amazon_url: '', home_depot_url: '', selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
     }
     setIsDialogOpen(true);
   };
@@ -280,6 +284,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
+          is_sales_item: formData.is_sales_item,
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
@@ -310,6 +315,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
+          is_sales_item: formData.is_sales_item,
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
@@ -771,12 +777,21 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={formData.is_visible}
-                onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
-              />
-              <Label>Visible to users</Label>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={formData.is_visible}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_visible: v })}
+                />
+                <Label>Visible to users</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={formData.is_sales_item}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_sales_item: v })}
+                />
+                <Label>Sales item (purchase only)</Label>
+              </div>
             </div>
             <Button onClick={handleSave} className="w-full">Save</Button>
           </div>
