@@ -1,26 +1,23 @@
 import { RentalItem } from '@/types/rental';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Info, DollarSign, Wrench, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import QuantitySelector from './QuantitySelector';
-
 interface ItemDetailsModalProps {
   item: RentalItem | null;
   open: boolean;
   onClose: () => void;
   onQuantityChange: (id: string, quantity: number) => void;
 }
-
-const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetailsModalProps) => {
+const ItemDetailsModal = ({
+  item,
+  open,
+  onClose,
+  onQuantityChange
+}: ItemDetailsModalProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const booqableButtonRef = useRef<HTMLDivElement>(null);
 
@@ -36,33 +33,25 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
       return () => clearTimeout(timer);
     }
   }, [open, item?.booqableId]);
-
   if (!item) return null;
-
-  const images = item.images?.length ? item.images : (item.imageUrl ? [item.imageUrl] : []);
+  const images = item.images?.length ? item.images : item.imageUrl ? [item.imageUrl] : [];
   const hasMultipleImages = images.length > 1;
-
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    setCurrentImageIndex(prev => (prev + 1) % images.length);
   };
-
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    setCurrentImageIndex(prev => (prev - 1 + images.length) % images.length);
   };
 
   // Calculate savings
-  const rentalSavings = item.retailPrice - (item.dailyRate * 3); // Assuming 3-day rental
-  const savingsPercent = Math.round((rentalSavings / item.retailPrice) * 100);
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
+  const rentalSavings = item.retailPrice - item.dailyRate * 3; // Assuming 3-day rental
+  const savingsPercent = Math.round(rentalSavings / item.retailPrice * 100);
+  return <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {item.name}
-            {item.isConsumable && (
-              <Badge variant="outline" className="text-xs">Purchase</Badge>
-            )}
+            {item.isConsumable && <Badge variant="outline" className="text-xs">Purchase</Badge>}
           </DialogTitle>
           <DialogDescription>
             {item.isConsumable ? 'Purchase item details' : 'Rental equipment details and booking'}
@@ -70,47 +59,22 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
         </DialogHeader>
 
         {/* Image Gallery */}
-        {images.length > 0 && (
-          <div className="relative">
+        {images.length > 0 && <div className="relative">
             <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-              <img
-                src={images[currentImageIndex]}
-                alt={item.name}
-                className="w-full h-full object-cover"
-              />
+              <img src={images[currentImageIndex]} alt={item.name} className="w-full h-full object-cover" />
             </div>
-            {hasMultipleImages && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background"
-                  onClick={prevImage}
-                >
+            {hasMultipleImages && <>
+                <Button variant="ghost" size="icon" className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background" onClick={prevImage}>
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background"
-                  onClick={nextImage}
-                >
+                <Button variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background" onClick={nextImage}>
                   <ChevronRight className="w-4 h-4" />
                 </Button>
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                  {images.map((_, idx) => (
-                    <div
-                      key={idx}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        idx === currentImageIndex ? 'bg-primary' : 'bg-muted-foreground/50'
-                      }`}
-                    />
-                  ))}
+                  {images.map((_, idx) => <div key={idx} className={`w-2 h-2 rounded-full transition-colors ${idx === currentImageIndex ? 'bg-primary' : 'bg-muted-foreground/50'}`} />)}
                 </div>
-              </>
-            )}
-          </div>
-        )}
+              </>}
+          </div>}
 
         {/* Price Comparison */}
         <div className="bg-secondary/50 rounded-lg p-4">
@@ -134,18 +98,15 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
               </p>
             </div>
           </div>
-          {!item.isConsumable && rentalSavings > 0 && (
-            <div className="mt-3 p-2 bg-success/10 rounded-md">
+          {!item.isConsumable && rentalSavings > 0 && <div className="mt-3 p-2 bg-success/10 rounded-md">
               <p className="text-sm text-success font-medium">
                 💰 Save ${rentalSavings.toFixed(0)} ({savingsPercent}% off retail) with a 3-day rental!
               </p>
-            </div>
-          )}
+            </div>}
         </div>
 
         {/* Description */}
-        {item.description && (
-          <div>
+        {item.description && <div>
             <div className="flex items-center gap-2 mb-2">
               <Info className="w-4 h-4 text-muted-foreground" />
               <span className="font-semibold text-sm">Description</span>
@@ -153,14 +114,12 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
             <p className="text-sm text-muted-foreground leading-relaxed">
               {item.description}
             </p>
-          </div>
-        )}
+          </div>}
 
         <Separator />
 
         {/* Usage Tips */}
-        {item.usage && (
-          <div>
+        {item.usage && <div>
             <div className="flex items-center gap-2 mb-2">
               <Wrench className="w-4 h-4 text-muted-foreground" />
               <span className="font-semibold text-sm">How to Use</span>
@@ -168,72 +127,32 @@ const ItemDetailsModal = ({ item, open, onClose, onQuantityChange }: ItemDetails
             <p className="text-sm text-muted-foreground leading-relaxed">
               {item.usage}
             </p>
-          </div>
-        )}
+          </div>}
 
         {/* Specifications */}
-        {item.specifications && item.specifications.length > 0 && (
-          <div>
+        {item.specifications && item.specifications.length > 0 && <div>
             <span className="font-semibold text-sm">Specifications</span>
             <div className="mt-2 space-y-1">
-              {item.specifications.map((spec, idx) => (
-                <div key={idx} className="flex justify-between text-sm">
+              {item.specifications.map((spec, idx) => <div key={idx} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{spec.label}</span>
                   <span className="font-medium">{spec.value}</span>
-                </div>
-              ))}
+                </div>)}
             </div>
-          </div>
-        )}
+          </div>}
 
         <Separator />
 
         {/* Booqable Add to Cart (if available) */}
-        {item.booqableId && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-primary" />
-              <span className="font-semibold text-sm">Add to Cart</span>
-            </div>
-            
-            {/* Booqable embed button */}
-            <div 
-              ref={booqableButtonRef}
-              className="booqable-product-button" 
-              data-id={item.booqableId}
-            />
-            
-            {/* Fallback link button */}
-            <Button 
-              variant="default" 
-              className="w-full"
-              asChild
-            >
-              <a 
-                href={`https://feeebb8b-2583-4689-b2f6-d488f8220b65.booqable.shop/product/${item.booqableId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ShoppingCart className="w-4 h-4 mr-2" />
-                Book on Booqable
-              </a>
-            </Button>
-          </div>
-        )}
+        {item.booqableId}
 
         <Separator />
 
         {/* Add to Order */}
         <div className="flex items-center justify-between">
           <span className="font-medium">Add to Order</span>
-          <QuantitySelector
-            quantity={item.quantity}
-            onQuantityChange={(qty) => onQuantityChange(item.id, qty)}
-          />
+          <QuantitySelector quantity={item.quantity} onQuantityChange={qty => onQuantityChange(item.id, qty)} />
         </div>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>;
 };
-
 export default ItemDetailsModal;
