@@ -39,6 +39,7 @@ const DAY_2_PLUS_RATE = 25; // Flat fee per additional day
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -117,10 +118,26 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               <Button 
                 size="lg" 
                 className="w-full"
-                onClick={() => setShowDetails(true)}
+                disabled={isGenerating}
+                onClick={() => {
+                  setIsGenerating(true);
+                  setTimeout(() => {
+                    setIsGenerating(false);
+                    setShowDetails(true);
+                  }, 5000);
+                }}
               >
-                View Pricing Breakdown
-                <ArrowRight className="w-5 h-5 ml-2" />
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Generating your order...
+                  </>
+                ) : (
+                  <>
+                    View Pricing Breakdown
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>
