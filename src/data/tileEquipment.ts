@@ -450,13 +450,13 @@ export const tileSizes = [
   },
   { 
     value: 'low-large', 
-    label: 'Low-Large (12–18")', 
+    label: 'Large (12–18")', 
     imageUrl: tileLowLargeImg,
     description: 'Floor tiles & accent walls'
   },
   { 
     value: 'large-format', 
-    label: 'Large Format (18"+)', 
+    label: 'XL Large Format (18"+)', 
     imageUrl: tileLargeFormatImg,
     description: 'Modern floor & wall panels'
   },
