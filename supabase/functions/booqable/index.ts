@@ -65,10 +65,9 @@ async function verifyAuth(req: Request): Promise<{ userId: string | null; error:
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  const token = authHeader.replace('Bearer ', '');
-  const { data, error } = await supabaseClient.auth.getClaims(token);
+  const { data: { user }, error } = await supabaseClient.auth.getUser();
   
-  if (error || !data?.claims) {
+  if (error || !user) {
     console.error('[Booqable] Auth verification failed:', error?.message);
     return {
       userId: null,
@@ -79,7 +78,7 @@ async function verifyAuth(req: Request): Promise<{ userId: string | null; error:
     };
   }
 
-  return { userId: data.claims.sub as string, error: null };
+  return { userId: user.id, error: null };
 }
 
 async function findProductGroupIdBySlug(slug: string): Promise<string | null> {

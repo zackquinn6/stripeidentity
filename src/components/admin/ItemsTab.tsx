@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -53,6 +54,9 @@ interface ProductDetails {
   variants: ProductVariant[];
   productType: string;
   isSalesItem: boolean;
+  // Tiered pricing from Booqable price structure
+  day1Rate?: number;
+  day2PlusRate?: number;
 }
 
 interface ItemsTabProps {
@@ -530,6 +534,51 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                 placeholder="ANSI-rated safety glasses..."
               />
             </div>
+            {/* Pricing from Booqable - read-only */}
+            {productDetails && !productDetails.isSalesItem && (
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Booqable Pricing (read-only)</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Day 1 Rate</p>
+                    <p className="text-lg font-semibold text-primary">
+                      ${productDetails.dailyRate.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Day 2+ Rate</p>
+                    <p className="text-lg font-semibold text-primary">
+                      ${productDetails.dailyRate.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/day</span>
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Rates are pulled directly from Booqable and cannot be edited here.
+                </p>
+              </div>
+            )}
+
+            {/* Sales item pricing - read-only */}
+            {productDetails?.isSalesItem && (
+              <div className="space-y-3 p-4 bg-secondary/50 rounded-lg border border-secondary">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Sale Item Pricing (read-only)</Label>
+                  <Badge variant="secondary" className="text-xs">Consumable</Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Price per Item</p>
+                  <p className="text-lg font-semibold text-primary">
+                    ${productDetails.dailyRate.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> each</span>
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This is a one-time purchase item, not a rental.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Default Quantity</Label>
@@ -546,7 +595,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                   step="0.01"
                   value={formData.retail_price}
                   onChange={(e) => setFormData({ ...formData, retail_price: parseFloat(e.target.value) || 0 })}
+                  placeholder="For price comparison"
                 />
+                <p className="text-xs text-muted-foreground">Used for purchase comparison only</p>
               </div>
             </div>
             
