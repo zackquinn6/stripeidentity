@@ -105,12 +105,17 @@ export function useMergedEquipment() {
       );
 
       if (booqableProduct) {
+        // If Booqable marks this as a sales item (consumable/service),
+        // set isConsumable to true so pricing displays correctly
+        const isConsumable = booqableProduct.isSalesItem || item.isConsumable;
+        
         return {
           ...item,
           booqableId: booqableProduct.booqableId,
           dailyRate: booqableProduct.dailyRate || item.dailyRate,
           imageUrl: booqableProduct.imageUrl || item.imageUrl,
           description: booqableProduct.description || item.description,
+          isConsumable,
         };
       }
 
@@ -125,6 +130,68 @@ export function useMergedEquipment() {
     isLoading,
     error,
     refetch,
+    isLiveData: !!booqableProducts && booqableProducts.length > 0,
+  };
+}
+
+// Merge consumables with Booqable sales items
+export function useMergedConsumables() {
+  const { data: booqableProducts, isLoading, error } = useBooqableProducts();
+
+  const mergedConsumables: RentalItem[] = staticConsumables.map(item => {
+    if (!booqableProducts) return item;
+
+    const booqableProduct = booqableProducts.find(p =>
+      p.slug === item.id ||
+      p.name.toLowerCase() === item.name.toLowerCase() ||
+      p.name.toLowerCase().includes(item.name.toLowerCase().split(' ')[0])
+    );
+
+    if (booqableProduct) {
+      return {
+        ...item,
+        booqableId: booqableProduct.booqableId,
+        // For sales items, dailyRate IS the sale price
+        dailyRate: booqableProduct.dailyRate || item.dailyRate,
+        imageUrl: booqableProduct.imageUrl || item.imageUrl,
+        description: booqableProduct.description || item.description,
+        isConsumable: true, // Always true for consumables
+      };
+    }
+
+    return item;
+  });
+
+  // Also add any Booqable sales items not in static consumables
+  if (booqableProducts) {
+    const salesItems = booqableProducts.filter(p => p.isSalesItem);
+    for (const product of salesItems) {
+      const existsInMerged = mergedConsumables.some(c =>
+        c.booqableId === product.booqableId ||
+        c.id === product.slug ||
+        c.name.toLowerCase() === product.name.toLowerCase()
+      );
+      
+      if (!existsInMerged) {
+        mergedConsumables.push({
+          id: product.slug,
+          name: product.name,
+          retailPrice: product.dailyRate, // For sales items, dailyRate is the price
+          dailyRate: product.dailyRate,
+          quantity: 0,
+          isConsumable: true,
+          imageUrl: product.imageUrl,
+          description: product.description,
+          booqableId: product.booqableId,
+        });
+      }
+    }
+  }
+
+  return {
+    consumables: mergedConsumables,
+    isLoading,
+    error,
     isLiveData: !!booqableProducts && booqableProducts.length > 0,
   };
 }

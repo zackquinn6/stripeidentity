@@ -18,6 +18,8 @@ import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDateP
 import PackageValueCard from './PackageValueCard';
 import ItemDetailsModal from './ItemDetailsModal';
 import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
+import { useMergedEquipment, useMergedConsumables } from '@/hooks/useBooqableProducts';
+
 interface TileOrderingFlowProps {
   onBack: () => void;
 }
@@ -29,6 +31,10 @@ interface TileArea {
 const TileOrderingFlow = ({
   onBack
 }: TileOrderingFlowProps) => {
+  // Fetch merged data from Booqable
+  const { categories: booqableEquipment, isLoading: equipmentLoading } = useMergedEquipment();
+  const { consumables: booqableConsumables, isLoading: consumablesLoading } = useMergedConsumables();
+
   // Step 1: Multi-select for tile sizes and underlayment
   const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
   const [selectedUnderlayment, setSelectedUnderlayment] = useState<string[]>([]);
@@ -48,6 +54,34 @@ const TileOrderingFlow = ({
   const [showCheckout, setShowCheckout] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string>('step-1');
 
+  // Update equipment and materials when Booqable data loads
+  useEffect(() => {
+    if (booqableEquipment && booqableEquipment.length > 0) {
+      setEquipment(prev => 
+        booqableEquipment.map(cat => {
+          const prevCat = prev.find(p => p.id === cat.id);
+          return {
+            ...cat,
+            items: cat.items.map(item => {
+              const prevItem = prevCat?.items.find(i => i.id === item.id);
+              return { ...item, quantity: prevItem?.quantity || item.quantity };
+            })
+          };
+        })
+      );
+    }
+  }, [booqableEquipment]);
+
+  useEffect(() => {
+    if (booqableConsumables && booqableConsumables.length > 0) {
+      setMaterials(prev =>
+        booqableConsumables.map(item => {
+          const prevItem = prev.find(p => p.id === item.id);
+          return { ...item, quantity: prevItem?.quantity || item.quantity };
+        })
+      );
+    }
+  }, [booqableConsumables]);
   // Rental date state
   const [rentalDuration, setRentalDuration] = useState<RentalDuration>('daily');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
