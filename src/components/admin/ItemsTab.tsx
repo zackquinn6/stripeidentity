@@ -172,14 +172,14 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
       // If no variants, use the slug as the booqable_product_id
       if (!details.hasVariations || details.variants.length === 0) {
         // Product has no variants, we use the slug for lookup
-      } else if (details.variants.length === 1) {
-        // Only one variant, auto-select it
-        setSelectedVariantId(details.variants[0].id);
-        const variant = details.variants[0];
-        if (variant.variationValues.length > 0) {
+      } else {
+        // Auto-select the first variant (whether there's 1 or many)
+        const firstVariant = details.variants[0];
+        setSelectedVariantId(firstVariant.id);
+        if (firstVariant.variationValues.length > 0) {
           setFormData(prev => ({
             ...prev,
-            name: `${details.name} - ${variant.variationValues.join(', ')}`
+            name: `${details.name} - ${firstVariant.variationValues.join(', ')}`
           }));
         }
       }
