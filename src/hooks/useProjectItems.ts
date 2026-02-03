@@ -17,6 +17,7 @@ interface SectionItemRow {
   scaling_tile_size: string | null;
   scaling_per_100_sqft: number | null;
   scaling_guidance: string | null;
+  is_sales_item: boolean;
 }
 
 interface SectionRow {
@@ -38,6 +39,7 @@ function mapItemToRentalItem(item: SectionItemRow, isConsumable: boolean = false
     firstDayRate: Number(item.daily_rate) || 0,
     quantity: item.default_quantity || 0,
     isConsumable,
+    isSalesItem: item.is_sales_item || false,
     imageUrl: item.image_url || undefined,
     description: item.description || undefined,
     selectionGuidance: item.selection_guidance || undefined,
@@ -79,7 +81,8 @@ async function fetchProjectSections(projectSlug: string): Promise<ProjectSection
         default_quantity,
         scaling_tile_size,
         scaling_per_100_sqft,
-        scaling_guidance
+        scaling_guidance,
+        is_sales_item
       )
     `)
     .eq('is_visible', true)

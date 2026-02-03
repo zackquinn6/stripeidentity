@@ -6,6 +6,7 @@ export interface RentalItem {
   firstDayRate?: number; // Day 1 price (includes delivery/setup)
   quantity: number;
   isConsumable?: boolean;
+  isSalesItem?: boolean; // True if one-time purchase, false if rental
   imageUrl?: string;
   booqableId?: string;
   selectionGuidance?: string;
