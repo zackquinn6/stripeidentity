@@ -79,7 +79,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       return () => clearInterval(timer);
     }
   }, [isGenerating]);
-  const { isCreating, error: orderError, checkoutUrl, createOrder, redirectToCheckout, reset } = useBooqableOrder();
+  const { isCreating, error: orderError, checkoutUrl, orderNumber, createOrder, redirectToCheckout, reset } = useBooqableOrder();
   
   const rentals = items.filter(item => !item.isConsumable && !item.isSalesItem && item.quantity > 0);
   const salesItems = items.filter(item => (item.isConsumable || item.isSalesItem));
@@ -443,16 +443,27 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
           {checkoutUrl ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 p-4 bg-success/10 border border-success/30 rounded-lg text-success">
-                <Check className="w-5 h-5" />
-                <p className="font-medium">Order created! Complete your booking on Booqable.</p>
+              <div className="p-4 bg-success/10 border border-success/30 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-success">
+                  <Check className="w-5 h-5" />
+                  <p className="font-semibold">Order Created Successfully!</p>
+                </div>
+                {orderNumber && (
+                  <p className="text-sm text-muted-foreground">
+                    Your order number is <span className="font-bold text-foreground">#{orderNumber}</span>. 
+                    We'll be in touch to confirm your rental dates and arrange delivery.
+                  </p>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  You can also browse our full catalog and add items directly to your cart.
+                </p>
               </div>
               <Button 
                 size="lg" 
                 className="w-full" 
                 onClick={redirectToCheckout}
               >
-                Complete Checkout
+                Browse Full Catalog
                 <ExternalLink className="w-4 h-4 ml-2" />
               </Button>
             </div>

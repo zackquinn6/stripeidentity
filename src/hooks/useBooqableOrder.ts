@@ -7,6 +7,7 @@ interface OrderState {
   isCreating: boolean;
   error: string | null;
   orderId: string | null;
+  orderNumber: number | null;
   checkoutUrl: string | null;
 }
 
@@ -21,6 +22,7 @@ export function useBooqableOrder() {
     isCreating: false,
     error: null,
     orderId: null,
+    orderNumber: null,
     checkoutUrl: null,
   });
 
@@ -100,16 +102,18 @@ export function useBooqableOrder() {
       });
 
       const checkoutUrl = checkoutData?.checkoutUrl;
-      console.log(`[useBooqableOrder] Checkout URL: ${checkoutUrl}`);
+      const orderNumber = checkoutData?.orderNumber;
+      console.log(`[useBooqableOrder] Checkout URL: ${checkoutUrl}, Order #${orderNumber}`);
 
       setState({
         isCreating: false,
         error: null,
         orderId,
+        orderNumber,
         checkoutUrl,
       });
 
-      return { orderId, checkoutUrl };
+      return { orderId, orderNumber, checkoutUrl };
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create order';
@@ -134,6 +138,7 @@ export function useBooqableOrder() {
       isCreating: false,
       error: null,
       orderId: null,
+      orderNumber: null,
       checkoutUrl: null,
     });
   };
