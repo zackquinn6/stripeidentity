@@ -9,6 +9,10 @@ export interface RentalItem {
   imageUrl?: string;
   booqableId?: string;
   selectionGuidance?: string;
+  // Scaling configuration for consumables
+  scalingTileSize?: string; // 'small' | 'medium' | 'large' | 'all'
+  scalingPer100Sqft?: number; // Units needed per 100 sq ft
+  scalingGuidance?: string; // User-facing explanation (e.g., "1 bag per 20 sq ft")
   // Extended details for modal
   description?: string;
   usage?: string;

@@ -18,6 +18,7 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [selectedSectionName, setSelectedSectionName] = useState<string | null>(null);
+  const [selectedSectionType, setSelectedSectionType] = useState<string | null>(null);
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -40,6 +41,7 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
                 setSelectedProjectName(name);
                 setSelectedSectionId(null);
                 setSelectedSectionName(null);
+                setSelectedSectionType(null);
               }}
               selectedProjectId={selectedProjectId}
             />
@@ -49,9 +51,10 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
             <SectionsTab
               projectId={selectedProjectId}
               projectName={selectedProjectName}
-              onSelectSection={(id, name) => {
+              onSelectSection={(id, name, type) => {
                 setSelectedSectionId(id);
                 setSelectedSectionName(name);
+                setSelectedSectionType(type);
               }}
               selectedSectionId={selectedSectionId}
             />
@@ -62,6 +65,7 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
               sectionId={selectedSectionId}
               projectName={selectedProjectName}
               sectionName={selectedSectionName}
+              sectionType={selectedSectionType || undefined}
             />
           </TabsContent>
         </Tabs>
