@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, ExternalLink, Calculator } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import useBooqableProducts from '@/hooks/useBooqableProducts';
 import { cn } from '@/lib/utils';
@@ -27,13 +27,22 @@ interface SectionItem {
   default_quantity: number;
   is_visible: boolean;
   display_order: number;
-  amazon_url: string | null;
-  home_depot_url: string | null;
   selection_guidance: string | null;
   scaling_tile_size: string | null;
   scaling_per_100_sqft: number | null;
   scaling_guidance: string | null;
   is_sales_item: boolean;
+  average_market_price: number;
+}
+
+interface PricingComparison {
+  id: string;
+  section_item_id: string;
+  comparison_level: string;
+  model_name: string;
+  retailer: string;
+  price: number;
+  url: string | null;
 }
 
 interface ProductVariant {
@@ -90,8 +99,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-  const [isFindingLinks, setIsFindingLinks] = useState(false);
-  const [retailerSearchUrls, setRetailerSearchUrls] = useState<{ amazon: string; homeDepot: string } | null>(null);
+  const [isFindingPricing, setIsFindingPricing] = useState(false);
+  const [pricingComparisons, setPricingComparisons] = useState<PricingComparison[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -101,8 +110,6 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     default_quantity: 0,
     is_visible: true,
     is_sales_item: false,
-    amazon_url: '',
-    home_depot_url: '',
     selection_guidance: '',
     scaling_tile_size: '',
     scaling_per_100_sqft: '',
@@ -166,8 +173,6 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         default_quantity: 0,
         is_visible: true,
         is_sales_item: details.isSalesItem || false,
-        amazon_url: '',
-        home_depot_url: '',
         selection_guidance: '',
         scaling_tile_size: '',
         scaling_per_100_sqft: '',
@@ -244,17 +249,18 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         default_quantity: item.default_quantity,
         is_visible: item.is_visible,
         is_sales_item: item.is_sales_item || false,
-        amazon_url: item.amazon_url || '',
-        home_depot_url: item.home_depot_url || '',
         selection_guidance: item.selection_guidance || '',
         scaling_tile_size: item.scaling_tile_size || '',
         scaling_per_100_sqft: item.scaling_per_100_sqft?.toString() || '',
         scaling_guidance: item.scaling_guidance || ''
       });
+      // Fetch existing pricing comparisons for this item
+      fetchPricingComparisons(item.id);
     } else {
       setEditingItem(null);
       setSelectedBooqableId('');
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, is_visible: true, is_sales_item: false, amazon_url: '', home_depot_url: '', selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
+      setPricingComparisons([]);
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, is_visible: true, is_sales_item: false, selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
     }
     setIsDialogOpen(true);
   };
@@ -293,8 +299,6 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
           is_sales_item: isSalesItem,
-          amazon_url: formData.amazon_url || null,
-          home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
           scaling_tile_size: formData.scaling_tile_size || null,
           scaling_per_100_sqft: formData.scaling_per_100_sqft ? parseFloat(formData.scaling_per_100_sqft) : null,
@@ -324,8 +328,6 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
           is_sales_item: isSalesItem,
-          amazon_url: formData.amazon_url || null,
-          home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
           scaling_tile_size: formData.scaling_tile_size || null,
           scaling_per_100_sqft: formData.scaling_per_100_sqft ? parseFloat(formData.scaling_per_100_sqft) : null,
@@ -378,36 +380,67 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     }
   };
 
-  const handleFindRetailerLinks = async () => {
+  const fetchPricingComparisons = async (itemId: string) => {
+    const { data, error } = await supabase
+      .from('pricing_comparisons')
+      .select('*')
+      .eq('section_item_id', itemId)
+      .order('comparison_level');
+
+    if (error) {
+      console.error('[ItemsTab] Error fetching pricing:', error);
+    } else {
+      setPricingComparisons(data || []);
+    }
+  };
+
+  const handleFindPricing = async () => {
     if (!formData.name) {
       toast.error('Enter a product name first');
       return;
     }
 
-    setIsFindingLinks(true);
-    setRetailerSearchUrls(null);
+    if (!editingItem) {
+      toast.error('Save the item first before finding pricing');
+      return;
+    }
+
+    setIsFindingPricing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('find-retailer-products', {
+      const { data, error } = await supabase.functions.invoke('find-pricing', {
         body: { 
-          product_name: formData.name,
-          description: formData.description 
+          item_name: formData.name,
+          item_description: formData.description,
+          section_item_id: editingItem.id
         }
       });
 
       if (error) {
-        console.error('[ItemsTab] Error finding retailer links:', error);
-        toast.error('Failed to generate search links');
+        console.error('[ItemsTab] Error finding pricing:', error);
+        toast.error('Failed to find pricing');
         return;
       }
 
-      setRetailerSearchUrls(data.searchUrls);
-      toast.success('Search links generated - click to find products');
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setPricingComparisons(data.comparisons || []);
+      
+      // Update retail_price with average
+      if (data.average_price > 0) {
+        setFormData(prev => ({ ...prev, retail_price: Math.round(data.average_price * 100) / 100 }));
+      }
+      
+      toast.success(`Found ${data.comparisons?.length || 0} pricing comparisons (avg: $${data.average_price?.toFixed(2)})`);
+      fetchItems(); // Refresh to show updated average_market_price
     } catch (err) {
       console.error('[ItemsTab] Error:', err);
-      toast.error('Failed to find products');
+      toast.error('Failed to find pricing');
     } finally {
-      setIsFindingLinks(false);
+      setIsFindingPricing(false);
     }
   };
 
@@ -705,18 +738,18 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               </div>
             </div>
             
-            {/* Retailer Links */}
+            {/* Pricing Comparisons */}
             <div className="space-y-3 border-t pt-4">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-muted-foreground">Retailer Links (for price comparison)</Label>
+                <Label className="text-sm font-medium">Market Pricing Comparison</Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={handleFindRetailerLinks}
-                  disabled={isFindingLinks || !formData.name}
+                  onClick={handleFindPricing}
+                  disabled={isFindingPricing || !formData.name || !editingItem}
                 >
-                  {isFindingLinks ? (
+                  {isFindingPricing ? (
                     <>
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                       Finding...
@@ -724,56 +757,66 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
                   ) : (
                     <>
                       <Search className="h-3 w-3 mr-1" />
-                      Find Links
+                      Find Pricing
                     </>
                   )}
                 </Button>
               </div>
               
-              {retailerSearchUrls && (
-                <div className="flex gap-2 p-2 bg-muted/50 rounded-md">
-                  <a
-                    href={retailerSearchUrls.amazon}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Search Amazon
-                  </a>
-                  <span className="text-muted-foreground">|</span>
-                  <a
-                    href={retailerSearchUrls.homeDepot}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Search Home Depot
-                  </a>
+              {!editingItem && (
+                <p className="text-xs text-muted-foreground">Save the item first to enable pricing lookup</p>
+              )}
+              
+              {pricingComparisons.length > 0 && (
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Level</th>
+                        <th className="px-3 py-2 text-left font-medium">Model</th>
+                        <th className="px-3 py-2 text-left font-medium">Retailer</th>
+                        <th className="px-3 py-2 text-right font-medium">Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pricingComparisons.map((comp, idx) => (
+                        <tr key={comp.id} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+                          <td className="px-3 py-2">
+                            <Badge 
+                              variant={
+                                comp.comparison_level === 'exact' ? 'default' :
+                                comp.comparison_level === 'professional' ? 'secondary' :
+                                comp.comparison_level === 'diy' ? 'outline' : 'destructive'
+                              }
+                              className="text-xs capitalize"
+                            >
+                              {comp.comparison_level}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 truncate max-w-[150px]" title={comp.model_name}>
+                            {comp.model_name}
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{comp.retailer}</td>
+                          <td className="px-3 py-2 text-right font-medium">${comp.price.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-muted/50 border-t">
+                      <tr>
+                        <td colSpan={3} className="px-3 py-2 font-medium">Average Market Price</td>
+                        <td className="px-3 py-2 text-right font-bold text-primary">
+                          ${(pricingComparisons.reduce((sum, c) => sum + c.price, 0) / pricingComparisons.length).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               )}
               
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label>Amazon URL</Label>
-                  <Input
-                    type="url"
-                    value={formData.amazon_url}
-                    onChange={(e) => setFormData({ ...formData, amazon_url: e.target.value })}
-                    placeholder="https://amazon.com/dp/..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Home Depot URL</Label>
-                  <Input
-                    type="url"
-                    value={formData.home_depot_url}
-                    onChange={(e) => setFormData({ ...formData, home_depot_url: e.target.value })}
-                    placeholder="https://homedepot.com/p/..."
-                  />
-                </div>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                AI-powered pricing uses fuzzy matching: Exact matches, Professional brands (DeWalt, Milwaukee, Makita), 
+                DIY brands (Ryobi, Harbor Freight), and Used marketplace pricing.
+              </p>
             </div>
             
             <div className="flex items-center space-x-2">

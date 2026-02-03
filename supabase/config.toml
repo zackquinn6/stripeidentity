@@ -3,5 +3,5 @@ project_id = "yscicarelzxjidhlxstv"
 [functions.booqable]
 verify_jwt = false
 
-[functions.find-retailer-products]
+[functions.find-pricing]
 verify_jwt = false
