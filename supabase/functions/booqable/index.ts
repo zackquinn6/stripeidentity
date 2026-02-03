@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +9,9 @@ const corsHeaders = {
 const BOOQABLE_API_KEY = Deno.env.get('BOOQABLE_API_KEY');
 const BOOQABLE_COMPANY_ID = 'feeebb8b-2583-4689-b2f6-d488f8220b65';
 const BOOQABLE_BASE_URL = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/1`;
+
+// Actions that require authentication
+const AUTH_REQUIRED_ACTIONS = ['create-order', 'add-line', 'book-order', 'reserve-order', 'get-checkout-url'];
 
 interface BooqableProduct {
   id: string;
@@ -42,11 +46,45 @@ function getId(p: any): string | undefined {
   return p?.id;
 }
 
+async function verifyAuth(req: Request): Promise<{ userId: string | null; error: Response | null }> {
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return {
+      userId: null,
+      error: new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    };
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: authHeader } } }
+  );
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data, error } = await supabaseClient.auth.getClaims(token);
+  
+  if (error || !data?.claims) {
+    console.error('[Booqable] Auth verification failed:', error?.message);
+    return {
+      userId: null,
+      error: new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    };
+  }
+
+  return { userId: data.claims.sub as string, error: null };
+}
+
 async function findProductGroupIdBySlug(slug: string): Promise<string | null> {
-  // Booqable v1 typically supports pagination via the `page` param.
-  // We loop pages defensively to avoid "not found" when the item isn't in the first page.
   const per = 100;
-  const maxPages = 25; // safety cap
+  const maxPages = 25;
 
   for (let page = 1; page <= maxPages; page++) {
     const endpoint = `/product_groups?per=${per}&page=${page}&filter[archived]=false`;
@@ -62,7 +100,6 @@ async function findProductGroupIdBySlug(slug: string): Promise<string | null> {
     const products: any[] = payload?.product_groups ?? payload?.data ?? [];
 
     if (!Array.isArray(products) || products.length === 0) {
-      // no more pages
       break;
     }
 
@@ -72,7 +109,6 @@ async function findProductGroupIdBySlug(slug: string): Promise<string | null> {
       return id ?? null;
     }
 
-    // If meta is present, stop once we've reached the last page.
     const meta = payload?.meta;
     if (meta?.total_count && meta?.per_page && meta?.page) {
       const totalPages = Math.ceil(Number(meta.total_count) / Number(meta.per_page));
@@ -108,7 +144,6 @@ async function fetchAllProductGroups(): Promise<any[]> {
       if (page >= totalPages) break;
     }
 
-    // Heuristic fallback: stop if page returned less than requested size.
     if (products.length < per) break;
   }
 
@@ -163,14 +198,22 @@ serve(async (req) => {
     const { action, ...params } = await req.json();
     console.log(`[Booqable] Action: ${action}`, params);
 
+    // Check authentication for protected actions
+    if (AUTH_REQUIRED_ACTIONS.includes(action)) {
+      const { userId, error } = await verifyAuth(req);
+      if (error) {
+        console.log(`[Booqable] Authentication failed for action: ${action}`);
+        return error;
+      }
+      console.log(`[Booqable] Authenticated user ${userId} for action: ${action}`);
+    }
+
     switch (action) {
       case 'get-products': {
-        // Fetch product groups from Booqable (paged)
         const data = await fetchAllProductGroups();
         console.log(`[Booqable] Raw product_groups fetched: ${data.length}`);
         console.log(`[Booqable] Fetched ${Array.isArray(data) ? data.length : 0} products`);
 
-        // Handle case where API returns no products or empty response
         if (!Array.isArray(data) || data.length === 0) {
           console.log('[Booqable] No products found, returning empty array');
           return new Response(
@@ -179,10 +222,7 @@ serve(async (req) => {
           );
         }
 
-        // Map Booqable products to our format - handle both JSON:API and standard formats
-        // Booqable product_type: 'rental' for rentals, 'consumable' or 'service' for sales items
         const products = data.map((product: BooqableProduct | Record<string, unknown>) => {
-          // JSON:API format
           if ('attributes' in product) {
             const p = product as BooqableProduct;
             const attrs = p.attributes as Record<string, unknown>;
@@ -203,7 +243,6 @@ serve(async (req) => {
               isSalesItem,
             };
           }
-          // Standard format - check product_type field
           const std = product as Record<string, unknown>;
           const productType = String(std.product_type || 'rental');
           const isSalesItem = productType === 'consumable' || productType === 'service';
@@ -254,7 +293,6 @@ serve(async (req) => {
         const data = await response.json();
         const pg = data.product_group || data;
         
-        // Extract variants (nested products) if they exist
         const variants = (pg.products || []).map((p: Record<string, unknown>) => ({
           id: String(p.id || ''),
           name: String(p.name || ''),
@@ -294,7 +332,6 @@ serve(async (req) => {
       case 'create-order': {
         const { starts_at, stops_at, customer_id } = params;
         
-        // Booqable v1 API uses a simpler structure
         const orderData: Record<string, unknown> = {
           order: {
             starts_at,
@@ -318,7 +355,6 @@ serve(async (req) => {
         }
 
         const data = JSON.parse(responseText);
-        // Handle both v1 (data.order) and JSON:API (data.data) formats
         const order = data.order || data.data;
         console.log(`[Booqable] Order created: ${order?.id}`, JSON.stringify(order).slice(0, 200));
 
@@ -331,12 +367,10 @@ serve(async (req) => {
       case 'add-line': {
         const { order_id, product_id, quantity } = params;
         
-        // First, check if product_id is a UUID or a slug
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(product_id);
         
         let actualProductId = product_id;
         
-        // If it's a slug, look up the actual product ID
         if (!isUUID) {
           console.log(`[Booqable] Looking up product by slug: ${product_id}`);
 
@@ -356,8 +390,6 @@ serve(async (req) => {
           }
         }
         
-        // Booqable v1 API: add line via POST to /orders/{id}/lines
-        // Use product_id (not item_id) to reference the product group
         const lineData = {
           line: {
             product_group_id: actualProductId,
@@ -435,7 +467,6 @@ serve(async (req) => {
       case 'get-checkout-url': {
         const { order_id } = params;
         
-        // Booqable checkout URL format
         const checkoutUrl = `https://${BOOQABLE_COMPANY_ID}.booqable.shop/checkout/${order_id}`;
         
         return new Response(

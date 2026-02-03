@@ -1,20 +1,71 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-interface SearchResult {
-  title: string;
-  url: string;
-  price?: string;
-  source: 'amazon' | 'home_depot';
-}
-
 interface ProductSearchRequest {
   product_name: string;
   description?: string;
+}
+
+async function verifyAdminAuth(req: Request): Promise<{ userId: string | null; error: Response | null }> {
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return {
+      userId: null,
+      error: new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    };
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: authHeader } } }
+  );
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data, error } = await supabaseClient.auth.getClaims(token);
+  
+  if (error || !data?.claims) {
+    console.error('[find-retailer-products] Auth verification failed:', error?.message);
+    return {
+      userId: null,
+      error: new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    };
+  }
+
+  const userId = data.claims.sub as string;
+
+  // Verify admin role
+  const { data: roleData, error: roleError } = await supabaseClient
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('role', 'admin')
+    .maybeSingle();
+
+  if (roleError || !roleData) {
+    console.log(`[find-retailer-products] User ${userId} is not an admin`);
+    return {
+      userId: null,
+      error: new Response(
+        JSON.stringify({ error: 'Admin privileges required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    };
+  }
+
+  return { userId, error: null };
 }
 
 // Use the Lovable AI Gateway to generate search-optimized queries
@@ -81,6 +132,13 @@ serve(async (req) => {
   }
 
   try {
+    // Verify admin authentication
+    const { userId, error: authError } = await verifyAdminAuth(req);
+    if (authError) {
+      return authError;
+    }
+    console.log(`[find-retailer-products] Authenticated admin: ${userId}`);
+
     const { product_name, description }: ProductSearchRequest = await req.json();
 
     if (!product_name) {
@@ -99,7 +157,6 @@ serve(async (req) => {
     const searchUrls = buildSearchUrls(searchQuery);
 
     // Return the search URLs and query for manual review
-    // Direct product scraping would require additional services
     const result = {
       query: searchQuery,
       searchUrls,
