@@ -14,9 +14,17 @@ interface PricingComparison {
   url?: string;
 }
 
+interface TierAverages {
+  exact: number;
+  professional: number;
+  diy: number;
+  used: number;
+}
+
 interface PricingResult {
   comparisons: PricingComparison[];
-  average_price: number;
+  tier_averages: TierAverages;
+  recommended_comparison: number; // The most relevant retail price for rental comparison
 }
 
 serve(async (req) => {
@@ -79,27 +87,42 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a market research assistant specializing in tool and equipment pricing. 
-Your job is to provide realistic market price estimates for tools and equipment across different quality levels and retailers.
+            content: `You are a market research assistant specializing in tool and equipment pricing for home improvement projects.
+Your job is to provide realistic NEW retail market prices that a typical DIY homeowner would encounter when shopping for tools.
 
-For each product, provide pricing at these levels:
-1. EXACT: The exact product model if identifiable, or the closest equivalent
-2. PROFESSIONAL: 3 professional-grade alternatives (DeWalt, Milwaukee, Makita, Bosch, Festool)
-3. DIY: 3 consumer/DIY-grade alternatives (Ryobi, Black+Decker, Craftsman, Harbor Freight, Kobalt)
-4. USED: Estimated used market prices for Facebook Marketplace/Craigslist
+COMPARISON LEVELS (provide pricing for each):
 
-Retailers to include: Home Depot, Amazon, Harbor Freight (for DIY), Facebook Marketplace (for used)
+1. EXACT: The exact product model if identifiable from the name/description. If not identifiable, skip this level.
 
-Always provide realistic 2024-2025 market prices in USD.`
+2. PROFESSIONAL: 3 professional-grade tool options. These are contractor/tradesperson quality brands:
+   - Brands: DeWalt, Milwaukee, Makita, Bosch, Festool, Hilti, Metabo
+   - Retailers: Home Depot, Lowe's, Amazon
+   - These are premium-priced, built for daily commercial use
+
+3. DIY: 3 consumer/homeowner-grade tool options. These are weekend warrior quality brands:
+   - Brands: Ryobi, Black+Decker, Craftsman, Kobalt, Wen, Skil, Hart, Bauer (Harbor Freight)
+   - Retailers: Home Depot, Lowe's, Amazon, Harbor Freight
+   - Note: Harbor Freight is a RETAILER that sells DIY-grade tools, NOT a professional brand
+
+4. USED: 2-3 typical used market prices from Facebook Marketplace or Craigslist
+   - Mix of professional and DIY brands in used condition
+   - Retailer should be "Facebook Marketplace" or "Craigslist"
+   - Prices should reflect typical 30-60% discount from new retail
+
+IMPORTANT:
+- Use realistic 2024-2025 NEW retail prices in USD
+- Include the full model name with brand (e.g., "DeWalt DWE7491RS 10" Table Saw")
+- For each comparison, specify which major retailer typically stocks it
+- Harbor Freight tools are DIY-grade, never professional`
           },
           {
             role: 'user',
-            content: `Provide market pricing analysis for this tool/equipment:
+            content: `Provide market pricing analysis for this tool/equipment that a homeowner might rent instead of buy:
 
 Product: ${item_name}
 ${item_description ? `Description: ${item_description}` : ''}
 
-Return pricing data for all comparison levels.`
+Return pricing for all applicable comparison levels. This data will help customers understand the value of renting vs buying.`
           }
         ],
         tools: [
@@ -220,27 +243,51 @@ Return pricing data for all comparison levels.`
       }
     }
 
-    // Calculate average price
-    const totalPrice = comparisons.reduce((sum: number, c: PricingComparison) => sum + c.price, 0);
-    const averagePrice = comparisons.length > 0 ? totalPrice / comparisons.length : 0;
+    // Calculate tier-specific averages
+    const tierAverages: TierAverages = { exact: 0, professional: 0, diy: 0, used: 0 };
+    const tierCounts: TierAverages = { exact: 0, professional: 0, diy: 0, used: 0 };
+    
+    for (const c of comparisons) {
+      const level = c.comparison_level as keyof TierAverages;
+      if (level in tierAverages) {
+        tierAverages[level] += c.price;
+        tierCounts[level] += 1;
+      }
+    }
+    
+    // Calculate averages per tier
+    for (const level of ['exact', 'professional', 'diy', 'used'] as const) {
+      if (tierCounts[level] > 0) {
+        tierAverages[level] = Math.round((tierAverages[level] / tierCounts[level]) * 100) / 100;
+      }
+    }
+    
+    // Recommended comparison: use DIY average if available, otherwise professional, then exact
+    // This represents what a typical homeowner would actually buy
+    const recommendedComparison = tierAverages.diy > 0 
+      ? tierAverages.diy 
+      : tierAverages.professional > 0 
+        ? tierAverages.professional 
+        : tierAverages.exact;
 
-    // Update section_item with average price
+    // Update section_item with DIY average (most relevant for rental comparison)
     const { error: updateError } = await supabaseClient
       .from('section_items')
-      .update({ average_market_price: averagePrice })
+      .update({ average_market_price: recommendedComparison })
       .eq('id', section_item_id);
 
     if (updateError) {
       console.error('[find-pricing] Error updating average price:', updateError);
     }
 
-    console.log(`[find-pricing] Success - ${comparisons.length} comparisons, avg: $${averagePrice.toFixed(2)}`);
+    console.log(`[find-pricing] Success - ${comparisons.length} comparisons, tier avgs: Pro=$${tierAverages.professional}, DIY=$${tierAverages.diy}, Used=$${tierAverages.used}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         comparisons,
-        average_price: averagePrice,
+        tier_averages: tierAverages,
+        recommended_comparison: recommendedComparison,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
