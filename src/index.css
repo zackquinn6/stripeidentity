@@ -2,37 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+/* Toolio Brand Fonts - Plus Jakarta Sans for headings, DM Sans for body */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 220 20% 10%;
+    /* Toolio brand: warm off-white background with coral/salmon accent */
+    --background: 40 23% 97%;
+    --foreground: 220 25% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 220 25% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 220 25% 15%;
 
-    --primary: 25 95% 53%;
+    /* Toolio coral/salmon primary */
+    --primary: 11 93% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 20% 10%;
+    --secondary: 30 20% 94%;
+    --secondary-foreground: 220 25% 15%;
 
-    --muted: 220 14% 96%;
+    --muted: 30 15% 92%;
     --muted-foreground: 220 10% 46%;
 
-    --accent: 25 95% 53%;
+    --accent: 11 93% 67%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 25 95% 53%;
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 11 93% 67%;
 
     --radius: 0.75rem;
 
@@ -43,45 +46,49 @@
     --amber-soft: 38 100% 95%;
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    --highlight: 33 100% 96%;
-    --highlight-border: 33 100% 70%;
-    --highlight-hover: 33 100% 92%;
+    --highlight: 11 100% 97%;
+    --highlight-border: 11 93% 75%;
+    --highlight-hover: 11 100% 94%;
 
-    --font-display: 'Space Grotesk', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    --font-display: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
 
-    --shadow-card: 0 4px 6px -1px hsl(220 25% 12% / 0.05), 0 2px 4px -2px hsl(220 25% 12% / 0.05);
-    --shadow-elevated: 0 20px 25px -5px hsl(220 25% 12% / 0.1), 0 8px 10px -6px hsl(220 25% 12% / 0.1);
+    --shadow-card: 0 4px 6px -1px hsl(220 25% 12% / 0.04), 0 2px 4px -2px hsl(220 25% 12% / 0.04);
+    --shadow-elevated: 0 20px 25px -5px hsl(220 25% 12% / 0.08), 0 8px 10px -6px hsl(220 25% 12% / 0.08);
   }
 
   .dark {
-    --background: 220 25% 12%;
-    --foreground: 210 20% 98%;
+    --background: 220 25% 10%;
+    --foreground: 40 23% 97%;
 
-    --card: 220 20% 16%;
-    --card-foreground: 210 20% 98%;
+    --card: 220 20% 14%;
+    --card-foreground: 40 23% 97%;
 
-    --popover: 220 20% 16%;
-    --popover-foreground: 210 20% 98%;
+    --popover: 220 20% 14%;
+    --popover-foreground: 40 23% 97%;
 
-    --primary: 25 95% 53%;
+    --primary: 11 93% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 20%;
-    --secondary-foreground: 210 20% 98%;
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 40 23% 97%;
 
-    --muted: 220 20% 20%;
+    --muted: 220 20% 18%;
     --muted-foreground: 220 10% 60%;
 
-    --accent: 25 95% 53%;
+    --accent: 11 93% 67%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 25%;
-    --input: 220 20% 25%;
-    --ring: 25 95% 53%;
+    --border: 220 20% 22%;
+    --input: 220 20% 22%;
+    --ring: 11 93% 67%;
+
+    --highlight: 11 50% 20%;
+    --highlight-border: 11 70% 40%;
+    --highlight-hover: 11 50% 25%;
   }
 }
 
@@ -97,6 +104,8 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -120,6 +129,16 @@
 
   .step-complete {
     @apply bg-success text-success-foreground;
+  }
+
+  /* Toolio-style rounded pill button */
+  .btn-toolio {
+    @apply rounded-full px-6 py-3 font-semibold transition-all duration-200;
+  }
+
+  .btn-toolio:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.3);
   }
 }
 
