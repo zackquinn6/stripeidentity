@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import useBooqableProducts from '@/hooks/useBooqableProducts';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,8 @@ interface SectionItem {
   default_quantity: number;
   is_visible: boolean;
   display_order: number;
+  amazon_url: string | null;
+  home_depot_url: string | null;
 }
 
 interface ProductVariant {
@@ -69,6 +71,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isFindingLinks, setIsFindingLinks] = useState(false);
+  const [retailerSearchUrls, setRetailerSearchUrls] = useState<{ amazon: string; homeDepot: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -76,7 +80,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
     retail_price: 0,
     image_url: '',
     default_quantity: 1,
-    is_visible: true
+    is_visible: true,
+    amazon_url: '',
+    home_depot_url: ''
   });
 
   const { data: booqableProducts, isLoading: isLoadingProducts, refetch: refetchProducts } = useBooqableProducts();
@@ -134,7 +140,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         retail_price: 0,
         image_url: details.imageUrl || '',
         default_quantity: 1,
-        is_visible: true
+        is_visible: true,
+        amazon_url: '',
+        home_depot_url: ''
       });
 
       // If no variants, use the slug as the booqable_product_id
@@ -202,12 +210,14 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         retail_price: item.retail_price,
         image_url: item.image_url || '',
         default_quantity: item.default_quantity,
-        is_visible: item.is_visible
+        is_visible: item.is_visible,
+        amazon_url: item.amazon_url || '',
+        home_depot_url: item.home_depot_url || ''
       });
     } else {
       setEditingItem(null);
       setSelectedBooqableId('');
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true, amazon_url: '', home_depot_url: '' });
     }
     setIsDialogOpen(true);
   };
@@ -241,7 +251,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           retail_price: formData.retail_price,
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
-          is_visible: formData.is_visible
+          is_visible: formData.is_visible,
+          amazon_url: formData.amazon_url || null,
+          home_depot_url: formData.home_depot_url || null
         })
         .eq('id', editingItem.id);
 
@@ -266,6 +278,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
           is_visible: formData.is_visible,
+          amazon_url: formData.amazon_url || null,
+          home_depot_url: formData.home_depot_url || null,
           display_order: items.length
         });
 
@@ -311,6 +325,39 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
       toast.error('Failed to update item');
     } else {
       fetchItems();
+    }
+  };
+
+  const handleFindRetailerLinks = async () => {
+    if (!formData.name) {
+      toast.error('Enter a product name first');
+      return;
+    }
+
+    setIsFindingLinks(true);
+    setRetailerSearchUrls(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('find-retailer-products', {
+        body: { 
+          product_name: formData.name,
+          description: formData.description 
+        }
+      });
+
+      if (error) {
+        console.error('[ItemsTab] Error finding retailer links:', error);
+        toast.error('Failed to generate search links');
+        return;
+      }
+
+      setRetailerSearchUrls(data.searchUrls);
+      toast.success('Search links generated - click to find products');
+    } catch (err) {
+      console.error('[ItemsTab] Error:', err);
+      toast.error('Failed to find products');
+    } finally {
+      setIsFindingLinks(false);
     }
   };
 
@@ -502,6 +549,78 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                 />
               </div>
             </div>
+            
+            {/* Retailer Links */}
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-muted-foreground">Retailer Links (for price comparison)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFindRetailerLinks}
+                  disabled={isFindingLinks || !formData.name}
+                >
+                  {isFindingLinks ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Finding...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-3 w-3 mr-1" />
+                      Find Links
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {retailerSearchUrls && (
+                <div className="flex gap-2 p-2 bg-muted/50 rounded-md">
+                  <a
+                    href={retailerSearchUrls.amazon}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Search Amazon
+                  </a>
+                  <span className="text-muted-foreground">|</span>
+                  <a
+                    href={retailerSearchUrls.homeDepot}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Search Home Depot
+                  </a>
+                </div>
+              )}
+              
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Amazon URL</Label>
+                  <Input
+                    type="url"
+                    value={formData.amazon_url}
+                    onChange={(e) => setFormData({ ...formData, amazon_url: e.target.value })}
+                    placeholder="https://amazon.com/dp/..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Home Depot URL</Label>
+                  <Input
+                    type="url"
+                    value={formData.home_depot_url}
+                    onChange={(e) => setFormData({ ...formData, home_depot_url: e.target.value })}
+                    placeholder="https://homedepot.com/p/..."
+                  />
+                </div>
+              </div>
+            </div>
+            
             <div className="flex items-center space-x-2">
               <Switch
                 checked={formData.is_visible}

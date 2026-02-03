@@ -126,12 +126,14 @@ export type Database = {
       }
       section_items: {
         Row: {
+          amazon_url: string | null
           booqable_product_id: string
           created_at: string
           daily_rate: number
           default_quantity: number
           description: string | null
           display_order: number
+          home_depot_url: string | null
           id: string
           image_url: string | null
           is_visible: boolean
@@ -141,12 +143,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          amazon_url?: string | null
           booqable_product_id: string
           created_at?: string
           daily_rate?: number
           default_quantity?: number
           description?: string | null
           display_order?: number
+          home_depot_url?: string | null
           id?: string
           image_url?: string | null
           is_visible?: boolean
@@ -156,12 +160,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          amazon_url?: string | null
           booqable_product_id?: string
           created_at?: string
           daily_rate?: number
           default_quantity?: number
           description?: string | null
           display_order?: number
+          home_depot_url?: string | null
           id?: string
           image_url?: string | null
           is_visible?: boolean
