@@ -227,13 +227,25 @@ serve(async (req) => {
             const attrs = p.attributes as Record<string, unknown>;
             const productType = String(attrs.product_type || 'rental');
             const isSalesItem = productType === 'consumable' || productType === 'service';
+            
+            // Parse price structure for tiered pricing
+            const priceStructure = attrs.price_structure as { day?: number; hour?: number } | undefined;
+            const basePriceInCents = Number(attrs.base_price_in_cents) || 0;
+            const dailyRate = basePriceInCents / 100;
+            
+            // First day rate = base_price_in_cents (includes delivery/setup)
+            // Daily rate after = price_structure.day (flat daily rate)
+            // If no price_structure, fall back to base price for both
+            const dayRateFromStructure = priceStructure?.day ? priceStructure.day / 100 : dailyRate;
+            
             return {
               booqableId: p.id,
               slug: p.attributes.slug,
               name: p.attributes.name,
               description: p.attributes.description || '',
               imageUrl: p.attributes.photo_url || '',
-              dailyRate: p.attributes.base_price_in_cents / 100,
+              firstDayRate: dailyRate, // Day 1 includes delivery/setup
+              dailyRate: dayRateFromStructure, // Day 2+ flat rate
               depositAmount: (p.attributes.deposit_in_cents || 0) / 100,
               stockCount: p.attributes.stock_count || 0,
               trackable: p.attributes.trackable || false,
@@ -245,13 +257,21 @@ serve(async (req) => {
           const std = product as Record<string, unknown>;
           const productType = String(std.product_type || 'rental');
           const isSalesItem = productType === 'consumable' || productType === 'service';
+          
+          // Parse price structure for tiered pricing
+          const priceStructure = std.price_structure as { day?: number; hour?: number } | undefined;
+          const basePriceInCents = Number(std.base_price_in_cents) || 0;
+          const dailyRate = basePriceInCents / 100;
+          const dayRateFromStructure = priceStructure?.day ? priceStructure.day / 100 : dailyRate;
+          
           return {
             booqableId: String(std.id || ''),
             slug: String(std.slug || ''),
             name: String(std.name || ''),
             description: String(std.description || ''),
             imageUrl: String(std.photo_url || ''),
-            dailyRate: (Number(std.base_price_in_cents) || 0) / 100,
+            firstDayRate: dailyRate, // Day 1 includes delivery/setup
+            dailyRate: dayRateFromStructure, // Day 2+ flat rate
             depositAmount: (Number(std.deposit_in_cents) || 0) / 100,
             stockCount: Number(std.stock_count) || 0,
             trackable: Boolean(std.trackable),

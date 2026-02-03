@@ -3,6 +3,7 @@ export interface RentalItem {
   name: string;
   retailPrice: number;
   dailyRate: number;
+  firstDayRate?: number; // Day 1 price (includes delivery/setup)
   quantity: number;
   isConsumable?: boolean;
   imageUrl?: string;

@@ -9,6 +9,7 @@ interface BooqableProduct {
   name: string;
   description: string;
   imageUrl: string;
+  firstDayRate: number;
   dailyRate: number;
   depositAmount: number;
   stockCount: number;
@@ -112,6 +113,7 @@ export function useMergedEquipment() {
         return {
           ...item,
           booqableId: booqableProduct.booqableId,
+          firstDayRate: booqableProduct.firstDayRate || item.firstDayRate || item.dailyRate,
           dailyRate: booqableProduct.dailyRate || item.dailyRate,
           imageUrl: booqableProduct.imageUrl || item.imageUrl,
           description: booqableProduct.description || item.description,
@@ -151,7 +153,8 @@ export function useMergedConsumables() {
       return {
         ...item,
         booqableId: booqableProduct.booqableId,
-        // For sales items, dailyRate IS the sale price
+        // For sales items, firstDayRate and dailyRate are the same (sale price)
+        firstDayRate: booqableProduct.firstDayRate || item.dailyRate,
         dailyRate: booqableProduct.dailyRate || item.dailyRate,
         imageUrl: booqableProduct.imageUrl || item.imageUrl,
         description: booqableProduct.description || item.description,
@@ -176,7 +179,8 @@ export function useMergedConsumables() {
         mergedConsumables.push({
           id: product.slug,
           name: product.name,
-          retailPrice: product.dailyRate, // For sales items, dailyRate is the price
+          retailPrice: product.firstDayRate, // For sales items, use firstDayRate as the price
+          firstDayRate: product.firstDayRate,
           dailyRate: product.dailyRate,
           quantity: 0,
           isConsumable: true,
