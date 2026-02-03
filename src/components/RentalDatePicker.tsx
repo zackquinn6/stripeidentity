@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { format, addDays, nextFriday, isFriday, startOfDay } from 'date-fns';
-import { CalendarIcon, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export type RentalDuration = 'daily' | '1-weekend' | '2-weekend' | '30-day';
 
@@ -97,7 +103,36 @@ const RentalDatePicker = ({
     <div className="space-y-6">
       {/* Duration Selection */}
       <div>
-        <label className="text-sm font-medium mb-3 block">Rental Duration</label>
+        <div className="flex items-center gap-2 mb-3">
+          <label className="text-sm font-medium">Rental Duration</label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs p-4 space-y-2">
+                <p className="text-sm">
+                  <span className="mr-1">🟠</span>
+                  <strong>Day 1</strong> price includes delivery and setup. After that, it's one simple flat daily rate.
+                </p>
+                <p className="text-sm">
+                  <span className="mr-1">🟠</span>
+                  <strong>Save 20%</strong> per-day renting Monday–Thursday.
+                </p>
+                <p className="text-sm">
+                  <span className="mr-1">🟠</span>
+                  Get <strong>30-day rentals</strong> for the price of 15 days.
+                </p>
+                <p className="text-sm">
+                  <span className="mr-1">🟠</span>
+                  Pricing is <strong>capped at retail value</strong>. You'll never pay more to rent than to buy.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
         <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
           {durationOptions.map((option) => (
             <Card
