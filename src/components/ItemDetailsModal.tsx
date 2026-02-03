@@ -43,9 +43,6 @@ const ItemDetailsModal = ({
     setCurrentImageIndex(prev => (prev - 1 + images.length) % images.length);
   };
 
-  // Calculate savings
-  const rentalSavings = item.retailPrice - item.dailyRate * 3; // Assuming 3-day rental
-  const savingsPercent = Math.round(rentalSavings / item.retailPrice * 100);
   return <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -80,29 +77,48 @@ const ItemDetailsModal = ({
         <div className="bg-secondary/50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <DollarSign className="w-4 h-4 text-primary" />
-            <span className="font-semibold text-sm">Price Comparison</span>
+            <span className="font-semibold text-sm">Pricing</span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Retail Price</p>
-              <p className="text-lg font-bold text-muted-foreground line-through">
-                ${item.retailPrice.toFixed(2)}
-              </p>
+          {item.isConsumable ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Retail Price</p>
+                <p className="text-lg font-bold text-muted-foreground line-through">
+                  ${item.retailPrice.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Our Price</p>
+                <p className="text-lg font-bold text-primary">
+                  ${item.dailyRate.toFixed(2)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {item.isConsumable ? 'Our Price' : 'Rental Rate'}
-              </p>
-              <p className="text-lg font-bold text-primary">
-                ${item.dailyRate.toFixed(2)}{!item.isConsumable && '/day'}
-              </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">First Day</p>
+                  <p className="text-lg font-bold text-primary">
+                    ${(item.firstDayRate ?? item.dailyRate).toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Includes delivery & setup</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Daily Rate After</p>
+                  <p className="text-lg font-bold text-primary">
+                    ${item.dailyRate.toFixed(2)}/day
+                  </p>
+                  <p className="text-xs text-muted-foreground">Flat fee per day</p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                  Retail Value: <span className="line-through">${item.retailPrice.toFixed(2)}</span>
+                </p>
+              </div>
             </div>
-          </div>
-          {!item.isConsumable && rentalSavings > 0 && <div className="mt-3 p-2 bg-success/10 rounded-md">
-              <p className="text-sm text-success font-medium">
-                💰 Save ${rentalSavings.toFixed(0)} ({savingsPercent}% off retail) with a 3-day rental!
-              </p>
-            </div>}
+          )}
         </div>
 
         {/* Description */}

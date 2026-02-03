@@ -52,14 +52,9 @@ const EquipmentItem = ({ item, onQuantityChange, onItemClick }: EquipmentItemPro
                 ${item.dailyRate.toFixed(2)} each
               </span>
             ) : (
-              <>
-                <span className="text-sm text-muted-foreground">
-                  ${item.dailyRate.toFixed(2)}/day
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  (Retail: ${item.retailPrice})
-                </span>
-              </>
+              <span className="text-sm text-muted-foreground">
+                ${(item.firstDayRate ?? item.dailyRate).toFixed(2)} first day · ${item.dailyRate.toFixed(2)}/day after
+              </span>
             )}
           </div>
         </div>
