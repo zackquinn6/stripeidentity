@@ -64,6 +64,50 @@ export type Database = {
           },
         ]
       }
+      pricing_comparisons: {
+        Row: {
+          comparison_level: string
+          created_at: string
+          id: string
+          model_name: string
+          price: number
+          retailer: string
+          section_item_id: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          comparison_level: string
+          created_at?: string
+          id?: string
+          model_name: string
+          price?: number
+          retailer: string
+          section_item_id: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          comparison_level?: string
+          created_at?: string
+          id?: string
+          model_name?: string
+          price?: number
+          retailer?: string
+          section_item_id?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_comparisons_section_item_id_fkey"
+            columns: ["section_item_id"]
+            isOneToOne: false
+            referencedRelation: "section_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -129,14 +173,13 @@ export type Database = {
       }
       section_items: {
         Row: {
-          amazon_url: string | null
+          average_market_price: number | null
           booqable_product_id: string
           created_at: string
           daily_rate: number
           default_quantity: number
           description: string | null
           display_order: number
-          home_depot_url: string | null
           id: string
           image_url: string | null
           is_sales_item: boolean
@@ -151,14 +194,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          amazon_url?: string | null
+          average_market_price?: number | null
           booqable_product_id: string
           created_at?: string
           daily_rate?: number
           default_quantity?: number
           description?: string | null
           display_order?: number
-          home_depot_url?: string | null
           id?: string
           image_url?: string | null
           is_sales_item?: boolean
@@ -173,14 +215,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          amazon_url?: string | null
+          average_market_price?: number | null
           booqable_product_id?: string
           created_at?: string
           daily_rate?: number
           default_quantity?: number
           description?: string | null
           display_order?: number
-          home_depot_url?: string | null
           id?: string
           image_url?: string | null
           is_sales_item?: boolean
