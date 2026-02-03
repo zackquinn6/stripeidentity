@@ -129,7 +129,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     <div className="max-w-2xl mx-auto animate-fade-in">
       <Button 
         variant="ghost" 
-        onClick={() => setShowDetails(false)}
+        onClick={onBack}
         className="mb-6"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
