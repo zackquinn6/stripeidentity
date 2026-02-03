@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
-import { useBooqableOrder } from '@/hooks/useBooqableOrder';
+import { useBooqableCart } from '@/hooks/useBooqableCart';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -79,7 +79,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       return () => clearInterval(timer);
     }
   }, [isGenerating]);
-  const { isCreating, error: orderError, checkoutUrl, orderNumber, createOrder, redirectToCheckout, reset } = useBooqableOrder();
+  const { isLoading: isCreating, error: orderError, itemsAdded, addToCart, reset } = useBooqableCart();
   
   const rentals = items.filter(item => !item.isConsumable && !item.isSalesItem && item.quantity > 0);
   const salesItems = items.filter(item => (item.isConsumable || item.isSalesItem));
@@ -441,30 +441,25 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </div>
           )}
 
-          {checkoutUrl ? (
+          {itemsAdded > 0 ? (
             <div className="space-y-3">
               <div className="p-4 bg-success/10 border border-success/30 rounded-lg space-y-2">
                 <div className="flex items-center gap-2 text-success">
                   <Check className="w-5 h-5" />
-                  <p className="font-semibold">Order Created Successfully!</p>
+                  <p className="font-semibold">Cart Updated!</p>
                 </div>
-                {orderNumber && (
-                  <p className="text-sm text-muted-foreground">
-                    Your order number is <span className="font-bold text-foreground">#{orderNumber}</span>. 
-                    We'll be in touch to confirm your rental dates and arrange delivery.
-                  </p>
-                )}
                 <p className="text-sm text-muted-foreground">
-                  You can also browse our full catalog and add items directly to your cart.
+                  {itemsAdded} items have been added to your Booqable cart. 
+                  Complete your checkout in the new tab that opened.
                 </p>
               </div>
               <Button 
                 size="lg" 
                 className="w-full" 
-                onClick={redirectToCheckout}
+                onClick={onBack}
               >
-                Browse Full Catalog
-                <ExternalLink className="w-4 h-4 ml-2" />
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Ordering
               </Button>
             </div>
           ) : !user ? (
@@ -509,19 +504,18 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
                 try {
                   const endDate = addDays(startDate, rentalDays);
-                  await createOrder({
-                    items: rentals,
-                    startDate,
-                    endDate,
-                  });
-                  toast({
-                    title: "Order created!",
-                    description: "Click the button to complete checkout.",
-                  });
+                  const result = await addToCart(rentals, startDate, endDate);
+                  
+                  if (result.success) {
+                    toast({
+                      title: "Cart opened!",
+                      description: `${result.itemsAdded} items added. Complete checkout in the new tab.`,
+                    });
+                  }
                 } catch {
                   toast({
-                    title: "Order failed",
-                    description: "There was an error creating your order. Please try again.",
+                    title: "Failed to open cart",
+                    description: "There was an error. Please try again.",
                     variant: "destructive"
                   });
                 }
@@ -530,7 +524,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               {isCreating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating Order...
+                  Opening Cart...
                 </>
               ) : (
                 'Proceed to Checkout'
