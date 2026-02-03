@@ -548,31 +548,58 @@ serve(async (req) => {
       case 'get-checkout-url': {
         const { order_id } = params;
         
-        // The Booqable hosted shop uses booqableshop.com domain
-        // Orders created via API can be accessed at the admin portal or 
-        // customers can checkout via the hosted shop
-        const shopUrl = `https://${BOOQABLE_COMPANY_ID}.booqableshop.com`;
-        
-        // Alternatively, get the order details to provide more info
+        // IMPORTANT: The cart widget (booqable.js) reflects the hosted shop/cart state.
+        // Sending users to the generic hosted shop homepage does NOT guarantee the created
+        // API order will appear in their cart.
+        //
+        // So we try to return the per-order checkout/public URL from the order payload.
+        // If Booqable doesn't provide one, we fall back to the hosted shop root.
+
+        const fallbackShopUrl = `https://${BOOQABLE_COMPANY_ID}.booqableshop.com`;
+
         const orderResponse = await booqableRequest(`/orders/${order_id}`);
-        let orderNumber = null;
+        let orderNumber: number | null = null;
+        let checkoutUrl: string | null = null;
+
         if (orderResponse.ok) {
           const orderData = await orderResponse.json();
           console.log(`[Booqable] Order response keys: ${Object.keys(orderData).join(', ')}`);
+
           // Handle both possible response formats
           const order = orderData.order || orderData.data || orderData;
-          orderNumber = order?.number;
+
+          // Number is sometimes null for draft orders
+          orderNumber = typeof order?.number === 'number' ? order.number : null;
+
+          // Try common fields used for shareable/customer checkout URLs.
+          // (Field names can differ between API versions / configuration)
+          const candidateUrls: Array<string | undefined | null> = [
+            order?.checkout_url,
+            order?.checkoutUrl,
+            order?.public_url,
+            order?.publicUrl,
+            order?.customer_url,
+            order?.customerUrl,
+            order?.url,
+          ];
+
+          checkoutUrl = candidateUrls.find((u) => typeof u === 'string' && u.startsWith('http')) ?? null;
+
           console.log(`[Booqable] Order ${order_id} has number: ${orderNumber}`);
+          console.log(`[Booqable] Order ${order_id} checkoutUrl: ${checkoutUrl ?? 'null (fallback)'} `);
         } else {
           console.log(`[Booqable] Failed to fetch order ${order_id}: ${orderResponse.status}`);
         }
-        
+
         return new Response(
-          JSON.stringify({ 
-            checkoutUrl: shopUrl,
+          JSON.stringify({
+            checkoutUrl: checkoutUrl ?? fallbackShopUrl,
+            checkoutUrlSource: checkoutUrl ? 'order' : 'fallback',
             orderId: order_id,
             orderNumber,
-            message: 'Order created successfully. Visit the shop to complete checkout or contact us with your order number.'
+            message: checkoutUrl
+              ? 'Order created successfully. Redirecting you to your cart/checkout.'
+              : 'Order created successfully. Redirecting to shop (order-specific checkout URL not available).'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

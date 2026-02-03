@@ -94,16 +94,27 @@ export function useBooqableOrder() {
       }
 
       // Step 3: Get checkout URL
-      const { data: checkoutData } = await supabase.functions.invoke('booqable', {
+      const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('booqable', {
         body: {
           action: 'get-checkout-url',
           order_id: orderId,
         }
       });
 
+      if (checkoutError) {
+        throw new Error(checkoutError.message || 'Failed to get checkout URL');
+      }
+
       const checkoutUrl = checkoutData?.checkoutUrl;
       const orderNumber = checkoutData?.orderNumber;
-      console.log(`[useBooqableOrder] Checkout URL: ${checkoutUrl}, Order #${orderNumber}`);
+
+      if (!checkoutUrl) {
+        throw new Error('No checkout URL returned');
+      }
+
+      console.log(
+        `[useBooqableOrder] Checkout URL (${checkoutData?.checkoutUrlSource ?? 'unknown'}): ${checkoutUrl}, Order #${orderNumber}`
+      );
 
       setState({
         isCreating: false,
