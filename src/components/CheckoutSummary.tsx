@@ -207,7 +207,26 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               {consumables.length > 0 && (
                 <div className="flex justify-between items-start p-4 bg-amber-soft rounded-lg">
                   <div>
-                    <p className="font-semibold">Materials & Consumables</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold">Materials & Consumables</p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                              <Info className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs p-4 space-y-2">
+                            <p className="text-sm">
+                              We focus on tool rental, which often includes standard consumables—those everyday items where brand or type doesn't really change the outcome.
+                            </p>
+                            <p className="text-sm">
+                              For materials that are highly specific or visually important, like tiles or other finish surfaces, we recommend purchasing directly from a specialized retailer and using their home‑delivery options.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       {consumables.length} items (one-time purchase)
                     </p>
