@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { 
   ShoppingCart, 
   ArrowLeft, 
@@ -14,7 +15,6 @@ import {
   Clock, 
   Wrench,
   Package,
-  ArrowRight,
   RefreshCw,
   Loader2,
   ExternalLink,
@@ -42,9 +42,43 @@ const DAY_2_PLUS_RATE = 25; // Flat fee per additional day
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const [showDetails, setShowDetails] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Auto-start generation on mount and handle progress
+  useEffect(() => {
+    if (!showDetails && !isGenerating && progress === 0) {
+      setIsGenerating(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isGenerating) {
+      const duration = 5000; // 5 seconds
+      const interval = 50; // Update every 50ms for smooth animation
+      const increment = (100 / duration) * interval;
+      
+      const timer = setInterval(() => {
+        setProgress(prev => {
+          const next = prev + increment;
+          if (next >= 100) {
+            clearInterval(timer);
+            // Auto-advance after reaching 100%
+            setTimeout(() => {
+              setIsGenerating(false);
+              setShowDetails(true);
+            }, 200);
+            return 100;
+          }
+          return next;
+        });
+      }, interval);
+
+      return () => clearInterval(timer);
+    }
+  }, [isGenerating]);
   const { isCreating, error: orderError, checkoutUrl, createOrder, redirectToCheckout, reset } = useBooqableOrder();
   
   const rentals = items.filter(item => !item.isConsumable && item.quantity > 0);
@@ -114,33 +148,21 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
             <Separator />
 
-            {/* Price comparison teaser */}
-            <div className="text-center space-y-2">
-              <p className="text-muted-foreground">Ready to see your total?</p>
-              <Button 
-                size="lg" 
-                className="w-full"
-                disabled={isGenerating}
-                onClick={() => {
-                  setIsGenerating(true);
-                  setTimeout(() => {
-                    setIsGenerating(false);
-                    setShowDetails(true);
-                  }, 5000);
-                }}
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Generating your order...
-                  </>
-                ) : (
-                  <>
-                    View Pricing Breakdown
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </>
-                )}
-              </Button>
+            {/* Progress bar and loading state */}
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                {isGenerating ? 'Generating your personalized order...' : 'Ready to see your total?'}
+              </p>
+              
+              {isGenerating && (
+                <div className="space-y-2 animate-fade-in">
+                  <Progress value={progress} className="h-2" />
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Calculating best pricing...</span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
