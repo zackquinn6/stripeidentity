@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle } from 'lucide-react';
+import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { equipmentCategories, addOnCategories, tileSizes, underlaymentOptions } from '@/data/tileEquipment';
+import { tileSizes, underlaymentOptions } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
 import EquipmentItem from './EquipmentItem';
 import AddOnModal from './AddOnModal';
@@ -18,8 +18,7 @@ import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDateP
 import PackageValueCard from './PackageValueCard';
 import ItemDetailsModal from './ItemDetailsModal';
 import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
-import { useMergedEquipment } from '@/hooks/useBooqableProducts';
-import { useProjectConsumables } from '@/hooks/useProjectItems';
+import { useProjectSections } from '@/hooks/useProjectItems';
 
 interface TileOrderingFlowProps {
   onBack: () => void;
@@ -32,9 +31,8 @@ interface TileArea {
 const TileOrderingFlow = ({
   onBack
 }: TileOrderingFlowProps) => {
-  // Fetch merged data from Booqable and database
-  const { categories: booqableEquipment, isLoading: equipmentLoading } = useMergedEquipment();
-  const { data: dbConsumables, isLoading: consumablesLoading } = useProjectConsumables('tile-flooring');
+  // Fetch all sections from database (admin-configured)
+  const { data: projectData, isLoading: sectionsLoading } = useProjectSections('tile-flooring');
 
   // Step 1: Multi-select for tile sizes and underlayment
   const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
@@ -47,44 +45,63 @@ const TileOrderingFlow = ({
     tileSize: ''
   }]);
   const [exactSquareFootage, setExactSquareFootage] = useState<string>('');
-  const [equipment, setEquipment] = useState<EquipmentCategory[]>(equipmentCategories);
-  const [addOns, setAddOns] = useState<AddOnCategory[]>(addOnCategories);
+  const [equipment, setEquipment] = useState<EquipmentCategory[]>([]);
+  const [addOns, setAddOns] = useState<AddOnCategory[]>([]);
   const [materials, setMaterials] = useState<RentalItem[]>([]);
   const [activeAddOn, setActiveAddOn] = useState<AddOnCategory | null>(null);
   const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string>('step-1');
 
-  // Update equipment and materials when Booqable data loads
+  // Update state when database data loads
   useEffect(() => {
-    if (booqableEquipment && booqableEquipment.length > 0) {
-      setEquipment(prev => 
-        booqableEquipment.map(cat => {
-          const prevCat = prev.find(p => p.id === cat.id);
-          return {
-            ...cat,
-            items: cat.items.map(item => {
-              const prevItem = prevCat?.items.find(i => i.id === item.id);
-              return { ...item, quantity: prevItem?.quantity || item.quantity };
-            })
-          };
-        })
-      );
-    }
-  }, [booqableEquipment]);
-
-  // Update materials when database consumables load
-  useEffect(() => {
-    if (dbConsumables && dbConsumables.length > 0) {
-      setMaterials(prev => {
-        // Preserve user-selected quantities
-        return dbConsumables.map(item => {
-          const prevItem = prev.find(p => p.id === item.id);
-          return { ...item, quantity: prevItem?.quantity ?? item.quantity };
+    if (projectData) {
+      // Update equipment from database, preserving user quantities
+      if (projectData.equipment.length > 0) {
+        setEquipment(prev => {
+          if (prev.length === 0) return projectData.equipment;
+          return projectData.equipment.map(cat => {
+            const prevCat = prev.find(p => p.id === cat.id);
+            return {
+              ...cat,
+              items: cat.items.map(item => {
+                const prevItem = prevCat?.items.find(i => i.id === item.id);
+                return { ...item, quantity: prevItem?.quantity ?? item.quantity };
+              })
+            };
+          });
         });
-      });
+      }
+
+      // Update add-ons from database, preserving user quantities
+      if (projectData.addOns.length > 0) {
+        setAddOns(prev => {
+          if (prev.length === 0) return projectData.addOns;
+          return projectData.addOns.map(cat => {
+            const prevCat = prev.find(p => p.id === cat.id);
+            return {
+              ...cat,
+              items: cat.items.map(item => {
+                const prevItem = prevCat?.items.find(i => i.id === item.id);
+                return { ...item, quantity: prevItem?.quantity ?? item.quantity };
+              })
+            };
+          });
+        });
+      }
+
+      // Update consumables from database, preserving user quantities
+      if (projectData.consumables.length > 0) {
+        setMaterials(prev => {
+          if (prev.length === 0) return projectData.consumables;
+          return projectData.consumables.map(item => {
+            const prevItem = prev.find(p => p.id === item.id);
+            return { ...item, quantity: prevItem?.quantity ?? item.quantity };
+          });
+        });
+      }
     }
-  }, [dbConsumables]);
+  }, [projectData]);
   // Rental date state
   const [rentalDuration, setRentalDuration] = useState<RentalDuration>('daily');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -224,6 +241,24 @@ const TileOrderingFlow = ({
     return <div className="py-12 px-6">
         <CheckoutSummary items={getAllSelectedItems} rentalDays={rentalDays} startDate={startDate} onBack={() => setShowCheckout(false)} />
       </div>;
+  }
+
+  // Loading state while fetching from database
+  if (sectionsLoading) {
+    return (
+      <div className="py-12 px-6 bg-background min-h-screen">
+        <div className="max-w-3xl mx-auto">
+          <Button variant="ghost" onClick={onBack} className="mb-6">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Projects
+          </Button>
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Loading your package...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
   return <div className="py-12 px-6 bg-background min-h-screen">
       <div className="max-w-3xl mx-auto">
