@@ -20,12 +20,12 @@ const Index = () => {
         <FounderSection />
       </div>
       
-      {/* Admin login button - bottom right */}
+      {/* Admin login button - bottom left */}
       <Button
         variant="ghost"
         size="sm"
         onClick={() => navigate('/auth')}
-        className="fixed bottom-4 right-4 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+        className="fixed bottom-4 left-4 text-muted-foreground/50 hover:text-muted-foreground text-xs"
       >
         <LogIn className="w-3 h-3 mr-1" />
         Admin
