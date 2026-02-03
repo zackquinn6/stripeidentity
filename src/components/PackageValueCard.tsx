@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 
 interface PackageValueCardProps {
   retailValue?: number;
@@ -11,9 +10,6 @@ const PackageValueCard = ({ retailValue = 900, packagePrice = 495 }: PackageValu
     <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20 shadow-elevated overflow-hidden">
       <CardContent className="p-6">
         <div className="flex flex-col items-center text-center gap-2">
-          <Badge variant="secondary" className="bg-primary/20 text-primary border-0">
-            Complete Package
-          </Badge>
           <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">
             Tile Flooring Package
           </h2>
