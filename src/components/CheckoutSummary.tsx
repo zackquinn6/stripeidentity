@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   ShoppingCart, 
   ArrowLeft, 
@@ -20,7 +21,8 @@ import {
   ExternalLink,
   AlertCircle,
   LogIn,
-  Info
+  Info,
+  TrendingDown
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RentalItem } from '@/types/rental';
@@ -81,19 +83,25 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   }, [isGenerating]);
   const { isCreating, error: orderError, checkoutUrl, createOrder, redirectToCheckout, reset } = useBooqableOrder();
   
-  const rentals = items.filter(item => !item.isConsumable && item.quantity > 0);
-  const consumables = items.filter(item => item.isConsumable && item.quantity > 0);
+  const rentals = items.filter(item => !item.isConsumable && !item.isSalesItem && item.quantity > 0);
+  const salesItems = items.filter(item => (item.isConsumable || item.isSalesItem));
 
-  const consumableTotal = consumables.reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
+  const consumableTotal = salesItems.filter(i => i.quantity > 0).reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
   
   // New pricing model: Day 1 + (Days - 1) * flat rate
   const additionalDays = Math.max(0, rentalDays - 1);
   const rentalTotal = DAY_1_FEE + (additionalDays * DAY_2_PLUS_RATE);
   const grandTotal = rentalTotal + consumableTotal;
 
-  // Comparison totals (purchase instead of rent)
+  // Comparison totals (purchase instead of rent) - simulated retailer prices
   const proPurchaseTotal = items.reduce((sum, item) => sum + (item.retailPrice * item.quantity), 0);
-  const budgetPurchaseTotal = proPurchaseTotal * 0.5;
+  const diyPurchaseTotal = proPurchaseTotal * 0.55; // DIY-grade is ~55% of pro
+  const usedPurchaseTotal = proPurchaseTotal * 0.35; // Used is ~35% of pro
+
+  // Calculate average savings across all options
+  const allComparisonTotals = [proPurchaseTotal, diyPurchaseTotal, usedPurchaseTotal];
+  const averageComparisonPrice = allComparisonTotals.reduce((a, b) => a + b, 0) / allComparisonTotals.length;
+  const averageSavings = Math.max(0, averageComparisonPrice - grandTotal);
 
   const benefits = [
     { icon: Truck, text: 'Free delivery & pickup' },
@@ -186,7 +194,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         <CardHeader className="pb-4">
           <CardTitle className="font-display text-2xl flex items-center gap-3">
             <ShoppingCart className="w-6 h-6 text-primary" />
-            Your Investment
+            Your Order
           </CardTitle>
           {startDate && (
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -204,14 +212,42 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             <h3 className="font-semibold text-lg">How pricing works:</h3>
             
             <div className="space-y-3">
-              <div className="flex justify-between items-start p-4 bg-primary/5 rounded-lg border border-primary/20">
-                <div>
-                  <p className="font-semibold">Day 1</p>
-                  <p className="text-sm text-muted-foreground">
-                    Processing, delivery & damage waiver
-                  </p>
+              {/* Day 1 section with rental items accordion */}
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold">Day 1</p>
+                    <p className="text-sm text-muted-foreground">
+                      Processing, delivery & damage waiver
+                    </p>
+                  </div>
+                  <span className="font-bold text-lg">${DAY_1_FEE}</span>
                 </div>
-                <span className="font-bold text-lg">${DAY_1_FEE}</span>
+                
+                {/* Rental items accordion under Day 1 */}
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="rental-items" className="border-0">
+                    <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
+                      <span className="flex items-center gap-2">
+                        <Wrench className="w-4 h-4" />
+                        View {rentals.length} rental items included
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pt-2">
+                        {rentals.map((item) => (
+                          <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg text-sm">
+                            {item.imageUrl && (
+                              <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                            )}
+                            <span className="flex-1">{item.name}</span>
+                            <span className="text-muted-foreground">×{item.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
 
               {additionalDays > 0 && (
@@ -226,11 +262,12 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                 </div>
               )}
 
-              {consumables.length > 0 && (
-                <div className="flex justify-between items-start p-4 bg-amber-soft rounded-lg">
+              {/* Materials & Sales section - always show */}
+              <div className="p-4 bg-amber-soft rounded-lg space-y-3">
+                <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold">Materials & Consumables</p>
+                      <p className="font-semibold">Materials / Sales</p>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -250,12 +287,47 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                       </TooltipProvider>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {consumables.length} items (one-time purchase)
+                      {salesItems.filter(i => i.quantity > 0).length} items (one-time purchase)
                     </p>
                   </div>
                   <span className="font-bold text-lg">${consumableTotal.toFixed(2)}</span>
                 </div>
-              )}
+
+                {/* Sales items accordion */}
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="sales-items" className="border-0">
+                    <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
+                      <span className="flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        View {salesItems.length} materials / sales items
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pt-2">
+                        {salesItems.map((item) => (
+                          <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-white/50 rounded-lg text-sm">
+                            {item.imageUrl && (
+                              <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                            )}
+                            <span className="flex-1">{item.name}</span>
+                            <Badge variant="outline" className="text-xs">Purchase</Badge>
+                            <span className="text-muted-foreground">×{item.quantity}</span>
+                            <span className="font-medium">${(item.dailyRate * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Floor & Decor note - moved under materials/sales */}
+                <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground mt-2">
+                  <p>
+                    📝 <strong className="text-foreground">Note:</strong> You'll need to buy tile and underlayment separately — we'll bring the rest. 
+                    We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -269,120 +341,115 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
           <Separator />
 
-          {/* Comparison */}
+          {/* Savings highlight and comparison accordion */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-lg">How does that compare?</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="w-5 h-5 text-success" />
+                <h3 className="font-semibold text-lg">On average save ${averageSavings.toFixed(0)}</h3>
+              </div>
+              <Badge variant="secondary" className="bg-success/10 text-success border-0">
+                vs buying
+              </Badge>
+            </div>
             
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-4 bg-destructive/5 rounded-lg border border-destructive/20">
+            {/* Toolio Package highlight */}
+            <div className="flex justify-between items-center p-4 bg-success/10 rounded-lg border border-success/30">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 rounded-full bg-success/20 mt-0.5">
+                  <Check className="w-4 h-4 text-success" />
+                </div>
                 <div>
-                  <p className="font-medium text-destructive">Amazon (pro-grade)</p>
-                  <p className="text-sm text-muted-foreground">Buy it all, store it forever</p>
+                  <p className="font-semibold text-success">Toolio Package</p>
+                  <p className="text-sm text-muted-foreground">
+                    The right stuff, delivered, ready to help you succeed
+                  </p>
                 </div>
-                <span className="font-bold text-lg text-destructive">${proPurchaseTotal.toFixed(2)}</span>
               </div>
-
-              <div className="flex justify-between items-center p-4 bg-accent/50 rounded-lg border border-accent">
-                <div>
-                  <p className="font-medium text-accent-foreground">Home Depot (pro-grade)</p>
-                  <p className="text-sm text-muted-foreground">Buy it all new, keep it forever</p>
-                </div>
-                <span className="font-bold text-lg text-accent-foreground">${proPurchaseTotal.toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between items-center p-4 bg-muted/50 rounded-lg border border-border">
-                <div>
-                  <p className="font-medium">Budget/DIY options</p>
-                  <p className="text-sm text-muted-foreground">Estimated ~50% of pro-grade purchases</p>
-                </div>
-                <span className="font-bold text-lg">${budgetPurchaseTotal.toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between items-center p-4 bg-success/10 rounded-lg border border-success/30">
-                <div className="flex items-start gap-3">
-                  <div className="p-1.5 rounded-full bg-success/20 mt-0.5">
-                    <Check className="w-4 h-4 text-success" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-success">Toolio Package</p>
-                    <p className="text-sm text-muted-foreground">
-                      The right stuff, delivered, ready to help you succeed
-                    </p>
-                  </div>
-                </div>
-                <span className="font-bold text-xl text-success">${grandTotal.toFixed(2)}</span>
-              </div>
+              <span className="font-bold text-xl text-success">${grandTotal.toFixed(2)}</span>
             </div>
-          </div>
 
-          {/* Items included (collapsible) */}
-          {rentals.length > 0 && (
-            <details className="group">
-              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
-                View {rentals.length} rental items included →
-              </summary>
-              <div className="mt-3 space-y-2 animate-fade-in">
-                {rentals.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg text-sm">
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
-                    )}
-                    <span className="flex-1">{item.name}</span>
-                    <span className="text-muted-foreground">×{item.quantity}</span>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
+            {/* See the savings accordion */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="savings-comparison" className="border rounded-lg">
+                <AccordionTrigger className="px-4 hover:no-underline">
+                  <span className="font-semibold">See the savings</span>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4">
+                    {/* Pro-Grade New bucket */}
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm text-destructive flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-destructive"></span>
+                        Pro-Grade New
+                      </h4>
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-sm p-2 bg-destructive/5 rounded">
+                          <span>Home Depot</span>
+                          <span className="font-medium">${proPurchaseTotal.toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 bg-destructive/5 rounded">
+                          <span>Amazon</span>
+                          <span className="font-medium">${(proPurchaseTotal * 0.98).toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 bg-destructive/5 rounded">
+                          <span>Lowe's</span>
+                          <span className="font-medium">${(proPurchaseTotal * 1.02).toFixed(0)}</span>
+                        </div>
+                      </div>
+                    </div>
 
-          {/* Consumables/Purchase items (collapsible) */}
-          {consumables.length > 0 && (
-            <details className="group">
-              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                View {consumables.length} purchase items →
-              </summary>
-              <div className="mt-3 space-y-2 animate-fade-in">
-                {consumables.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-amber-soft rounded-lg text-sm">
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
-                    )}
-                    <span className="flex-1">{item.name}</span>
-                    <Badge variant="outline" className="text-xs">Purchase</Badge>
-                    <span className="text-muted-foreground">×{item.quantity}</span>
-                    <span className="font-medium">${(item.dailyRate * item.quantity).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
+                    {/* DIY-Grade New bucket */}
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm text-warning flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-warning"></span>
+                        DIY-Grade New
+                      </h4>
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-sm p-2 bg-warning/10 rounded">
+                          <span>Harbor Freight</span>
+                          <span className="font-medium">${(diyPurchaseTotal * 0.9).toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 bg-warning/10 rounded">
+                          <span>Amazon (budget brands)</span>
+                          <span className="font-medium">${diyPurchaseTotal.toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 bg-warning/10 rounded">
+                          <span>Walmart</span>
+                          <span className="font-medium">${(diyPurchaseTotal * 1.05).toFixed(0)}</span>
+                        </div>
+                      </div>
+                    </div>
 
-          <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="font-medium text-foreground">📝 Note:</p>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
-                      <Info className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs p-4 space-y-2">
-                    <p className="text-sm">
-                      We focus on tool rental, which often includes standard consumables—those everyday items where brand or type doesn't really change the outcome.
+                    {/* Used bucket */}
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-muted-foreground"></span>
+                        Used
+                      </h4>
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-sm p-2 bg-muted/50 rounded">
+                          <span>Facebook Marketplace</span>
+                          <span className="font-medium">${usedPurchaseTotal.toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 bg-muted/50 rounded">
+                          <span>Craigslist</span>
+                          <span className="font-medium">${(usedPurchaseTotal * 0.95).toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 bg-muted/50 rounded">
+                          <span>OfferUp</span>
+                          <span className="font-medium">${(usedPurchaseTotal * 1.1).toFixed(0)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground text-center pt-2">
+                      Prices are estimates based on current market research. Actual prices may vary.
                     </p>
-                    <p className="text-sm">
-                      For materials that are highly specific or visually important, like tiles or other finish surfaces, we recommend purchasing directly from a specialized retailer and using their home‑delivery options.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <p>
-              You'll need to buy tile and underlayment separately — we'll bring the rest. 
-              We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
-            </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
           {orderError && (
