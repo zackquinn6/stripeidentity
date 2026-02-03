@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format, addDays, nextFriday, isFriday, startOfDay } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -9,6 +9,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 export type RentalDuration = 'daily' | '1-weekend' | '2-weekend' | '30-day';
+
+const getRushDays = () => {
+  const today = startOfDay(new Date());
+  return {
+    from: addDays(today, 1),
+    to: addDays(today, 2)
+  };
+};
 
 interface RentalDatePickerProps {
   startDate: Date | undefined;
@@ -63,9 +71,17 @@ const RentalDatePicker = ({
   const isWeekendRental = duration === '1-weekend' || duration === '2-weekend';
   const isDailyRental = duration === 'daily';
   
+  const rushDays = getRushDays();
+  
+  const isRushDay = (date: Date) => {
+    const dateStart = startOfDay(date);
+    return dateStart >= rushDays.from && dateStart <= rushDays.to;
+  };
+
   const disabledStartDays = (date: Date) => {
     const today = startOfDay(new Date());
-    if (date < today) return true;
+    // Disable today (same-day) and past dates
+    if (date <= today) return true;
     if (isWeekendRental && !isFriday(date)) return true;
     return false;
   };
@@ -142,6 +158,12 @@ const RentalDatePicker = ({
                   setStartCalendarOpen(false);
                 }}
                 disabled={disabledStartDays}
+                modifiers={{
+                  rush: (date) => isRushDay(date) && !disabledStartDays(date)
+                }}
+                modifiersClassNames={{
+                  rush: 'bg-destructive/20 text-destructive font-semibold hover:bg-destructive/30'
+                }}
                 initialFocus
                 className={cn('p-3 pointer-events-auto')}
               />
@@ -197,8 +219,22 @@ const RentalDatePicker = ({
               {rentalDays} days
             </Badge>
           </div>
+          {startDate && isRushDay(startDate) && (
+            <div className="mt-3 p-2 bg-destructive/10 rounded border border-destructive/20 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span className="text-sm text-destructive font-medium">Rush order - $50 processing fee applies</span>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Rush Order Footnote */}
+      <div className="flex items-start gap-2 text-xs text-muted-foreground">
+        <div className="w-3 h-3 rounded bg-destructive/20 border border-destructive/30 mt-0.5 flex-shrink-0" />
+        <p>
+          <span className="font-medium">Rush Order Processing:</span> Orders within 48 hours require a $50 rush fee.
+        </p>
+      </div>
     </div>
   );
 };
