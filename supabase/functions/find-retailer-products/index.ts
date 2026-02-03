@@ -30,10 +30,9 @@ async function verifyAdminAuth(req: Request): Promise<{ userId: string | null; e
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  const token = authHeader.replace('Bearer ', '');
-  const { data, error } = await supabaseClient.auth.getClaims(token);
+  const { data: { user }, error } = await supabaseClient.auth.getUser();
   
-  if (error || !data?.claims) {
+  if (error || !user) {
     console.error('[find-retailer-products] Auth verification failed:', error?.message);
     return {
       userId: null,
@@ -44,7 +43,7 @@ async function verifyAdminAuth(req: Request): Promise<{ userId: string | null; e
     };
   }
 
-  const userId = data.claims.sub as string;
+  const userId = user.id;
 
   // Verify admin role
   const { data: roleData, error: roleError } = await supabaseClient
