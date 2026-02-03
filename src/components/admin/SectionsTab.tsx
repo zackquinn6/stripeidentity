@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +18,7 @@ interface Section {
   slug: string;
   name: string;
   description: string | null;
+  selection_guidance: string | null;
   section_type: string;
   is_visible: boolean;
   display_order: number;
@@ -40,6 +42,7 @@ export default function SectionsTab({ projectId, projectName, onSelectSection, s
     name: '',
     slug: '',
     description: '',
+    selection_guidance: '',
     section_type: 'equipment',
     is_visible: true
   });
@@ -109,12 +112,13 @@ export default function SectionsTab({ projectId, projectName, onSelectSection, s
         name: section.name,
         slug: section.slug,
         description: section.description || '',
+        selection_guidance: section.selection_guidance || '',
         section_type: section.section_type,
         is_visible: section.is_visible
       });
     } else {
       setEditingSection(null);
-      setFormData({ name: '', slug: '', description: '', section_type: 'equipment', is_visible: true });
+      setFormData({ name: '', slug: '', description: '', selection_guidance: '', section_type: 'equipment', is_visible: true });
     }
     setIsDialogOpen(true);
   };
@@ -135,6 +139,7 @@ export default function SectionsTab({ projectId, projectName, onSelectSection, s
           name: formData.name,
           slug: formData.slug,
           description: formData.description || null,
+          selection_guidance: formData.selection_guidance || null,
           section_type: formData.section_type,
           is_visible: formData.is_visible
         })
@@ -156,6 +161,7 @@ export default function SectionsTab({ projectId, projectName, onSelectSection, s
           name: formData.name,
           slug: formData.slug,
           description: formData.description || null,
+          selection_guidance: formData.selection_guidance || null,
           section_type: formData.section_type,
           is_visible: formData.is_visible,
           display_order: sections.length
@@ -263,6 +269,20 @@ export default function SectionsTab({ projectId, projectName, onSelectSection, s
                 placeholder="Essential safety gear..."
               />
             </div>
+            {formData.section_type === 'addon' && (
+              <div className="space-y-2">
+                <Label>Selection Guidance</Label>
+                <Textarea
+                  value={formData.selection_guidance}
+                  onChange={(e) => setFormData({ ...formData, selection_guidance: e.target.value })}
+                  placeholder="e.g., Do you need to level your floor before tiling?"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This text helps users decide if they need items from this section
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Type</Label>
               <Select value={formData.section_type} onValueChange={(v) => setFormData({ ...formData, section_type: v })}>

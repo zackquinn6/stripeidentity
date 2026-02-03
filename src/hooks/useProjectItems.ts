@@ -26,6 +26,7 @@ interface SectionRow {
   slug: string;
   section_type: string;
   description: string | null;
+  selection_guidance: string | null;
   display_order: number;
   section_items: SectionItemRow[];
 }
@@ -66,6 +67,7 @@ async function fetchProjectSections(projectSlug: string): Promise<ProjectSection
       slug,
       section_type,
       description,
+      selection_guidance,
       display_order,
       section_items (
         id,
@@ -109,14 +111,12 @@ async function fetchProjectSections(projectSlug: string): Promise<ProjectSection
         items: visibleItems.map(item => mapItemToRentalItem(item, false)),
       });
     } else if (section.section_type === 'addon') {
-      // For add-ons, use the first item's selection_guidance as the category guidance
-      const categoryGuidance = visibleItems[0]?.selection_guidance || section.description;
-      
+      // Use section's selection_guidance for the category
       addOns.push({
         id: section.slug,
         name: section.name,
         description: section.description || undefined,
-        selectionGuidance: categoryGuidance || undefined,
+        selectionGuidance: section.selection_guidance || undefined,
         items: visibleItems.map(item => mapItemToRentalItem(item, false)),
       });
     } else if (section.section_type === 'consumable') {
