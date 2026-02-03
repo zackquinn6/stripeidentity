@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -17,12 +18,14 @@ import {
   RefreshCw,
   Loader2,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  LogIn
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { useBooqableOrder } from '@/hooks/useBooqableOrder';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -37,6 +40,8 @@ const DAY_2_PLUS_RATE = 25; // Flat fee per additional day
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const [showDetails, setShowDetails] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { isCreating, error: orderError, checkoutUrl, createOrder, redirectToCheckout, reset } = useBooqableOrder();
   
   const rentals = items.filter(item => !item.isConsumable && item.quantity > 0);
@@ -301,6 +306,21 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               >
                 Complete Checkout
                 <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          ) : !user ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-4 bg-warning/10 border border-warning/30 rounded-lg">
+                <LogIn className="w-5 h-5 text-warning flex-shrink-0" />
+                <p className="text-sm">Please sign in to complete your order.</p>
+              </div>
+              <Button 
+                size="lg" 
+                className="w-full"
+                onClick={() => navigate('/auth')}
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Sign In to Checkout
               </Button>
             </div>
           ) : (
