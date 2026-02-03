@@ -139,6 +139,9 @@ export type Database = {
           is_visible: boolean
           name: string
           retail_price: number
+          scaling_guidance: string | null
+          scaling_per_100_sqft: number | null
+          scaling_tile_size: string | null
           section_id: string
           selection_guidance: string | null
           updated_at: string
@@ -157,6 +160,9 @@ export type Database = {
           is_visible?: boolean
           name: string
           retail_price?: number
+          scaling_guidance?: string | null
+          scaling_per_100_sqft?: number | null
+          scaling_tile_size?: string | null
           section_id: string
           selection_guidance?: string | null
           updated_at?: string
@@ -175,6 +181,9 @@ export type Database = {
           is_visible?: boolean
           name?: string
           retail_price?: number
+          scaling_guidance?: string | null
+          scaling_per_100_sqft?: number | null
+          scaling_tile_size?: string | null
           section_id?: string
           selection_guidance?: string | null
           updated_at?: string

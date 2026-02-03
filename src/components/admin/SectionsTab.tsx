@@ -25,7 +25,7 @@ interface Section {
 interface SectionsTabProps {
   projectId: string | null;
   projectName: string | null;
-  onSelectSection: (id: string, name: string) => void;
+  onSelectSection: (id: string, name: string, type: string) => void;
   selectedSectionId: string | null;
 }
 
@@ -305,7 +305,7 @@ export default function SectionsTab({ projectId, projectName, onSelectSection, s
             } ${
               dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-primary' : ''
             }`}
-            onClick={() => onSelectSection(section.id, section.name)}
+            onClick={() => onSelectSection(section.id, section.name, section.section_type)}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

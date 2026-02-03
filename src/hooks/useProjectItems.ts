@@ -14,6 +14,9 @@ interface SectionItemRow {
   display_order: number;
   is_visible: boolean;
   default_quantity: number;
+  scaling_tile_size: string | null;
+  scaling_per_100_sqft: number | null;
+  scaling_guidance: string | null;
 }
 
 interface SectionRow {
@@ -39,6 +42,9 @@ function mapItemToRentalItem(item: SectionItemRow, isConsumable: boolean = false
     description: item.description || undefined,
     selectionGuidance: item.selection_guidance || undefined,
     booqableId: item.booqable_product_id || undefined,
+    scalingTileSize: item.scaling_tile_size || undefined,
+    scalingPer100Sqft: item.scaling_per_100_sqft ? Number(item.scaling_per_100_sqft) : undefined,
+    scalingGuidance: item.scaling_guidance || undefined,
   };
 }
 
@@ -70,7 +76,10 @@ async function fetchProjectSections(projectSlug: string): Promise<ProjectSection
         image_url,
         display_order,
         is_visible,
-        default_quantity
+        default_quantity,
+        scaling_tile_size,
+        scaling_per_100_sqft,
+        scaling_guidance
       )
     `)
     .eq('is_visible', true)

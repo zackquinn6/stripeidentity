@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, ExternalLink, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import useBooqableProducts from '@/hooks/useBooqableProducts';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,9 @@ interface SectionItem {
   amazon_url: string | null;
   home_depot_url: string | null;
   selection_guidance: string | null;
+  scaling_tile_size: string | null;
+  scaling_per_100_sqft: number | null;
+  scaling_guidance: string | null;
 }
 
 interface ProductVariant {
@@ -64,9 +67,17 @@ interface ItemsTabProps {
   sectionId: string | null;
   projectName: string | null;
   sectionName: string | null;
+  sectionType?: string;
 }
 
-export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsTabProps) {
+const TILE_SIZE_OPTIONS = [
+  { value: 'small', label: 'Small Tiles (< 6")' },
+  { value: 'medium', label: 'Medium Tiles (6" - 12")' },
+  { value: 'large', label: 'Large Format (> 12")' },
+  { value: 'all', label: 'All Tile Sizes' },
+];
+
+export default function ItemsTab({ sectionId, projectName, sectionName, sectionType }: ItemsTabProps) {
   const [items, setItems] = useState<SectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -88,7 +99,10 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
     is_visible: true,
     amazon_url: '',
     home_depot_url: '',
-    selection_guidance: ''
+    selection_guidance: '',
+    scaling_tile_size: '',
+    scaling_per_100_sqft: '',
+    scaling_guidance: ''
   });
 
   const { data: booqableProducts, isLoading: isLoadingProducts, refetch: refetchProducts } = useBooqableProducts();
@@ -149,7 +163,10 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         is_visible: true,
         amazon_url: '',
         home_depot_url: '',
-        selection_guidance: ''
+        selection_guidance: '',
+        scaling_tile_size: '',
+        scaling_per_100_sqft: '',
+        scaling_guidance: ''
       });
 
       // If no variants, use the slug as the booqable_product_id
@@ -220,12 +237,15 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
         is_visible: item.is_visible,
         amazon_url: item.amazon_url || '',
         home_depot_url: item.home_depot_url || '',
-        selection_guidance: item.selection_guidance || ''
+        selection_guidance: item.selection_guidance || '',
+        scaling_tile_size: item.scaling_tile_size || '',
+        scaling_per_100_sqft: item.scaling_per_100_sqft?.toString() || '',
+        scaling_guidance: item.scaling_guidance || ''
       });
     } else {
       setEditingItem(null);
       setSelectedBooqableId('');
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true, amazon_url: '', home_depot_url: '', selection_guidance: '' });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 1, is_visible: true, amazon_url: '', home_depot_url: '', selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
     }
     setIsDialogOpen(true);
   };
@@ -262,7 +282,10 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           is_visible: formData.is_visible,
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
-          selection_guidance: formData.selection_guidance || null
+          selection_guidance: formData.selection_guidance || null,
+          scaling_tile_size: formData.scaling_tile_size || null,
+          scaling_per_100_sqft: formData.scaling_per_100_sqft ? parseFloat(formData.scaling_per_100_sqft) : null,
+          scaling_guidance: formData.scaling_guidance || null
         })
         .eq('id', editingItem.id);
 
@@ -290,6 +313,9 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
           amazon_url: formData.amazon_url || null,
           home_depot_url: formData.home_depot_url || null,
           selection_guidance: formData.selection_guidance || null,
+          scaling_tile_size: formData.scaling_tile_size || null,
+          scaling_per_100_sqft: formData.scaling_per_100_sqft ? parseFloat(formData.scaling_per_100_sqft) : null,
+          scaling_guidance: formData.scaling_guidance || null,
           display_order: items.length
         });
 
@@ -551,6 +577,62 @@ export default function ItemsTab({ sectionId, projectName, sectionName }: ItemsT
                 Short question/statement to help users decide if they need this item
               </p>
             </div>
+            
+            {/* Scaling Configuration - only for consumable sections */}
+            {sectionType === 'consumable' && (
+              <div className="space-y-4 p-4 bg-secondary/50 rounded-lg border border-border">
+                <div className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-medium">Auto-Scaling Configuration</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Configure how this material scales based on project square footage
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Applies to Tile Size</Label>
+                    <Select 
+                      value={formData.scaling_tile_size} 
+                      onValueChange={(v) => setFormData({ ...formData, scaling_tile_size: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select tile size..." />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10002]">
+                        {TILE_SIZE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Units per 100 sq ft</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={formData.scaling_per_100_sqft}
+                      onChange={(e) => setFormData({ ...formData, scaling_per_100_sqft: e.target.value })}
+                      placeholder="e.g., 5"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Scaling Guidance (shown to users)</Label>
+                  <Input
+                    value={formData.scaling_guidance}
+                    onChange={(e) => setFormData({ ...formData, scaling_guidance: e.target.value })}
+                    placeholder="e.g., 1 bag per 20 sq ft. Buy 10% extra for waste."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Explains the calculation to help users understand quantities
+                  </p>
+                </div>
+              </div>
+            )}
             {/* Pricing from Booqable - read-only */}
             {productDetails && !productDetails.isSalesItem && (
               <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle, Loader2 } from 'lucide-react';
+import { Check, Package, Plus, Sparkles, ArrowLeft, ArrowRight, CalendarDays, Trash2, Calculator, HelpCircle, Loader2, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { tileSizes, underlaymentOptions } from '@/data/tileEquipment';
 import { EquipmentCategory, AddOnCategory, RentalItem } from '@/types/rental';
@@ -108,6 +108,59 @@ const TileOrderingFlow = ({
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const exactSqft = parseFloat(exactSquareFootage) || 0;
   const thinsetBags = Math.ceil(exactSqft / 10);
+
+  // Calculate suggested quantity for a material based on scaling config and tile areas
+  const calculateSuggestedQuantity = (item: RentalItem): number | null => {
+    if (!item.scalingPer100Sqft || !item.scalingTileSize) return null;
+    
+    // Map our tile size values to scaling config values
+    const tileSizeMapping: Record<string, string> = {
+      'small': 'small',
+      'medium': 'medium', 
+      'large': 'large',
+      'extra-large': 'large' // extra-large uses large format scaling
+    };
+    
+    let applicableSqft = 0;
+    
+    for (const area of tileAreas) {
+      const sqft = parseFloat(area.squareFootage) || 0;
+      if (sqft <= 0) continue;
+      
+      const mappedSize = tileSizeMapping[area.tileSize] || area.tileSize;
+      
+      // Check if this material applies to this tile size
+      if (item.scalingTileSize === 'all' || item.scalingTileSize === mappedSize) {
+        applicableSqft += sqft;
+      }
+    }
+    
+    if (applicableSqft <= 0) return null;
+    
+    // Calculate quantity: (sqft / 100) * unitsPerHundred, rounded up
+    const rawQuantity = (applicableSqft / 100) * item.scalingPer100Sqft;
+    return Math.ceil(rawQuantity);
+  };
+
+  // Get total square footage from tile areas
+  const getTotalSqftForSize = (scalingTileSize: string): number => {
+    const tileSizeMapping: Record<string, string> = {
+      'small': 'small',
+      'medium': 'medium',
+      'large': 'large', 
+      'extra-large': 'large'
+    };
+    
+    let total = 0;
+    for (const area of tileAreas) {
+      const sqft = parseFloat(area.squareFootage) || 0;
+      const mappedSize = tileSizeMapping[area.tileSize] || area.tileSize;
+      if (scalingTileSize === 'all' || scalingTileSize === mappedSize) {
+        total += sqft;
+      }
+    }
+    return total;
+  };
 
   // Booqable script is now loaded globally in App via useBooqable().
 
@@ -538,21 +591,56 @@ const TileOrderingFlow = ({
                 Purchase materials for your project.
               </p>
               <div className="space-y-3">
-                {materials.map(item => <div key={item.id} className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-lg object-cover bg-muted" />}
-                      <div>
-                        <span className="font-medium">{item.name}</span>
-                        <p className="text-sm text-muted-foreground">
-                          ${item.dailyRate.toFixed(2)} each
-                          {item.id === 'thinset' && exactSqft > 0 && <span className="ml-2 text-primary">
-                              (Suggested: {thinsetBags} for {exactSqft} sq ft)
-                            </span>}
-                        </p>
+                {materials.map(item => {
+                  const suggestedQty = calculateSuggestedQuantity(item);
+                  const applicableSqft = item.scalingTileSize ? getTotalSqftForSize(item.scalingTileSize) : 0;
+                  
+                  return (
+                    <div key={item.id} className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-lg object-cover bg-muted" />}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{item.name}</span>
+                            {item.scalingGuidance && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-[280px] bg-popover text-popover-foreground">
+                                    <p className="text-sm">{item.scalingGuidance}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            ${item.dailyRate.toFixed(2)} each
+                          </p>
+                          {suggestedQty !== null && applicableSqft > 0 && (
+                            <p className="text-sm text-primary font-medium">
+                              Suggested: {suggestedQty} for {applicableSqft.toLocaleString()} sq ft
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {suggestedQty !== null && applicableSqft > 0 && item.quantity !== suggestedQty && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleMaterialQuantityChange(item.id, suggestedQty)}
+                            className="text-xs"
+                          >
+                            Use {suggestedQty}
+                          </Button>
+                        )}
+                        <QuantitySelector quantity={item.quantity} onQuantityChange={qty => handleMaterialQuantityChange(item.id, qty)} />
                       </div>
                     </div>
-                    <QuantitySelector quantity={item.quantity} onQuantityChange={qty => handleMaterialQuantityChange(item.id, qty)} />
-                  </div>)}
+                  );
+                })}
               </div>
 
               <div className="mt-6 p-4 bg-amber-soft rounded-lg border border-amber-glow/20">
