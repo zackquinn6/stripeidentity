@@ -136,6 +136,7 @@ export type Database = {
           home_depot_url: string | null
           id: string
           image_url: string | null
+          is_sales_item: boolean
           is_visible: boolean
           name: string
           retail_price: number
@@ -157,6 +158,7 @@ export type Database = {
           home_depot_url?: string | null
           id?: string
           image_url?: string | null
+          is_sales_item?: boolean
           is_visible?: boolean
           name: string
           retail_price?: number
@@ -178,6 +180,7 @@ export type Database = {
           home_depot_url?: string | null
           id?: string
           image_url?: string | null
+          is_sales_item?: boolean
           is_visible?: boolean
           name?: string
           retail_price?: number
