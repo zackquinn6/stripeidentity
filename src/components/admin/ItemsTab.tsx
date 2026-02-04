@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, Calculator } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertCircle, RefreshCw, Package, Check, ChevronsUpDown, Loader2, Search, Calculator, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import useBooqableProducts from '@/hooks/useBooqableProducts';
+import { useDragReorder } from '@/hooks/useDragReorder';
 import { cn } from '@/lib/utils';
 
 interface SectionItem {
@@ -132,6 +133,42 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
   });
 
   const { data: booqableProducts, isLoading: isLoadingProducts, refetch: refetchProducts } = useBooqableProducts();
+
+  // Drag and drop reordering
+  const handleItemReorder = async (reorderedItems: SectionItem[]) => {
+    setItems(reorderedItems);
+    
+    // Update display_order in database
+    const updates = reorderedItems.map((item, index) => ({
+      id: item.id,
+      display_order: index,
+    }));
+    
+    for (const update of updates) {
+      const { error } = await supabase
+        .from('section_items')
+        .update({ display_order: update.display_order })
+        .eq('id', update.id);
+      
+      if (error) {
+        console.error('[ItemsTab] Error updating display order:', error);
+        toast.error('Failed to save new order');
+        fetchItems(); // Revert to database state
+        return;
+      }
+    }
+    toast.success('Order saved');
+  };
+
+  const {
+    draggedIndex,
+    dragOverIndex,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useDragReorder(items, handleItemReorder);
 
   useEffect(() => {
     if (sectionId) {
@@ -963,10 +1000,24 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
       </Dialog>
 
       <div className="space-y-2">
-        {items.map((item) => (
-          <Card key={item.id}>
+        {items.map((item, index) => (
+          <Card 
+            key={item.id}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
+            className={cn(
+              'transition-all cursor-move',
+              draggedIndex === index && 'opacity-50',
+              dragOverIndex === index && draggedIndex !== index && 'border-primary border-2'
+            )}
+          >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <GripVertical className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                 {item.image_url && (
                   <img src={item.image_url} alt={item.name} className="w-10 h-10 object-cover rounded" />
                 )}

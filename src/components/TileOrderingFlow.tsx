@@ -514,9 +514,9 @@ const TileOrderingFlow = ({
 
               <div className="space-y-6">
                 {equipment.map(category => {
-                  // Filter out items without valid Booqable links (no imageUrl from Booqable)
-                  const linkedItems = category.items.filter(item => item.imageUrl && !item.imageUrl.includes('unsplash'));
-                  if (linkedItems.length === 0) return null;
+                  // Show all items from this category
+                  const visibleItems = category.items;
+                  if (visibleItems.length === 0) return null;
                   
                   return (
                     <div key={category.id}>
@@ -524,7 +524,7 @@ const TileOrderingFlow = ({
                         {category.name}
                       </h4>
                       <div className="space-y-2">
-                        {linkedItems.map(item => <EquipmentItem key={item.id} item={item} onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)} onItemClick={handleItemClick} />)}
+                        {visibleItems.map(item => <EquipmentItem key={item.id} item={item} onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)} onItemClick={handleItemClick} />)}
                       </div>
                     </div>
                   );

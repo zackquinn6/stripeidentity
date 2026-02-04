@@ -244,47 +244,9 @@ serve(async (req) => {
           );
         }
 
-        const products = data.map((product: BooqableProduct | Record<string, unknown>) => {
-          if ('attributes' in product) {
-            const p = product as BooqableProduct;
-            const attrs = p.attributes as Record<string, unknown>;
-            const productType = String(attrs.product_type || 'rental');
-            const isSalesItem = productType === 'consumable' || productType === 'service';
-            
-            // Parse price structure for tiered pricing
-            // For rentals: base_price_in_cents = day 1 rate, price_structure.day = day 2+ rate
-            // For sales items: base_price_in_cents is the sale price
-            const priceStructure = attrs.price_structure as { day?: number; hour?: number } | undefined;
-            const basePriceInCents = Number(attrs.base_price_in_cents) || 0;
-            
-            // For sales items, we need to check the flat_fee or price fields
-            // Booqable sometimes stores sale prices differently
-            const flatFee = Number(attrs.flat_fee_in_cents) || 0;
-            
-            // Use flat_fee if available, otherwise base_price
-            const salePrice = (flatFee > 0 ? flatFee : basePriceInCents) / 100;
-            const rentalFirstDayRate = basePriceInCents / 100;
-            
-            // For rentals, daily rate after day 1 comes from price_structure.day
-            // price_structure values are already in whole dollars (not cents)
-            const dayRateFromStructure = priceStructure?.day ?? rentalFirstDayRate;
-            
-            return {
-              booqableId: p.id,
-              slug: p.attributes.slug,
-              name: p.attributes.name,
-              description: p.attributes.description || '',
-              imageUrl: p.attributes.photo_url || '',
-              firstDayRate: isSalesItem ? salePrice : rentalFirstDayRate,
-              dailyRate: isSalesItem ? salePrice : dayRateFromStructure,
-              depositAmount: (p.attributes.deposit_in_cents || 0) / 100,
-              stockCount: p.attributes.stock_count || 0,
-              trackable: p.attributes.trackable || false,
-              hasVariations: false,
-              productType,
-              isSalesItem,
-            };
-          }
+        const products: any[] = [];
+        
+        for (const product of data) {
           const std = product as Record<string, unknown>;
           const productType = String(std.product_type || 'rental');
           const isSalesItem = productType === 'consumable' || productType === 'service';
@@ -301,7 +263,8 @@ serve(async (req) => {
           // price_structure values are already in whole dollars
           const dayRateFromStructure = priceStructure?.day ?? rentalFirstDayRate;
           
-          return {
+          // Add the product group itself
+          products.push({
             booqableId: String(std.id || ''),
             slug: String(std.slug || ''),
             name: String(std.name || ''),
@@ -315,8 +278,39 @@ serve(async (req) => {
             hasVariations: Boolean(std.has_variations),
             productType,
             isSalesItem,
-          };
-        });
+          });
+          
+          // Also add individual variants if they exist
+          // This ensures variant IDs can be matched in the frontend
+          const productVariants = std.products as any[] | undefined;
+          if (Array.isArray(productVariants) && productVariants.length > 0) {
+            for (const variant of productVariants) {
+              const variantBasePriceInCents = Number(variant.base_price_in_cents) || 0;
+              const variantFlatFee = Number(variant.flat_fee_price_in_cents) || Number(variant.flat_fee_in_cents) || 0;
+              
+              const variantSalePrice = (variantFlatFee > 0 ? variantFlatFee : variantBasePriceInCents) / 100;
+              const variantFirstDayRate = isSalesItem ? variantSalePrice : (variantBasePriceInCents / 100);
+              
+              products.push({
+                booqableId: String(variant.id || ''),
+                slug: String(std.slug || ''), // Use parent slug for matching
+                name: String(variant.name || std.name || ''),
+                description: String(std.description || ''),
+                imageUrl: String(variant.photo_url || std.photo_url || ''),
+                firstDayRate: variantFirstDayRate,
+                dailyRate: variantFirstDayRate, // Variants typically have flat pricing
+                depositAmount: (Number(std.deposit_in_cents) || 0) / 100,
+                stockCount: Number(variant.stock_count || std.stock_count) || 0,
+                trackable: Boolean(std.trackable),
+                hasVariations: false,
+                productType,
+                isSalesItem, // Inherit isSalesItem from parent product group
+                isVariant: true,
+                parentId: String(std.id || ''),
+              });
+            }
+          }
+        }
 
         return new Response(
           JSON.stringify({ products }),
