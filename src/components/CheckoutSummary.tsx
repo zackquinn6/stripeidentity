@@ -43,13 +43,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
   // Slug → UUID mapping (Booqable embeds require UUIDs in data-id)
   const { slugToUuid, isLoading: isIdMapLoading } = useBooqableIdMap();
-
-  // Nudge the library after the add-on placeholders render with resolved IDs.
-  useEffect(() => {
-    if (isIdMapLoading) return;
-    const t = setTimeout(() => booqableRefresh(), 0);
-    return () => clearTimeout(t);
-  }, [isIdMapLoading]);
   
   const [showDetails, setShowDetails] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -57,6 +50,34 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [validationError, setValidationError] = useState<string | null>(null);
   const [cartSynced, setCartSynced] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+
+  // Nudge the library after the add-on placeholders render with resolved IDs.
+  useEffect(() => {
+    if (isIdMapLoading) return;
+    const t = setTimeout(() => booqableRefresh(), 0);
+    return () => clearTimeout(t);
+  }, [isIdMapLoading]);
+
+  // Initialize checkout widget when order is created
+  useEffect(() => {
+    if (!cartSynced || !checkoutUrl) return;
+
+    // Wait for widget container to be in DOM, then refresh Booqable
+    const initWidget = () => {
+      const widgetElement = document.getElementById('booqable-checkout-widget');
+      if (widgetElement) {
+        // Give Booqable script time to process the URL parameters
+        setTimeout(() => {
+          booqableRefresh();
+        }, 500);
+      }
+    };
+
+    // Try immediately and also after a short delay
+    initWidget();
+    const timer = setTimeout(initWidget, 100);
+    return () => clearTimeout(timer);
+  }, [cartSynced, checkoutUrl]);
   const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
@@ -177,10 +198,36 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         setCheckoutUrl(url);
         setCartSynced(true);
         
-        // Auto-navigate to checkout after a brief delay to show success message
-        setTimeout(() => {
-          window.location.href = url;
-        }, 1500);
+        // Extract order_id and dates from checkout URL and update current page URL
+        // This allows the Booqable widget to pick up the pre-created order
+        try {
+          const checkoutUrlObj = new URL(url);
+          const orderIdParam = checkoutUrlObj.searchParams.get('order_id');
+          const startsAtParam = checkoutUrlObj.searchParams.get('starts_at');
+          const stopsAtParam = checkoutUrlObj.searchParams.get('stops_at');
+          
+          // Update current URL with order parameters (without page reload)
+          const currentUrl = new URL(window.location.href);
+          if (orderIdParam) currentUrl.searchParams.set('order_id', orderIdParam);
+          if (startsAtParam) currentUrl.searchParams.set('starts_at', startsAtParam);
+          if (stopsAtParam) currentUrl.searchParams.set('stops_at', stopsAtParam);
+          
+          // Update URL without reloading page
+          window.history.pushState({}, '', currentUrl.toString());
+          
+          // Refresh Booqable script to pick up the new URL parameters
+          setTimeout(() => {
+            booqableRefresh();
+            
+            // Scroll to checkout widget
+            const widgetElement = document.getElementById('booqable-checkout-widget');
+            if (widgetElement) {
+              widgetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }, 300);
+        } catch (error) {
+          console.error('[CheckoutSummary] Failed to update URL parameters:', error);
+        }
       }
     } catch (error) {
       console.error('[CheckoutSummary] Order creation failed:', error);
@@ -656,21 +703,16 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardContent>
       </Card>
 
-      {/* Navigate to checkout on same page when order is created */}
+      {/* Embed checkout widget on same page when order is created */}
       {cartSynced && checkoutUrl && (
         <div className="mt-8 animate-fade-in">
-<<<<<<< HEAD
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl font-bold mb-4">Redirecting to Checkout...</h2>
-            <p className="text-muted-foreground mb-4">Please complete your payment on the checkout page.</p>
-            <Button 
-              onClick={() => {
-                window.location.href = checkoutUrl;
-              }}
-              size="lg"
-            >
-              Continue to Checkout
-            </Button>
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-2xl font-bold mb-4">Complete Your Checkout</h2>
+            <div 
+              id="booqable-checkout-widget"
+              data-booqable-cart
+              className="min-h-[400px]"
+            />
           </div>
         </div>
       )}
