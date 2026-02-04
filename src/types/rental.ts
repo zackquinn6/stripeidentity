@@ -5,6 +5,8 @@ export interface RentalItem {
   dailyRate: number;
   firstDayRate?: number; // Day 1 price (includes delivery/setup)
   quantity: number;
+  defaultQuantityEssentials?: number; // Quantity for Project Essentials package
+  defaultQuantityComprehensive?: number; // Quantity for Comprehensive package
   isConsumable?: boolean;
   isSalesItem?: boolean; // True if one-time purchase, false if rental
   imageUrl?: string;

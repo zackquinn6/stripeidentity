@@ -25,6 +25,8 @@ interface SectionItem {
   retail_price: number;
   image_url: string | null;
   default_quantity: number;
+  default_quantity_essentials: number;
+  default_quantity_comprehensive: number;
   is_visible: boolean;
   display_order: number;
   selection_guidance: string | null;
@@ -108,6 +110,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     retail_price: 0,
     image_url: '',
     default_quantity: 0,
+    default_quantity_essentials: 0,
+    default_quantity_comprehensive: 0,
     is_visible: true,
     is_sales_item: false,
     selection_guidance: '',
@@ -171,6 +175,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         retail_price: 0,
         image_url: details.imageUrl || '',
         default_quantity: 0,
+        default_quantity_essentials: 0,
+        default_quantity_comprehensive: 0,
         is_visible: true,
         is_sales_item: details.isSalesItem || false,
         selection_guidance: '',
@@ -247,6 +253,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         retail_price: item.retail_price,
         image_url: item.image_url || '',
         default_quantity: item.default_quantity,
+        default_quantity_essentials: item.default_quantity_essentials || 0,
+        default_quantity_comprehensive: item.default_quantity_comprehensive || 0,
         is_visible: item.is_visible,
         is_sales_item: item.is_sales_item || false,
         selection_guidance: item.selection_guidance || '',
@@ -260,7 +268,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
       setEditingItem(null);
       setSelectedBooqableId('');
       setPricingComparisons([]);
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, is_visible: true, is_sales_item: false, selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, default_quantity_essentials: 0, default_quantity_comprehensive: 0, is_visible: true, is_sales_item: false, selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
     }
     setIsDialogOpen(true);
   };
@@ -297,6 +305,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           retail_price: formData.retail_price,
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
+          default_quantity_essentials: formData.default_quantity_essentials,
+          default_quantity_comprehensive: formData.default_quantity_comprehensive,
           is_visible: formData.is_visible,
           is_sales_item: isSalesItem,
           selection_guidance: formData.selection_guidance || null,
@@ -326,6 +336,8 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           retail_price: formData.retail_price,
           image_url: formData.image_url || null,
           default_quantity: formData.default_quantity,
+          default_quantity_essentials: formData.default_quantity_essentials,
+          default_quantity_comprehensive: formData.default_quantity_comprehensive,
           is_visible: formData.is_visible,
           is_sales_item: isSalesItem,
           selection_guidance: formData.selection_guidance || null,
@@ -720,14 +732,53 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               </div>
             )}
 
+            {/* Package Quantity Configuration - only for equipment sections */}
+            {sectionType === 'equipment' && (
+              <div className="space-y-4 p-4 bg-secondary/50 rounded-lg border border-border">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-medium">Package Default Quantities</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Set how many of this item are included in each package type
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Project Essentials</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.default_quantity_essentials}
+                      onChange={(e) => setFormData({ ...formData, default_quantity_essentials: parseInt(e.target.value) || 0 })}
+                      placeholder="0 = not included"
+                    />
+                    <p className="text-xs text-muted-foreground">Minimum required items</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Comprehensive</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.default_quantity_comprehensive}
+                      onChange={(e) => setFormData({ ...formData, default_quantity_comprehensive: parseInt(e.target.value) || 0 })}
+                      placeholder="0 = not included"
+                    />
+                    <p className="text-xs text-muted-foreground">Full package items</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Default Quantity</Label>
                 <Input
                   type="number"
                   value={formData.default_quantity}
-                  onChange={(e) => setFormData({ ...formData, default_quantity: parseInt(e.target.value) || 1 })}
+                  onChange={(e) => setFormData({ ...formData, default_quantity: parseInt(e.target.value) || 0 })}
                 />
+                <p className="text-xs text-muted-foreground">Initial quantity shown to users</p>
               </div>
               <div className="space-y-2">
                 <Label>Retail Price ($)</Label>

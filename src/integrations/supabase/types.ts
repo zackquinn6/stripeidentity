@@ -178,6 +178,8 @@ export type Database = {
           created_at: string
           daily_rate: number
           default_quantity: number
+          default_quantity_comprehensive: number
+          default_quantity_essentials: number
           description: string | null
           display_order: number
           id: string
@@ -199,6 +201,8 @@ export type Database = {
           created_at?: string
           daily_rate?: number
           default_quantity?: number
+          default_quantity_comprehensive?: number
+          default_quantity_essentials?: number
           description?: string | null
           display_order?: number
           id?: string
@@ -220,6 +224,8 @@ export type Database = {
           created_at?: string
           daily_rate?: number
           default_quantity?: number
+          default_quantity_comprehensive?: number
+          default_quantity_essentials?: number
           description?: string | null
           display_order?: number
           id?: string
