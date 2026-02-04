@@ -18,17 +18,19 @@ const AppContent = () => {
   useBooqable();
 
   return (
-    <>
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/auth" element={<Auth />} />
-        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+    <div className="min-h-screen flex flex-col">
+      <main className="flex-1">
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/auth" element={<Auth />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
       <AdminButton />
       <PoweredByFooter />
-    </>
+    </div>
   );
 };
 

@@ -30,6 +30,27 @@ function booqableRefresh() {
   if (typeof api.trigger === 'function') api.trigger('page-change');
 }
 
+async function ensureBooqableButtonsEnhanced(timeoutMs = 4000) {
+  // Wait until at least one placeholder exists and Booqable has had a chance to enhance it.
+  const staging = document.getElementById('booqable-embed-staging');
+  if (!staging) return;
+
+  const anyPlaceholder = staging.querySelector<HTMLElement>('.booqable-product-button');
+  if (!anyPlaceholder) return;
+
+  // Give the library a few refresh cycles.
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    booqableRefresh();
+    // Some installs never inject a child; but if it does, that's our best signal.
+    const hasEnhancedButton = !!anyPlaceholder.querySelector(
+      'button, a, [role="button"], [data-action], .booqable-button, .bq-add-button, input[type="submit"]'
+    );
+    if (hasEnhancedButton) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
 function setBooqableDatesOnPage(startsAt: string, stopsAt: string) {
   const url = new URL(window.location.href);
   url.searchParams.set('starts_at', startsAt);
@@ -171,7 +192,15 @@ export function useBooqableCart() {
         console.log('[useBooqableCart] Starting cart sync');
         console.log('[useBooqableCart] Items:', validItems.map((i) => ({ name: i.name, slug: i.booqableId, qty: i.quantity })));
         console.log('[useBooqableCart] Dates:', startsAt, '→', stopsAt);
-        console.log('[useBooqableCart] window.Booqable exists:', !!getBooqableApi());
+        const api = getBooqableApi();
+        console.log('[useBooqableCart] window.Booqable exists:', !!api);
+        if (api) {
+          console.log('[useBooqableCart] Booqable API capabilities:', {
+            hasRefresh: typeof api.refresh === 'function',
+            hasTrigger: typeof api.trigger === 'function',
+            hasCartData: !!api.cartData,
+          });
+        }
       }
 
       try {
@@ -180,6 +209,9 @@ export function useBooqableCart() {
         
         // Refresh Booqable to pick up new dates
         booqableRefresh();
+
+        // Ensure the placeholders are enhanced before we start clicking.
+        await ensureBooqableButtonsEnhanced(4500);
         
         // Small delay for the widget to process
         await new Promise((r) => setTimeout(r, 300));
@@ -222,7 +254,9 @@ export function useBooqableCart() {
           // Click for each unit of quantity
           for (let i = 0; i < item.quantity; i++) {
             clickTarget.click();
-            await new Promise((r) => setTimeout(r, 150));
+            // Nudge the library after each click for reliability
+            booqableRefresh();
+            await new Promise((r) => setTimeout(r, 200));
           }
 
           clickedCount++;
