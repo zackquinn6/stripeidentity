@@ -23,7 +23,8 @@ import {
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
-import { useBooqableOrder } from '@/hooks/useBooqableOrder';
+import { useBooqableCart } from '@/hooks/useBooqableCart';
+import BooqableEmbedStaging from './BooqableEmbedStaging';
 import { supabase } from '@/integrations/supabase/client';
 
 interface CheckoutSummaryProps {
@@ -89,20 +90,13 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       return () => clearInterval(timer);
     }
   }, [isGenerating]);
-  const {
-    isCreating,
-    error: orderError,
-    checkoutUrl,
-    orderNumber,
-    createOrder,
-    redirectToCheckout,
-    reset,
-  } = useBooqableOrder();
+  const { isLoading: isCreating, error: orderError, itemsAdded, addToCart, reset } = useBooqableCart();
   
   const rentals = items.filter(item => !item.isConsumable && !item.isSalesItem && item.quantity > 0);
   const salesItems = items.filter(item => (item.isConsumable || item.isSalesItem));
 
-  const allItems = items.filter((item) => item.quantity > 0);
+  // All items for the hidden staging container (uses resolved UUIDs)
+  const allItems = items.filter(item => item.quantity > 0);
 
   const consumableTotal = salesItems.filter(i => i.quantity > 0).reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
   
@@ -235,6 +229,9 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Hidden Booqable embed staging area with resolved UUIDs */}
+          <BooqableEmbedStaging items={allItems} />
+
           {/* Pricing breakdown */}
           <div className="space-y-4">
             <div className="space-y-3">
@@ -544,27 +541,21 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </div>
           )}
 
-          {checkoutUrl ? (
+          {itemsAdded > 0 ? (
             <div className="space-y-3">
               <div className="p-4 bg-success/10 border border-success/30 rounded-lg space-y-2">
                 <div className="flex items-center gap-2 text-success">
                   <Check className="w-5 h-5" />
-                  <p className="font-semibold">Checkout Ready!</p>
+                  <p className="font-semibold">Cart Updated!</p>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Your order has been created{orderNumber ? ` (Order #${orderNumber})` : ''}. Continue to checkout to complete booking.
+                  {itemsAdded} items have been added to your Booqable cart. 
+                  You can complete checkout directly in the cart widget.
                 </p>
               </div>
               <Button 
                 size="lg" 
                 className="w-full" 
-                onClick={redirectToCheckout}
-              >
-                Proceed to Checkout
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full"
                 onClick={onBack}
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -593,21 +584,21 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                     return;
                   }
 
-                  const booqableItems = allItems.filter((item) => item.booqableId);
+                  const booqableItems = rentals.filter(item => item.booqableId);
                   if (booqableItems.length === 0) {
                     setValidationError('None of the selected items can be booked online. Please contact us for availability.');
                     return;
                   }
 
                   const endDate = addDays(startDate, rentalDays);
-                  await createOrder({ items: allItems, startDate, endDate });
-                  // Success/error states are handled inline by orderError and checkoutUrl
+                  await addToCart(rentals, startDate, endDate);
+                  // Success/error states are handled inline by orderError and itemsAdded
                 }}
               >
                 {isCreating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Preparing Checkout...
+                    Syncing Cart...
                   </>
                 ) : (
                   'Proceed to Checkout'
