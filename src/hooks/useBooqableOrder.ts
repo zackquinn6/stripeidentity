@@ -73,11 +73,17 @@ export function useBooqableOrder() {
 
       // Step 2: Book/reserve the order and get checkout URL
       // Per Booqable guidance: Order must be booked before checkout is available
+      // Pass rental period dates explicitly to ensure checkout widget displays them correctly
+      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('booqable', {
         body: {
           action: 'get-checkout-url',
           order_id: orderId,
           book_order: true, // Reserve stock and enable checkout
+          starts_at: startsAt, // Pass dates explicitly so checkout widget receives rental period
+          stops_at: stopsAt,
         }
       });
 

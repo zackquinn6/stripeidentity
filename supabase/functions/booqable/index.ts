@@ -676,7 +676,7 @@ serve(async (req) => {
       }
 
       case 'get-checkout-url': {
-        const { order_id, book_order } = params;
+        const { order_id, book_order, starts_at, stops_at } = params;
         
         // Per Booqable guidance:
         // 1. Create order with rental period (done prior)
@@ -703,6 +703,8 @@ serve(async (req) => {
         let orderNumber: number | null = null;
         let checkoutUrl: string | null = null;
         let orderToken: string | null = null;
+        let rentalStartsAt: string | null = null;
+        let rentalStopsAt: string | null = null;
 
         if (orderResponse.ok) {
           const orderData = await orderResponse.json();
@@ -715,6 +717,10 @@ serve(async (req) => {
           orderNumber = typeof attrs.number === 'number' ? attrs.number : null;
           orderToken = attrs.token || attrs.checkout_token || attrs.public_token || order?.id || null;
 
+          // Extract rental period dates from order attributes (or use explicitly passed dates)
+          rentalStartsAt = starts_at || attrs.starts_at || attrs.startsAt || null;
+          rentalStopsAt = stops_at || attrs.stops_at || attrs.stopsAt || null;
+
           // Try explicit checkout URL fields from attributes
           const candidateUrls: Array<string | undefined | null> = [
             attrs.checkout_url,
@@ -725,11 +731,37 @@ serve(async (req) => {
           checkoutUrl = candidateUrls.find((u) => typeof u === 'string' && u.startsWith('http')) ?? null;
 
           // If no explicit URL, construct the checkout URL
-          // Booqable checkout pattern: /checkout?order_id={order_id}
+          // Booqable checkout pattern: /checkout?order_id={order_id}&starts_at={date}&stops_at={date}
+          // Per Booqable: customers will see all items pre-loaded at checkout with rental period
           if (!checkoutUrl && order_id) {
-            // Per Booqable: customers will see all items pre-loaded at checkout
-            checkoutUrl = `${BOOQABLE_SHOP_URL}/checkout?order_id=${order_id}`;
-            console.log(`[Booqable] Constructed checkout URL: ${checkoutUrl}`);
+            const urlParams = new URLSearchParams();
+            urlParams.set('order_id', order_id);
+            
+            // Add rental period dates to URL so checkout widget displays them correctly
+            if (rentalStartsAt) {
+              urlParams.set('starts_at', rentalStartsAt);
+            }
+            if (rentalStopsAt) {
+              urlParams.set('stops_at', rentalStopsAt);
+            }
+            
+            checkoutUrl = `${BOOQABLE_SHOP_URL}/checkout?${urlParams.toString()}`;
+            console.log(`[Booqable] Constructed checkout URL with rental period: ${checkoutUrl}`);
+          } else if (checkoutUrl && (rentalStartsAt || rentalStopsAt)) {
+            // If we got an explicit URL from Booqable, still add dates as parameters
+            try {
+              const url = new URL(checkoutUrl);
+              if (rentalStartsAt) {
+                url.searchParams.set('starts_at', rentalStartsAt);
+              }
+              if (rentalStopsAt) {
+                url.searchParams.set('stops_at', rentalStopsAt);
+              }
+              checkoutUrl = url.toString();
+              console.log(`[Booqable] Added rental period to checkout URL: ${checkoutUrl}`);
+            } catch (e) {
+              console.warn(`[Booqable] Could not parse checkout URL to add dates:`, e);
+            }
           }
 
           console.log(`[Booqable] Order ${order_id}: number=${orderNumber}, token=${orderToken}, checkoutUrl=${checkoutUrl ?? 'null'}`);
