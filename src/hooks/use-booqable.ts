@@ -29,11 +29,10 @@ function safeRefresh() {
  */
 export function useBooqable() {
   useEffect(() => {
-    const existing = document.getElementById(BOOQABLE_SCRIPT_ID) as
-      | HTMLScriptElement
-      | null;
-
     const ensureScript = () => {
+      const existing = document.getElementById(BOOQABLE_SCRIPT_ID) as
+        | HTMLScriptElement
+        | null;
       if (existing) return;
 
       const script = document.createElement("script");
@@ -50,7 +49,8 @@ export function useBooqable() {
         // eslint-disable-next-line no-console
         console.warn("Booqable script failed to load", BOOQABLE_SCRIPT_SRC);
       };
-      document.body.appendChild(script);
+      // Prefer <head> for earlier loading and to avoid body-not-ready edge cases.
+      (document.head || document.body).appendChild(script);
     };
 
     ensureScript();

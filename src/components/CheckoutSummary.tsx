@@ -78,6 +78,10 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const rentals = items.filter(item => !item.isConsumable && !item.isSalesItem && item.quantity > 0);
   const salesItems = items.filter(item => (item.isConsumable || item.isSalesItem));
 
+  // Render Booqable product-button placeholders on the checkout screen so the
+  // cart-sync hook can click them even though the item list UI is no longer shown.
+  const booqableButtonItems = rentals.filter((i) => !!i.booqableId && i.quantity > 0);
+
   const consumableTotal = salesItems.filter(i => i.quantity > 0).reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
   
   // New pricing model: Day 1 + (Days - 1) * flat rate
@@ -199,6 +203,13 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Hidden Booqable buttons: required for programmatic add-to-cart */}
+          <div className="sr-only" aria-hidden="true">
+            {booqableButtonItems.map((item) => (
+              <div key={item.id} className="booqable-product-button" data-id={item.booqableId} />
+            ))}
+          </div>
+
           {/* Pricing breakdown */}
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">How pricing works:</h3>
