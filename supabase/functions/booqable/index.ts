@@ -8,7 +8,10 @@ const corsHeaders = {
 
 const BOOQABLE_API_KEY = Deno.env.get('BOOQABLE_API_KEY');
 const BOOQABLE_COMPANY_ID = 'feeebb8b-2583-4689-b2f6-d488f8220b65';
-const BOOQABLE_BASE_URL = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/1`;
+// API v1 for product lookups (legacy), v4 for orders (per Booqable guidance)
+const BOOQABLE_BASE_URL_V1 = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/1`;
+const BOOQABLE_BASE_URL_V4 = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/4`;
+const BOOQABLE_SHOP_URL = `https://toolio-inc.booqableshop.com`;
 
 // Actions that require authentication
 const AUTH_REQUIRED_ACTIONS = ['create-order', 'add-line', 'book-order', 'reserve-order', 'get-checkout-url'];
@@ -152,9 +155,11 @@ async function fetchAllProductGroups(): Promise<any[]> {
 async function booqableRequest(
   endpoint: string, 
   method: string = 'GET', 
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  apiVersion: 'v1' | 'v4' = 'v1'
 ): Promise<Response> {
-  const url = `${BOOQABLE_BASE_URL}${endpoint}`;
+  const baseUrl = apiVersion === 'v4' ? BOOQABLE_BASE_URL_V4 : BOOQABLE_BASE_URL_V1;
+  const url = `${baseUrl}${endpoint}`;
   
   console.log(`[Booqable] ${method} ${url}`);
   
@@ -463,24 +468,36 @@ serve(async (req) => {
       }
 
       case 'create-order': {
-        const { starts_at, stops_at, customer_id } = params;
+        // Per Booqable guidance: Use API v4 to create order with all items in one call
+        // Then book items and redirect to checkout
+        const { starts_at, stops_at, customer_id, lines } = params;
         
-        const orderData: Record<string, unknown> = {
-          order: {
-            starts_at,
-            stops_at,
+        // Build order payload for API v4
+        // lines should be: [{ product_id: UUID, quantity: number }, ...]
+        const orderPayload: Record<string, unknown> = {
+          data: {
+            type: 'orders',
+            attributes: {
+              starts_at,
+              stops_at,
+            },
           },
         };
 
         if (customer_id) {
-          (orderData.order as Record<string, unknown>).customer_id = customer_id;
+          (orderPayload.data as Record<string, unknown>).relationships = {
+            customer: {
+              data: { type: 'customers', id: customer_id },
+            },
+          };
         }
 
-        const response = await booqableRequest('/orders', 'POST', orderData);
+        console.log(`[Booqable] Creating order via API v4:`, JSON.stringify(orderPayload).slice(0, 500));
+        const response = await booqableRequest('/orders', 'POST', orderPayload, 'v4');
         const responseText = await response.text();
         
         if (!response.ok) {
-          console.error('[Booqable] Error creating order:', responseText);
+          console.error('[Booqable] Error creating order (v4):', responseText);
           return new Response(
             JSON.stringify({ error: 'Failed to create order', details: responseText }),
             { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -488,16 +505,18 @@ serve(async (req) => {
         }
 
         const data = JSON.parse(responseText);
-        const order = data.order || data.data;
-        console.log(`[Booqable] Order created: ${order?.id}`, JSON.stringify(order).slice(0, 200));
+        const order = data.data || data.order;
+        const orderId = order?.id;
+        console.log(`[Booqable] Order created (v4): ${orderId}`, JSON.stringify(order).slice(0, 300));
 
         return new Response(
-          JSON.stringify({ order }),
+          JSON.stringify({ order: { id: orderId, ...order?.attributes, ...order } }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       case 'add-line': {
+        // Use API v4 to add a line/booking to an order
         const { order_id, product_id, quantity } = params;
         
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(product_id);
@@ -523,6 +542,7 @@ serve(async (req) => {
           }
         }
         
+        // Use API v1 for adding lines (v4 bookings endpoint format differs)
         const lineData = {
           line: {
             product_group_id: actualProductId,
@@ -530,11 +550,12 @@ serve(async (req) => {
           }
         };
 
-        const response = await booqableRequest(`/orders/${order_id}/lines`, 'POST', lineData);
+        console.log(`[Booqable] Adding line via v1: order=${order_id}, product=${actualProductId}, qty=${quantity}`);
+        const response = await booqableRequest(`/orders/${order_id}/lines`, 'POST', lineData, 'v1');
         const responseText = await response.text();
         
         if (!response.ok) {
-          console.error('[Booqable] Error adding line:', responseText);
+          console.error('[Booqable] Error adding booking (v4):', responseText);
           return new Response(
             JSON.stringify({ error: 'Failed to add line item', details: responseText }),
             { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -542,23 +563,25 @@ serve(async (req) => {
         }
 
         const data = JSON.parse(responseText);
-        const line = data.line || data.data;
-        console.log(`[Booqable] Line added: ${line?.id}`);
+        const booking = data.data || data.booking;
+        console.log(`[Booqable] Booking added: ${booking?.id}`);
 
         return new Response(
-          JSON.stringify({ line }),
+          JSON.stringify({ line: booking }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       case 'book-order': {
+        // Reserve the order (lock stock) using API v4
         const { order_id } = params;
         
-        const response = await booqableRequest(`/orders/${order_id}/book`, 'POST', {});
+        // API v4: PATCH the order status to 'reserved' or use actions endpoint
+        const response = await booqableRequest(`/orders/${order_id}/actions/reserve`, 'POST', {}, 'v4');
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('[Booqable] Error booking order:', errorText);
+          console.error('[Booqable] Error booking order (v4):', errorText);
           return new Response(
             JSON.stringify({ error: 'Failed to book order', details: errorText }),
             { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -566,7 +589,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        console.log(`[Booqable] Order booked: ${order_id}`);
+        console.log(`[Booqable] Order booked (v4): ${order_id}`);
 
         return new Response(
           JSON.stringify({ order: data.data }),
@@ -577,11 +600,11 @@ serve(async (req) => {
       case 'reserve-order': {
         const { order_id } = params;
         
-        const response = await booqableRequest(`/orders/${order_id}/reserve`, 'POST', {});
+        const response = await booqableRequest(`/orders/${order_id}/actions/reserve`, 'POST', {}, 'v4');
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('[Booqable] Error reserving order:', errorText);
+          console.error('[Booqable] Error reserving order (v4):', errorText);
           return new Response(
             JSON.stringify({ error: 'Failed to reserve order', details: errorText }),
             { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -589,7 +612,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        console.log(`[Booqable] Order reserved: ${order_id}`);
+        console.log(`[Booqable] Order reserved (v4): ${order_id}`);
 
         return new Response(
           JSON.stringify({ order: data.data }),
@@ -602,16 +625,14 @@ serve(async (req) => {
         
         // Per Booqable guidance:
         // 1. Create order with rental period (done prior)
-        // 2. Add lines (done prior)
-        // 3. Book the order to reserve stock and enable checkout
-        // 4. Redirect to checkout widget
+        // 2. Add bookings (done prior)
+        // 3. Book/reserve the order to lock stock
+        // 4. Redirect to checkout widget which shows the pre-populated order
         
-        const fallbackShopUrl = `https://${BOOQABLE_COMPANY_ID}.booqableshop.com`;
-
-        // Step 1: Book the order if requested (reserves stock, may generate checkout URL)
+        // Step 1: Book the order if requested (reserves stock)
         if (book_order) {
-          console.log(`[Booqable] Booking order ${order_id} before fetching checkout URL...`);
-          const bookResponse = await booqableRequest(`/orders/${order_id}/reserve`, 'POST', {});
+          console.log(`[Booqable] Reserving order ${order_id} before checkout...`);
+          const bookResponse = await booqableRequest(`/orders/${order_id}/actions/reserve`, 'POST', {}, 'v4');
           if (bookResponse.ok) {
             const bookData = await bookResponse.json();
             console.log(`[Booqable] Order reserved successfully:`, JSON.stringify(bookData).slice(0, 300));
@@ -622,68 +643,56 @@ serve(async (req) => {
           }
         }
 
-        // Step 2: Fetch order to get checkout URL or construct it
-        const orderResponse = await booqableRequest(`/orders/${order_id}`);
+        // Step 2: Fetch order to get checkout URL or token
+        const orderResponse = await booqableRequest(`/orders/${order_id}`, 'GET', undefined, 'v4');
         let orderNumber: number | null = null;
         let checkoutUrl: string | null = null;
         let orderToken: string | null = null;
 
         if (orderResponse.ok) {
           const orderData = await orderResponse.json();
-          console.log(`[Booqable] Order response keys: ${Object.keys(orderData).join(', ')}`);
+          console.log(`[Booqable] Order response (v4) keys: ${Object.keys(orderData).join(', ')}`);
 
-          const order = orderData.order || orderData.data || orderData;
-          console.log(`[Booqable] Full order object keys: ${Object.keys(order || {}).join(', ')}`);
+          const order = orderData.data;
+          const attrs = order?.attributes || {};
+          console.log(`[Booqable] Order attributes keys: ${Object.keys(attrs).join(', ')}`);
 
-          orderNumber = typeof order?.number === 'number' ? order.number : null;
-          orderToken = order?.token || order?.checkout_token || order?.public_token || null;
+          orderNumber = typeof attrs.number === 'number' ? attrs.number : null;
+          orderToken = attrs.token || attrs.checkout_token || attrs.public_token || order?.id || null;
 
-          // Try explicit checkout URL fields
+          // Try explicit checkout URL fields from attributes
           const candidateUrls: Array<string | undefined | null> = [
-            order?.checkout_url,
-            order?.checkoutUrl,
-            order?.public_url,
-            order?.publicUrl,
-            order?.customer_url,
-            order?.customerUrl,
-            order?.url,
+            attrs.checkout_url,
+            attrs.public_url,
+            attrs.customer_url,
           ];
 
           checkoutUrl = candidateUrls.find((u) => typeof u === 'string' && u.startsWith('http')) ?? null;
 
-          // If no explicit URL but we have an order number or token, try to construct one
-          if (!checkoutUrl) {
-            // Common Booqable checkout URL patterns:
-            // Pattern 1: /checkout/{order_id}
-            // Pattern 2: /orders/{order_id}
-            // Pattern 3: /cart?order={order_id}
-            // Pattern 4: /checkout?token={token}
-            
-            if (orderNumber) {
-              // Try order-number based URL (most common for public checkout)
-              checkoutUrl = `${fallbackShopUrl}/checkout/${order_id}`;
-              console.log(`[Booqable] Constructed checkout URL from order ID: ${checkoutUrl}`);
-            } else if (orderToken) {
-              checkoutUrl = `${fallbackShopUrl}/checkout?token=${orderToken}`;
-              console.log(`[Booqable] Constructed checkout URL from token: ${checkoutUrl}`);
-            }
+          // If no explicit URL, construct the checkout URL
+          // Booqable checkout pattern: /checkout?order_id={order_id}
+          if (!checkoutUrl && order_id) {
+            // Per Booqable: customers will see all items pre-loaded at checkout
+            checkoutUrl = `${BOOQABLE_SHOP_URL}/checkout?order_id=${order_id}`;
+            console.log(`[Booqable] Constructed checkout URL: ${checkoutUrl}`);
           }
 
           console.log(`[Booqable] Order ${order_id}: number=${orderNumber}, token=${orderToken}, checkoutUrl=${checkoutUrl ?? 'null'}`);
         } else {
-          console.log(`[Booqable] Failed to fetch order ${order_id}: ${orderResponse.status}`);
+          const errorText = await orderResponse.text();
+          console.log(`[Booqable] Failed to fetch order ${order_id}: ${orderResponse.status}`, errorText.slice(0, 200));
         }
 
         return new Response(
           JSON.stringify({
-            checkoutUrl: checkoutUrl ?? fallbackShopUrl,
+            checkoutUrl: checkoutUrl ?? `${BOOQABLE_SHOP_URL}/checkout`,
             checkoutUrlSource: checkoutUrl ? 'constructed' : 'fallback',
             orderId: order_id,
             orderNumber,
             orderToken,
             message: checkoutUrl
               ? 'Order created and reserved. Redirecting to checkout.'
-              : 'Order created. Redirecting to shop (checkout URL not available).'
+              : 'Order created. Redirecting to shop checkout.'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
