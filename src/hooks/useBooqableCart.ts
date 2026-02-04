@@ -131,7 +131,41 @@ function tryAddItemsViaCartApi(
   const api = getBooqableApi();
   const cart = api?.cart;
   const appliedVia: string[] = [];
-  if (!cart) return { ok: false, appliedVia };
+  
+  if (DEBUG) {
+    console.log('[useBooqableCart] Attempting cart API:', {
+      hasApi: !!api,
+      hasCart: !!cart,
+      apiKeys: api ? Object.keys(api).slice(0, 20) : [],
+      cartKeys: cart ? Object.keys(cart).slice(0, 20) : [],
+      cartData: api?.cartData ? { 
+        hasItems: !!api.cartData.items,
+        itemsType: typeof api.cartData.items,
+        itemsLength: Array.isArray(api.cartData.items) ? api.cartData.items.length : 'not array'
+      } : null
+    });
+  }
+  
+  if (!cart) {
+    // Try direct API methods that might not be under cart
+    if (api) {
+      const directMethods = ['addItem', 'addProduct', 'addProductGroup', 'addToCart'];
+      for (const methodName of directMethods) {
+        if (typeof api[methodName] === 'function') {
+          try {
+            for (const item of items) {
+              (api[methodName] as any)(item.productGroupId, item.quantity);
+            }
+            appliedVia.push(`api.${methodName}`);
+            return { ok: true, appliedVia };
+          } catch (e) {
+            if (DEBUG) console.warn(`[useBooqableCart] Direct API method ${methodName} failed:`, e);
+          }
+        }
+      }
+    }
+    return { ok: false, appliedVia };
+  }
 
   // Try batched APIs first
   const batchCandidates: Array<{ name: string; fn: unknown }>
@@ -422,18 +456,74 @@ export function useBooqableCart() {
           if (DEBUG) {
             const dataId = placeholder.getAttribute('data-id');
             const hasChild = !!placeholder.querySelector('button, a');
-            console.log(`[useBooqableCart] Found placeholder for ${slug}:`, { dataId, hasChild });
+            const api = getBooqableApi();
+            console.log(`[useBooqableCart] Found placeholder for ${slug}:`, { 
+              dataId, 
+              hasChild,
+              placeholderClasses: placeholder.className,
+              placeholderAttributes: Array.from(placeholder.attributes).map(a => `${a.name}="${a.value}"`).join(', '),
+              booqableApiExists: !!api,
+              booqableMethods: api ? Object.keys(api).filter(k => typeof api[k] === 'function').slice(0, 10) : []
+            });
           }
 
-          // Wait longer for Booqable to inject a real button, but also try clicking the container directly
-          const clickTarget = await waitForClickableButton(placeholder, 5000);
+          // Temporarily make placeholder visible so Booqable can enhance it
+          // Some Booqable installs only enhance visible elements
+          const originalDisplay = placeholder.style.display;
+          const originalVisibility = placeholder.style.visibility;
+          const originalPosition = placeholder.style.position;
+          const originalLeft = placeholder.style.left;
+          const originalOpacity = placeholder.style.opacity;
+          
+          // Make it visible but still off-screen
+          placeholder.style.display = 'block';
+          placeholder.style.visibility = 'visible';
+          placeholder.style.position = 'fixed';
+          placeholder.style.left = '0px';
+          placeholder.style.top = '0px';
+          placeholder.style.width = '1px';
+          placeholder.style.height = '1px';
+          placeholder.style.opacity = '0.01';
+          placeholder.style.zIndex = '-1';
           
           // Set quantity attribute in case Booqable reads it
           placeholder.setAttribute('data-quantity', String(item.quantity));
           
-          // Ensure placeholder is visible to Booqable (even if off-screen)
-          placeholder.style.display = 'block';
-          placeholder.style.visibility = 'visible';
+          // Force Booqable to re-scan this element
+          booqableRefresh();
+          
+          // Try to manually trigger Booqable's enhancement
+          const api = getBooqableApi();
+          if (api) {
+            // Try various methods to trigger enhancement
+            if (typeof api.scan === 'function') {
+              try { api.scan(); } catch {}
+            }
+            if (typeof api.init === 'function') {
+              try { api.init(); } catch {}
+            }
+            if (typeof api.enhance === 'function') {
+              try { api.enhance(placeholder); } catch {}
+            }
+            // Try triggering a custom event that Booqable might listen for
+            try {
+              placeholder.dispatchEvent(new CustomEvent('booqable:enhance', { bubbles: true }));
+              placeholder.dispatchEvent(new Event('DOMNodeInserted', { bubbles: true }));
+            } catch {}
+          }
+          
+          await new Promise((r) => setTimeout(r, 500));
+          
+          // Wait longer for Booqable to inject a real button
+          const clickTarget = await waitForClickableButton(placeholder, 5000);
+          
+          // Restore original styles after enhancement attempt
+          placeholder.style.display = originalDisplay;
+          placeholder.style.visibility = originalVisibility;
+          placeholder.style.position = originalPosition;
+          placeholder.style.left = originalLeft;
+          placeholder.style.opacity = originalOpacity;
+          placeholder.style.zIndex = '';
           
           // Try multiple click strategies
           const targetsToTry = clickTarget ? [clickTarget, placeholder] : [placeholder];
