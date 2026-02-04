@@ -81,14 +81,18 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
   const consumableTotal = salesItems.filter(i => i.quantity > 0).reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
   
-  // Calculate rental total from actual item pricing
-  const rentalTotal = rentals.reduce((sum, item) => {
+  // Calculate Day 1 and Day 2+ totals separately
+  const day1Total = rentals.reduce((sum, item) => {
     const firstDayRate = item.firstDayRate ?? item.dailyRate;
-    const day2PlusRate = item.dailyRate;
-    const additionalDays = Math.max(0, rentalDays - 1);
-    return sum + (firstDayRate * item.quantity) + (day2PlusRate * item.quantity * additionalDays);
+    return sum + (firstDayRate * item.quantity);
   }, 0);
   
+  const additionalDays = Math.max(0, rentalDays - 1);
+  const day2PlusTotal = rentals.reduce((sum, item) => {
+    return sum + (item.dailyRate * item.quantity * additionalDays);
+  }, 0);
+  
+  const rentalTotal = day1Total + day2PlusTotal;
   const grandTotal = rentalTotal + consumableTotal;
 
   // Comparison totals (purchase instead of rent) - simulated retailer prices
@@ -212,34 +216,31 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           {/* Pricing breakdown */}
           <div className="space-y-4">
             <div className="space-y-3">
-              {/* Rental items section */}
+              {/* Day 1 section with rental items accordion */}
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold">Rental Items</p>
+                    <p className="font-semibold">Day 1</p>
                     <p className="text-sm text-muted-foreground">
-                      {rentalDays} day{rentalDays > 1 ? 's' : ''} · Includes delivery & damage waiver
+                      Includes delivery & damage waiver
                     </p>
                   </div>
-                  <span className="font-bold text-lg">${rentalTotal.toFixed(2)}</span>
+                  <span className="font-bold text-lg">${day1Total.toFixed(2)}</span>
                 </div>
                 
-                {/* Rental items accordion */}
+                {/* Rental items accordion under Day 1 */}
                 <Accordion type="single" collapsible className="w-full">
                   <AccordionItem value="rental-items" className="border-0">
                     <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
                       <span className="flex items-center gap-2">
                         <Wrench className="w-4 h-4" />
-                        View {rentals.length} rental items
+                        View {rentals.length} rental items included
                       </span>
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-2 pt-2">
                         {rentals.map((item) => {
                           const firstDay = item.firstDayRate ?? item.dailyRate;
-                          const day2Plus = item.dailyRate;
-                          const additionalDays = Math.max(0, rentalDays - 1);
-                          const itemTotal = (firstDay * item.quantity) + (day2Plus * item.quantity * additionalDays);
                           return (
                             <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg text-sm">
                               {item.imageUrl && (
@@ -247,7 +248,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                               )}
                               <span className="flex-1">{item.name}</span>
                               <span className="text-muted-foreground">×{item.quantity}</span>
-                              <span className="font-medium">${itemTotal.toFixed(2)}</span>
+                              <span className="font-medium">${(firstDay * item.quantity).toFixed(2)}</span>
                             </div>
                           );
                         })}
@@ -256,6 +257,46 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                   </AccordionItem>
                 </Accordion>
               </div>
+
+              {additionalDays > 0 && (
+                <div className="p-4 bg-secondary/50 rounded-lg space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">Day 2–{rentalDays}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {additionalDays} additional day{additionalDays > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <span className="font-bold text-lg">${day2PlusTotal.toFixed(2)}</span>
+                  </div>
+                  
+                  {/* Day 2+ items accordion */}
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="day2-items" className="border-0">
+                      <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          View daily rates
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2 pt-2">
+                          {rentals.map((item) => (
+                            <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-muted/50 rounded-lg text-sm">
+                              {item.imageUrl && (
+                                <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                              )}
+                              <span className="flex-1">{item.name}</span>
+                              <span className="text-muted-foreground">${item.dailyRate.toFixed(2)}/day × {item.quantity}</span>
+                              <span className="font-medium">${(item.dailyRate * item.quantity * additionalDays).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
+              )}
 
               {/* Materials & Sales section - always show */}
               <div className="p-4 bg-amber-soft rounded-lg space-y-3">
