@@ -5,7 +5,8 @@ import { Loader2, ExternalLink, RefreshCw, AlertCircle, ArrowLeft, Check } from 
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-
+import { useBooqable } from '@/hooks/use-booqable';
+import { booqableRefresh } from '@/lib/booqable/client';
 interface BooqableCheckoutEmbedProps {
   items: RentalItem[];
   startDate: Date;
@@ -38,6 +39,9 @@ const BooqableCheckoutEmbed = ({
   rentalDays, 
   onBack 
 }: BooqableCheckoutEmbedProps) => {
+  // Initialize Booqable script and observe for new buttons
+  useBooqable();
+  
   const [state, setState] = useState<OrderState>({
     isCreating: false,
     error: null,
@@ -46,6 +50,17 @@ const BooqableCheckoutEmbed = ({
     orderId: null,
   });
   const [iframeLoaded, setIframeLoaded] = useState(false);
+
+  // Refresh Booqable when iframe loads to pick up the product button
+  useEffect(() => {
+    if (iframeLoaded) {
+      // Give the DOM a moment to settle, then refresh Booqable
+      const timer = setTimeout(() => {
+        booqableRefresh();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [iframeLoaded]);
 
   const endDate = addDays(startDate, rentalDays);
 
