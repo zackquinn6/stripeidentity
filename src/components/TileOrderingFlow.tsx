@@ -295,22 +295,24 @@ const TileOrderingFlow = ({
     }
   };
   const handleSelectEssentials = () => {
+    // Default all items with valid Booqable links to quantity 1
     setEquipment(prev => prev.map(cat => ({
       ...cat,
       items: cat.items.map(item => ({
         ...item,
-        quantity: item.defaultQuantityEssentials || 0
+        quantity: (item.imageUrl && !item.imageUrl.includes('unsplash')) ? 1 : 0
       }))
     })));
     setOpenAccordion('step-3');
   };
 
   const handleSelectComprehensive = () => {
+    // Default all items with valid Booqable links to quantity 1
     setEquipment(prev => prev.map(cat => ({
       ...cat,
       items: cat.items.map(item => ({
         ...item,
-        quantity: item.defaultQuantityComprehensive || 0
+        quantity: (item.imageUrl && !item.imageUrl.includes('unsplash')) ? 1 : 0
       }))
     })));
     setOpenAccordion('step-3');
@@ -636,7 +638,7 @@ const TileOrderingFlow = ({
                             <Label>Square Footage</Label>
                             <Input 
                               type="number" 
-                              placeholder="Enter sq ft" 
+                              placeholder="Sq ft" 
                               value={area?.squareFootage || ''} 
                               onChange={e => {
                                 const newValue = e.target.value;
@@ -649,7 +651,8 @@ const TileOrderingFlow = ({
                                   }
                                 });
                               }} 
-                              className="bg-background" 
+                              className="bg-background w-24" 
+                              max={99999}
                             />
                           </div>
                         </div>
