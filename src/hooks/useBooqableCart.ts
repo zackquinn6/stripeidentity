@@ -20,24 +20,43 @@ async function waitFor(condition: () => boolean, timeoutMs = 4000, intervalMs = 
   throw new Error('Timeout waiting for condition');
 }
 
-async function ensureBooqableButtonsEnhanced(timeoutMs = 4000) {
+async function ensureBooqableButtonsEnhanced(timeoutMs = 6000) {
   // Wait until at least one placeholder exists and Booqable has had a chance to enhance it.
   const staging = document.getElementById('booqable-embed-staging');
-  if (!staging) return;
+  if (!staging) {
+    if (DEBUG) console.warn('[useBooqableCart] Staging area not found');
+    return;
+  }
 
   const anyPlaceholder = staging.querySelector<HTMLElement>('.booqable-product-button');
-  if (!anyPlaceholder) return;
+  if (!anyPlaceholder) {
+    if (DEBUG) console.warn('[useBooqableCart] No placeholders found in staging area');
+    return;
+  }
 
-  // Give the library a few refresh cycles.
+  // Give the library multiple refresh cycles with increasing delays.
   const start = Date.now();
+  let refreshCount = 0;
   while (Date.now() - start < timeoutMs) {
     booqableRefresh();
+    refreshCount++;
+    
     // Some installs never inject a child; but if it does, that's our best signal.
     const hasEnhancedButton = !!anyPlaceholder.querySelector(
       'button, a, [role="button"], [data-action], .booqable-button, .bq-add-button, input[type="submit"]'
     );
-    if (hasEnhancedButton) return;
-    await new Promise((r) => setTimeout(r, 250));
+    if (hasEnhancedButton) {
+      if (DEBUG) console.log(`[useBooqableCart] Buttons enhanced after ${refreshCount} refresh cycles`);
+      return;
+    }
+    
+    // Increase delay over time to give Booqable more time
+    const delay = Math.min(250 + (refreshCount * 50), 500);
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  
+  if (DEBUG) {
+    console.warn(`[useBooqableCart] Buttons not enhanced after ${timeoutMs}ms, will try clicking containers directly`);
   }
 }
 
@@ -54,7 +73,9 @@ function getCartSnapshot(): { itemCount: number; signature: string } {
   if (api?.cartData?.items && Array.isArray(api.cartData.items)) {
     const items = api.cartData.items;
     const itemCount = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
-    const signature = items.map((i: any) => `${i.product_id || i.id}:${i.quantity}`).join(',');
+    const signature = items.length > 0 
+      ? items.map((i: any) => `${i.product_id || i.id}:${i.quantity}`).join(',')
+      : 'empty';
     if (DEBUG) console.log('[useBooqableCart] cartData snapshot:', { itemCount, signature });
     return { itemCount, signature };
   }
@@ -341,23 +362,41 @@ export function useBooqableCart() {
           if (DEBUG) console.log('[useBooqableCart] Added items via cart API:', cartApiAttempt.appliedVia);
           booqableRefresh();
           
-          // Wait a bit and check if cart updated via API
-          await new Promise((r) => setTimeout(r, 500));
-          const apiCheckSnapshot = getCartSnapshot();
-          if (apiCheckSnapshot.itemCount > beforeSnapshot.itemCount) {
-            if (DEBUG) console.log('[useBooqableCart] Cart updated via API, skipping button clicks');
-            // Cart updated via API, skip button clicking
-            const addedCount = validItems.length;
-            setState({ isLoading: false, error: null, itemsAdded: addedCount });
-            return { success: true, itemsAdded: addedCount };
-          } else if (DEBUG) {
-            console.warn('[useBooqableCart] Cart API call succeeded but cart did not update, will try button clicks');
+          // Wait longer and check multiple times if cart updated via API
+          for (let checkAttempt = 0; checkAttempt < 5; checkAttempt++) {
+            await new Promise((r) => setTimeout(r, 400));
+            booqableRefresh();
+            const apiCheckSnapshot = getCartSnapshot();
+            if (apiCheckSnapshot.itemCount > beforeSnapshot.itemCount || 
+                (apiCheckSnapshot.signature !== beforeSnapshot.signature && apiCheckSnapshot.signature !== 'empty')) {
+              if (DEBUG) console.log('[useBooqableCart] Cart updated via API, skipping button clicks', {
+                before: beforeSnapshot,
+                after: apiCheckSnapshot
+              });
+              // Cart updated via API, skip button clicking
+              const addedCount = validItems.length;
+              setState({ isLoading: false, error: null, itemsAdded: addedCount });
+              return { success: true, itemsAdded: addedCount };
+            }
+          }
+          
+          if (DEBUG) {
+            const finalSnapshot = getCartSnapshot();
+            console.warn('[useBooqableCart] Cart API call succeeded but cart did not update, will try button clicks', {
+              before: beforeSnapshot,
+              after: finalSnapshot,
+              appliedVia: cartApiAttempt.appliedVia
+            });
           }
         } else if (DEBUG) {
           console.log('[useBooqableCart] Cart API not available, will use button clicking method');
           const api = getBooqableApi();
           if (api?.cart) {
-            console.log('[useBooqableCart] Available cart methods:', Object.keys(api.cart).filter(k => typeof api.cart[k] === 'function'));
+            const cartMethods = Object.keys(api.cart).filter(k => typeof api.cart[k] === 'function');
+            console.log('[useBooqableCart] Available cart methods:', cartMethods);
+            console.log('[useBooqableCart] Cart object keys:', Object.keys(api.cart));
+          } else {
+            console.log('[useBooqableCart] No cart object found on Booqable API');
           }
         }
 
@@ -386,11 +425,15 @@ export function useBooqableCart() {
             console.log(`[useBooqableCart] Found placeholder for ${slug}:`, { dataId, hasChild });
           }
 
-          // Wait for Booqable to inject a real button, but also try clicking the container directly
-          const clickTarget = await waitForClickableButton(placeholder, 2000);
+          // Wait longer for Booqable to inject a real button, but also try clicking the container directly
+          const clickTarget = await waitForClickableButton(placeholder, 5000);
           
           // Set quantity attribute in case Booqable reads it
           placeholder.setAttribute('data-quantity', String(item.quantity));
+          
+          // Ensure placeholder is visible to Booqable (even if off-screen)
+          placeholder.style.display = 'block';
+          placeholder.style.visibility = 'visible';
           
           // Try multiple click strategies
           const targetsToTry = clickTarget ? [clickTarget, placeholder] : [placeholder];
@@ -400,41 +443,69 @@ export function useBooqableCart() {
             // Make sure target is clickable
             target.style.pointerEvents = 'auto';
             target.style.cursor = 'pointer';
+            target.style.display = 'block';
             
             // Try clicking for each unit of quantity
             for (let i = 0; i < item.quantity; i++) {
+              // Refresh Booqable before each click attempt
+              booqableRefresh();
+              await new Promise((r) => setTimeout(r, 200));
+              
               // Try multiple click methods
               try {
-                // Standard click
+                // First try standard click
                 target.click();
               } catch (e) {
                 if (DEBUG) console.warn(`[useBooqableCart] Click failed for ${item.name}, trying dispatchEvent:`, e);
-                // Try dispatchEvent as fallback
+              }
+              
+              // Also try dispatchEvent with full event properties
+              try {
                 const clickEvent = new MouseEvent('click', {
                   bubbles: true,
                   cancelable: true,
-                  view: window
+                  view: window,
+                  detail: 1,
+                  buttons: 1
                 });
                 target.dispatchEvent(clickEvent);
+              } catch (e) {
+                // ignore
+              }
+              
+              // Try mousedown + mouseup sequence (some libraries need this)
+              try {
+                target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              } catch (e) {
+                // ignore
               }
               
               // Also try triggering Booqable's internal handlers
               const api = getBooqableApi();
               if (api?._defer) {
-                api._defer(() => true, () => {
-                  target.click();
-                });
+                try {
+                  api._defer(() => true, () => {
+                    target.click();
+                  });
+                } catch (e) {
+                  // ignore
+                }
               }
               
-              // Nudge the library after each click
-              booqableRefresh();
-              await new Promise((r) => setTimeout(r, 300));
+              // Wait a bit longer for cart to update
+              await new Promise((r) => setTimeout(r, 500));
               
               // Check if cart updated after this click
               const checkSnapshot = getCartSnapshot();
-              if (checkSnapshot.itemCount > beforeSnapshot.itemCount) {
+              if (checkSnapshot.itemCount > beforeSnapshot.itemCount || 
+                  (checkSnapshot.signature !== beforeSnapshot.signature && checkSnapshot.signature !== 'empty')) {
                 itemAdded = true;
-                if (DEBUG) console.log(`[useBooqableCart] Cart updated after clicking ${item.name}`);
+                if (DEBUG) console.log(`[useBooqableCart] Cart updated after clicking ${item.name}`, {
+                  before: beforeSnapshot,
+                  after: checkSnapshot
+                });
                 break;
               }
             }
@@ -473,18 +544,22 @@ export function useBooqableCart() {
         try {
           await waitFor(() => {
             const afterSnapshot = getCartSnapshot();
-            const changed = (
-              afterSnapshot.signature !== beforeSnapshot.signature ||
-              afterSnapshot.itemCount > beforeSnapshot.itemCount
-            );
+            // Check if cart changed: signature changed OR item count increased
+            // Also handle case where signature goes from 'empty' to non-empty or vice versa
+            const signatureChanged = afterSnapshot.signature !== beforeSnapshot.signature;
+            const itemCountIncreased = afterSnapshot.itemCount > beforeSnapshot.itemCount;
+            const changed = signatureChanged || itemCountIncreased;
+            
             if (DEBUG && !changed) {
               console.log('[useBooqableCart] Waiting for cart update...', {
                 before: beforeSnapshot,
-                after: afterSnapshot
+                after: afterSnapshot,
+                signatureChanged,
+                itemCountIncreased
               });
             }
             return changed;
-          }, 10000, 300); // Longer timeout and interval
+          }, 12000, 400); // Longer timeout and interval
 
           if (DEBUG) {
             const afterSnapshot = getCartSnapshot();
