@@ -37,8 +37,9 @@ const BooqableEmbedStaging = ({ items }: BooqableEmbedStagingProps) => {
         width: '1px',
         height: '1px',
         opacity: 0,
-        pointerEvents: 'none',
         overflow: 'hidden',
+        // Allow pointer events so programmatic clicks work
+        pointerEvents: 'auto',
       }}
     >
       {eligibleItems.map((item) => {
