@@ -62,15 +62,22 @@ async function fetchBooqableProducts(): Promise<Map<string, BooqableProduct>> {
       dailyRate: p.dailyRate,
       isSalesItem: p.isSalesItem ?? false,
     }));
+    
+    // Index by BOTH slug AND UUID for flexible matching
     const productMap = new Map<string, BooqableProduct>();
 
     for (const p of products) {
+      // Index by slug (for items stored with slug)
       if (p.slug) {
         productMap.set(p.slug, p);
       }
+      // Index by UUID (for items stored with UUID)
+      if (p.booqableId) {
+        productMap.set(p.booqableId, p);
+      }
     }
 
-    console.log(`[useProjectItems] Fetched ${productMap.size} Booqable products for image/pricing merge`);
+    console.log(`[useProjectItems] Fetched ${products.length} Booqable products, indexed ${productMap.size} keys`);
     return productMap;
   } catch (err) {
     console.error('[useProjectItems] Failed to fetch Booqable products:', err);
@@ -83,15 +90,15 @@ function mapItemToRentalItem(
   isConsumable: boolean = false,
   booqableProducts?: Map<string, BooqableProduct>
 ): RentalItem {
-  // Try to find matching Booqable product by slug for image and pricing
+  // Try to find matching Booqable product by slug OR UUID
   const booqableProduct = booqableProducts?.get(item.booqable_product_id);
   
   // Use Booqable image if available, otherwise fall back to DB image
   const imageUrl = booqableProduct?.imageUrl || item.image_url || undefined;
   
-  // IMPORTANT: Use database is_sales_item as source of truth, NOT Booqable's product_type
-  // This ensures admin-configured items maintain their correct classification
-  const isSalesItem = item.is_sales_item;
+  // IMPORTANT: Use Booqable's isSalesItem as the source of truth
+  // This ensures we always use the correct product classification from the rental system
+  const isSalesItem = booqableProduct?.isSalesItem ?? item.is_sales_item ?? false;
   
   // Use Booqable pricing if available - respects tiered pricing (day 1 vs day 2+)
   // For sales items, firstDayRate and dailyRate are the same (sale price)
