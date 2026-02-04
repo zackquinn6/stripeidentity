@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { RentalItem } from '@/types/rental';
 import { format } from 'date-fns';
 
-// Booqable global is already declared in use-booqable.ts
+const DEBUG = true; // Set to false when stable
 
 interface UseBooqableCartState {
   isLoading: boolean;
@@ -14,17 +14,13 @@ function getBooqableApi(): any {
   return (window as any).Booqable || (window as any).booqable;
 }
 
-async function waitFor(condition: () => boolean, timeoutMs = 4000, intervalMs = 50) {
+async function waitFor(condition: () => boolean, timeoutMs = 4000, intervalMs = 50): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (condition()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
-  throw new Error('Timed out waiting for Booqable to be ready');
-}
-
-function hasBooqableButtons() {
-  return !!document.querySelector('.booqable-product-button');
+  throw new Error('Timeout waiting for condition');
 }
 
 function booqableRefresh() {
@@ -41,41 +37,103 @@ function setBooqableDatesOnPage(startsAt: string, stopsAt: string) {
   window.history.replaceState({}, '', url.toString());
 }
 
-function findProductButton(productId: string): HTMLElement | null {
-  // Buttons are rendered by our app: <div class="booqable-product-button" data-id="..." />
-  return document.querySelector(`.booqable-product-button[data-id="${CSS.escape(productId)}"]`);
-}
-
-function findClickableInside(container: HTMLElement): HTMLElement {
-  // Booqable often injects a real clickable element inside our placeholder.
-  // Clicking the placeholder div may do nothing if the listener is bound to a child.
-  const clickable = container.querySelector<HTMLElement>(
-    'button, a, [role="button"], [data-action="add"], .booqable-button'
-  );
-  return clickable ?? container;
-}
-
-function isEmbeddedCartEmpty() {
-  // Heuristic: the embedded widget renders this empty-state string in the DOM.
-  // (Observed on /projects in the preview.)
-  const needle = 'your shopping cart is empty';
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  // eslint-disable-next-line no-cond-assign
-  while ((node = walker.nextNode())) {
-    const text = (node.textContent || '').trim().toLowerCase();
-    if (text.includes(needle)) return true;
+/**
+ * Get a snapshot of the cart's current state.
+ * Prefers window.Booqable.cartData if available, otherwise counts items in widget DOM.
+ */
+function getCartSnapshot(): { itemCount: number; signature: string } {
+  const api = getBooqableApi();
+  
+  // Try Booqable cartData first (source of truth if available)
+  if (api?.cartData?.items && Array.isArray(api.cartData.items)) {
+    const items = api.cartData.items;
+    const itemCount = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+    const signature = items.map((i: any) => `${i.product_id || i.id}:${i.quantity}`).join(',');
+    if (DEBUG) console.log('[useBooqableCart] cartData snapshot:', { itemCount, signature });
+    return { itemCount, signature };
   }
-  return false;
+  
+  // Fallback: count items in the widget DOM
+  // Look for common Booqable cart widget selectors
+  const widgetSelectors = [
+    '.booqable-cart-items .item',
+    '.booqable-cart .cart-item',
+    '[data-booqable-cart] .item',
+    '.bq-cart-items > *',
+    '.booqable-widget .cart-line',
+  ];
+  
+  let itemCount = 0;
+  for (const selector of widgetSelectors) {
+    const elements = document.querySelectorAll(selector);
+    if (elements.length > 0) {
+      itemCount = elements.length;
+      break;
+    }
+  }
+  
+  // Also check for "empty cart" text as a signal
+  const emptyTexts = ['your shopping cart is empty', 'your cart is empty', 'no items'];
+  const bodyText = document.body.innerText.toLowerCase();
+  const isEmpty = emptyTexts.some((t) => bodyText.includes(t));
+  
+  if (isEmpty && itemCount === 0) {
+    if (DEBUG) console.log('[useBooqableCart] DOM snapshot: cart is empty');
+    return { itemCount: 0, signature: 'empty' };
+  }
+  
+  const signature = `dom-items:${itemCount}`;
+  if (DEBUG) console.log('[useBooqableCart] DOM snapshot:', { itemCount, signature });
+  return { itemCount, signature };
+}
+
+/**
+ * Find product button placeholder by slug or UUID.
+ * Our staging container sets both data-id (UUID) and data-slug.
+ */
+function findProductButton(slugOrUuid: string): HTMLElement | null {
+  // Try by data-id first (UUID)
+  let btn = document.querySelector<HTMLElement>(
+    `.booqable-product-button[data-id="${CSS.escape(slugOrUuid)}"]`
+  );
+  if (btn) return btn;
+  
+  // Try by data-slug
+  btn = document.querySelector<HTMLElement>(
+    `.booqable-product-button[data-slug="${CSS.escape(slugOrUuid)}"]`
+  );
+  return btn;
+}
+
+/**
+ * Wait for Booqable to transform a placeholder into a real clickable element.
+ * Returns the clickable child, or the container itself if no child is injected.
+ */
+async function waitForClickableButton(
+  container: HTMLElement,
+  timeoutMs = 5000
+): Promise<HTMLElement | null> {
+  const selectors = 'button, a, [role="button"], [data-action], .booqable-button, .bq-add-button';
+  
+  try {
+    await waitFor(() => !!container.querySelector(selectors), timeoutMs, 100);
+    return container.querySelector<HTMLElement>(selectors);
+  } catch {
+    // Booqable didn't inject a child button; the container itself might be clickable
+    if (DEBUG) console.log('[useBooqableCart] No child button found, using container');
+    return container;
+  }
 }
 
 /**
  * Hook to programmatically populate the embedded Booqable cart widget.
- *
+ * 
  * Strategy:
- * 1) Set starts_at/stops_at on the current page URL (what Booqable reads for the widget)
- * 2) Refresh Booqable so it re-reads the params / rescans DOM
- * 3) Click each rendered .booqable-product-button and pass quantity via data-quantity
+ * 1. Set starts_at/stops_at on the URL for the widget to pick up
+ * 2. Find staging placeholders (which use resolved UUIDs)
+ * 3. Wait for Booqable script to transform placeholders into real buttons
+ * 4. Click buttons for each item
+ * 5. Verify cart actually changed before reporting success
  */
 export function useBooqableCart() {
   const [state, setState] = useState<UseBooqableCartState>({
@@ -84,106 +142,130 @@ export function useBooqableCart() {
     itemsAdded: 0,
   });
 
-  /**
-   * Add items to the cart widget.
-   * 
-   * @param items - Items with booqableId and quantity > 0
-   * @param startDate - Rental start
-   * @param endDate - Rental end
-   */
   const addToCart = useCallback(
     async (items: RentalItem[], startDate: Date, endDate: Date) => {
       setState({ isLoading: true, error: null, itemsAdded: 0 });
 
-      // Filter to items that have a booqableId and quantity > 0
+      // Filter to rental items with booqableId and quantity > 0
       const validItems = items.filter(
-        (item) => item.booqableId && item.quantity > 0
+        (item) => item.booqableId && item.quantity > 0 && !item.isConsumable && !item.isSalesItem
       );
 
       if (validItems.length === 0) {
-        setState({
-          isLoading: false,
-          error: 'No items with Booqable IDs selected',
-          itemsAdded: 0,
-        });
-        return { success: false, itemsAdded: 0 };
+        const err = 'No rental items with Booqable IDs selected';
+        setState({ isLoading: false, error: err, itemsAdded: 0 });
+        return { success: false, itemsAdded: 0, error: err };
       }
 
-      // Format dates as ISO strings (Booqable expects ISO 8601)
       const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss");
       const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss");
 
-      console.log(`[useBooqableCart] Adding ${validItems.length} items to cart`);
-      console.log(`[useBooqableCart] Dates: ${startsAt} → ${stopsAt}`);
+      if (DEBUG) {
+        console.log('[useBooqableCart] Starting cart sync');
+        console.log('[useBooqableCart] Items:', validItems.map((i) => ({ name: i.name, slug: i.booqableId, qty: i.quantity })));
+        console.log('[useBooqableCart] Dates:', startsAt, '→', stopsAt);
+        console.log('[useBooqableCart] window.Booqable exists:', !!getBooqableApi());
+      }
 
       try {
-        // Some embeds don't expose window.Booqable immediately (or at all), but the
-        // rendered product buttons can still work. Proceed when either the API OR the
-        // button placeholders are present.
-        await waitFor(() => !!getBooqableApi() || hasBooqableButtons(), 12000);
-
-        // Ensure our button placeholders are present in the DOM
-        await waitFor(
-          () => validItems.every((i) => !!i.booqableId && !!findProductButton(i.booqableId)),
-          12000
-        );
-
-        // Give the embed a moment to transform placeholders into real buttons.
-        // (Some themes delay this until after initial asset loads.)
-        await new Promise((r) => setTimeout(r, 500));
-
-        // Set the rental period on the *current page* so the embedded widget uses it.
+        // Set dates on URL for the widget
         setBooqableDatesOnPage(startsAt, stopsAt);
-        // Best-effort refresh (only works when API is available)
+        
+        // Refresh Booqable to pick up new dates
         booqableRefresh();
+        
+        // Small delay for the widget to process
+        await new Promise((r) => setTimeout(r, 300));
 
-        const wasEmpty = isEmbeddedCartEmpty();
+        // Capture cart state before clicking
+        const beforeSnapshot = getCartSnapshot();
+        if (DEBUG) console.log('[useBooqableCart] Before snapshot:', beforeSnapshot);
 
-        let addedCount = 0;
+        let clickedCount = 0;
+        const failedItems: string[] = [];
 
         for (const item of validItems) {
-          const btn = findProductButton(item.booqableId!);
-          if (!btn) continue;
-
-          const clickTarget = findClickableInside(btn);
-
-          // Try to let Booqable handle quantity in one click.
-          // If Booqable ignores data-quantity, we fall back to repeated clicks below.
-          btn.setAttribute('data-quantity', String(item.quantity));
-
-          // Click once first.
-          clickTarget.click();
-          addedCount += 1;
-
-          // If quantity > 1, do best-effort repeated clicks (some shops require it)
-          if (item.quantity > 1) {
-            for (let i = 1; i < item.quantity; i++) {
-              await new Promise((r) => setTimeout(r, 120));
-              clickTarget.click();
-              addedCount += 1;
-            }
+          const slug = item.booqableId!;
+          
+          // Find the staging placeholder
+          const placeholder = findProductButton(slug);
+          if (!placeholder) {
+            if (DEBUG) console.warn(`[useBooqableCart] No placeholder found for: ${slug}`);
+            failedItems.push(item.name);
+            continue;
           }
 
-          // Small delay so the widget can process.
-          await new Promise((r) => setTimeout(r, 150));
+          if (DEBUG) {
+            const dataId = placeholder.getAttribute('data-id');
+            const hasChild = !!placeholder.querySelector('button, a');
+            console.log(`[useBooqableCart] Found placeholder for ${slug}:`, { dataId, hasChild });
+          }
+
+          // Wait for Booqable to inject a real button
+          const clickTarget = await waitForClickableButton(placeholder, 3000);
+          if (!clickTarget) {
+            if (DEBUG) console.warn(`[useBooqableCart] No clickable target for: ${slug}`);
+            failedItems.push(item.name);
+            continue;
+          }
+
+          // Set quantity attribute in case Booqable reads it
+          placeholder.setAttribute('data-quantity', String(item.quantity));
+
+          // Click for each unit of quantity
+          for (let i = 0; i < item.quantity; i++) {
+            clickTarget.click();
+            await new Promise((r) => setTimeout(r, 150));
+          }
+
+          clickedCount++;
+          if (DEBUG) console.log(`[useBooqableCart] Clicked ${item.quantity}x for: ${item.name}`);
         }
 
-        // Nudge the widget one more time after all clicks.
+        if (clickedCount === 0) {
+          const err = 'Could not find any Booqable product buttons. The embed may not be initialized.';
+          setState({ isLoading: false, error: err, itemsAdded: 0 });
+          return { success: false, itemsAdded: 0, error: err };
+        }
+
+        // Refresh widget after all clicks
         booqableRefresh();
 
-        // Only report success if the embedded cart actually changes.
-        // If it stays empty, we treat it as a failure so we don't show misleading toasts.
-        if (wasEmpty) {
-          await waitFor(() => !isEmbeddedCartEmpty(), 8000, 100);
+        // Wait for cart to actually change
+        try {
+          await waitFor(() => {
+            const afterSnapshot = getCartSnapshot();
+            // Cart changed if signature differs or item count increased
+            return afterSnapshot.signature !== beforeSnapshot.signature || 
+                   afterSnapshot.itemCount > beforeSnapshot.itemCount;
+          }, 8000, 200);
+          
+          if (DEBUG) {
+            const afterSnapshot = getCartSnapshot();
+            console.log('[useBooqableCart] After snapshot:', afterSnapshot);
+          }
+        } catch {
+          // Cart didn't change - this is a failure
+          const err = 'Cart did not update. The Booqable widget may not be responding.';
+          if (DEBUG) console.warn('[useBooqableCart]', err);
+          setState({ isLoading: false, error: err, itemsAdded: 0 });
+          return { success: false, itemsAdded: 0, error: err };
         }
 
-        setState({ isLoading: false, error: null, itemsAdded: validItems.length });
-        return { success: true, itemsAdded: validItems.length };
+        // Success!
+        const addedCount = validItems.length;
+        setState({ isLoading: false, error: null, itemsAdded: addedCount });
+        
+        if (failedItems.length > 0 && DEBUG) {
+          console.warn('[useBooqableCart] Some items failed:', failedItems);
+        }
+
+        return { success: true, itemsAdded: addedCount };
       } catch (e: any) {
         const message = e?.message || 'Failed to add items to cart widget';
-        console.warn('[useBooqableCart] Failed to add items to widget cart:', e);
+        console.error('[useBooqableCart] Error:', e);
         setState({ isLoading: false, error: message, itemsAdded: 0 });
-        return { success: false, itemsAdded: 0 };
+        return { success: false, itemsAdded: 0, error: message };
       }
     },
     []

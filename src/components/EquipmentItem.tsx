@@ -66,9 +66,6 @@ const EquipmentItem = ({ item, onQuantityChange, onItemClick }: EquipmentItemPro
       </div>
       
       <div className="flex items-center gap-3">
-        {item.booqableId && (
-          <div className="booqable-product-button" data-id={item.booqableId}></div>
-        )}
         <div className="quantity-selector">
           <QuantitySelector
             quantity={item.quantity}
