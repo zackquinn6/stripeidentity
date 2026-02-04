@@ -338,14 +338,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                 </Accordion>
               </div>
 
-              {/* Your Responsibility note - outside materials container */}
-              <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
-                <p>
-                  📝 <strong className="text-foreground">Your Responsibility:</strong> You'll need to buy tile and underlayment separately — we'll bring the rest. 
-                  We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
-                </p>
-              </div>
-
               {/* Delivery & Pickup */}
               <div className="p-4 bg-success/10 rounded-lg">
                 <div className="flex justify-between items-center">
@@ -355,6 +347,14 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                   </div>
                   <span className="font-bold text-lg text-success">Free</span>
                 </div>
+              </div>
+
+              {/* Your Responsibility note - outside materials container */}
+              <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
+                <p>
+                  📝 <strong className="text-foreground">Your Responsibility:</strong> You'll need to buy tile and underlayment separately — we'll bring the rest. 
+                  We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
+                </p>
               </div>
             </div>
           </div>
