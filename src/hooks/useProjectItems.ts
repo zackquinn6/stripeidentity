@@ -89,8 +89,9 @@ function mapItemToRentalItem(
   // Use Booqable image if available, otherwise fall back to DB image
   const imageUrl = booqableProduct?.imageUrl || item.image_url || undefined;
   
-  // Determine if this is a sales item (from DB or Booqable)
-  const isSalesItem = item.is_sales_item || booqableProduct?.isSalesItem || false;
+  // IMPORTANT: Use database is_sales_item as source of truth, NOT Booqable's product_type
+  // This ensures admin-configured items maintain their correct classification
+  const isSalesItem = item.is_sales_item;
   
   // Use Booqable pricing if available - respects tiered pricing (day 1 vs day 2+)
   // For sales items, firstDayRate and dailyRate are the same (sale price)
