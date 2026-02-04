@@ -193,53 +193,93 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       console.log('[CheckoutSummary] Order created:', orderId);
       
       // Step 2: Load the order into the cart widget
-      // Method 1: Update URL with order_id parameter (most common Booqable pattern)
+      // Extract order token from checkout URL if available
+      let orderToken: string | null = null;
+      try {
+        const checkoutUrlObj = new URL(checkoutUrl);
+        orderToken = checkoutUrlObj.searchParams.get('token') || checkoutUrlObj.searchParams.get('order_token') || orderId;
+      } catch (e) {
+        orderToken = orderId;
+      }
+      
+      console.log('[CheckoutSummary] Order token:', orderToken);
+      
+      // Method 1: Update URL with order_id and token parameters
       const url = new URL(window.location.href);
       url.searchParams.set('order_id', orderId);
+      if (orderToken && orderToken !== orderId) {
+        url.searchParams.set('token', orderToken);
+      }
       url.searchParams.set('starts_at', format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
       url.searchParams.set('stops_at', format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
       window.history.replaceState({}, '', url.toString());
-      console.log('[CheckoutSummary] Updated URL with order_id:', orderId);
+      console.log('[CheckoutSummary] Updated URL with order_id and dates');
       
       // Method 2: Try to use Booqable JavaScript API to load the order
       const api = getBooqableApi();
       if (api) {
+        console.log('[CheckoutSummary] Booqable API available, attempting to load order');
+        console.log('[CheckoutSummary] API methods:', Object.keys(api).slice(0, 20));
+        if (api.cart) {
+          console.log('[CheckoutSummary] Cart methods:', Object.keys(api.cart).slice(0, 20));
+        }
+        
         // Try various methods to load the order into the cart
         const loadMethods = [
-          { name: 'api.loadOrder', fn: api.loadOrder },
-          { name: 'api.cart.loadOrder', fn: api.cart?.loadOrder },
-          { name: 'api.cart.setOrderId', fn: api.cart?.setOrderId },
-          { name: 'api.setOrderId', fn: api.setOrderId },
-          { name: 'api.load', fn: api.load },
-          { name: 'api.cart.load', fn: api.cart?.load },
+          { name: 'api.loadOrder', fn: api.loadOrder, params: [orderId] },
+          { name: 'api.loadOrder (token)', fn: api.loadOrder, params: [orderToken] },
+          { name: 'api.cart.loadOrder', fn: api.cart?.loadOrder, params: [orderId] },
+          { name: 'api.cart.loadOrder (token)', fn: api.cart?.loadOrder, params: [orderToken] },
+          { name: 'api.cart.setOrderId', fn: api.cart?.setOrderId, params: [orderId] },
+          { name: 'api.setOrderId', fn: api.setOrderId, params: [orderId] },
+          { name: 'api.load', fn: api.load, params: [{ order_id: orderId }] },
+          { name: 'api.load (token)', fn: api.load, params: [{ token: orderToken }] },
+          { name: 'api.cart.load', fn: api.cart?.load, params: [{ order_id: orderId }] },
+          { name: 'api.cart.load (token)', fn: api.cart?.load, params: [{ token: orderToken }] },
+          { name: 'api.init', fn: api.init, params: [{ order_id: orderId }] },
+          { name: 'api.trigger(order-loaded)', fn: api.trigger, params: ['order-loaded', { order_id: orderId }] },
         ];
         
+        let loaded = false;
         for (const method of loadMethods) {
           if (typeof method.fn === 'function') {
             try {
-              // Try calling with orderId as string
-              method.fn(orderId);
-              console.log(`[CheckoutSummary] Successfully loaded order via ${method.name}`);
-              break;
+              method.fn(...method.params);
+              console.log(`[CheckoutSummary] Called ${method.name} with params:`, method.params);
+              loaded = true;
+              // Don't break - try multiple methods
             } catch (e) {
-              try {
-                // Try calling with object parameter
-                method.fn({ order_id: orderId });
-                console.log(`[CheckoutSummary] Successfully loaded order via ${method.name} (object)`);
-                break;
-              } catch (e2) {
-                // Continue to next method
-              }
+              console.log(`[CheckoutSummary] ${method.name} failed:`, e);
             }
           }
         }
+        
+        if (loaded) {
+          console.log('[CheckoutSummary] Attempted to load order via API methods');
+        }
+      } else {
+        console.warn('[CheckoutSummary] Booqable API not available');
       }
       
-      // Method 3: Refresh Booqable to pick up URL parameters
-      setTimeout(() => {
-        booqableRefresh();
-        console.log('[CheckoutSummary] Refreshed Booqable widget');
-      }, 500);
+      // Method 3: Trigger multiple refresh attempts with delays
+      const refreshAttempts = [100, 500, 1000, 2000];
+      refreshAttempts.forEach((delay, index) => {
+        setTimeout(() => {
+          booqableRefresh();
+          console.log(`[CheckoutSummary] Refresh attempt ${index + 1} after ${delay}ms`);
+          
+          // Also try dispatching custom events
+          if (index === refreshAttempts.length - 1) {
+            try {
+              document.dispatchEvent(new CustomEvent('booqable:order-loaded', { detail: { order_id: orderId } }));
+              window.dispatchEvent(new CustomEvent('booqable:refresh'));
+              console.log('[CheckoutSummary] Dispatched custom events');
+            } catch (e) {
+              // ignore
+            }
+          }
+        }, delay);
+      });
       
       setCartSynced(true);
       console.log('[CheckoutSummary] Order loaded into cart widget successfully');
