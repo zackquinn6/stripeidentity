@@ -25,9 +25,9 @@ import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useBooqable } from '@/hooks/use-booqable';
-import { useBooqableOrder } from '@/hooks/useBooqableOrder';
+import { useBooqableCart } from '@/hooks/useBooqableCart';
 import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
-import { booqableRefresh } from '@/lib/booqable/client';
+import BooqableEmbedStaging from '@/components/BooqableEmbedStaging';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -39,12 +39,12 @@ interface CheckoutSummaryProps {
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   // ========================================
-  // VERSION 2.0: API-BASED CHECKOUT (NO useBooqableCart)
-  // Date: 2024-02-13
-  // This version uses useBooqableOrder hook, NOT useBooqableCart
+  // VERSION 3.0: CART-BASED CHECKOUT (useBooqableCart)
+  // Date: 2024-02-04
+  // This version uses useBooqableCart to populate the existing cart widget
   // ========================================
-  console.log('🚀 [CheckoutSummary v2.0] Component loaded - API-based checkout');
-  console.log('🚀 [CheckoutSummary v2.0] Using useBooqableOrder, NOT useBooqableCart');
+  console.log('🚀 [CheckoutSummary v3.0] Component loaded - Cart-based checkout');
+  console.log('🚀 [CheckoutSummary v3.0] Using useBooqableCart to populate existing widget');
   
   // Initialize Booqable script for add-on product buttons
   useBooqable();
@@ -57,7 +57,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [cartSynced, setCartSynced] = useState(false);
-  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   // Nudge the library after the add-on placeholders render with resolved IDs.
   useEffect(() => {
@@ -66,8 +65,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     return () => clearTimeout(t);
   }, [isIdMapLoading]);
 
-  // No need to initialize widget - we're using an iframe that loads the checkout URL directly
-  const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
+  // Use BooqableCart to populate the existing cart widget
+  const { addToCart, isSyncing, error: cartError } = useBooqableCart();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
     queryKey: ['app-options', 'checkout_settings'],
@@ -158,12 +157,10 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   ];
 
   // Handle cart sync when checkout is initiated
-  // FORCE REBUILD - This function uses useBooqableOrder, NOT useBooqableCart
+  // This uses useBooqableCart to populate the existing cart widget
   const handleProceedToCheckout = async () => {
-    // CRITICAL: This is the NEW code path using API-based order creation
-    // If you see [useBooqableCart] errors, the browser is running OLD cached code
     console.log('========================================');
-    console.log('NEW CODE PATH v2.0 - API ORDER CREATION');
+    console.log('CART SYNC v3.0 - Populating cart widget');
     console.log('Timestamp:', new Date().toISOString());
     console.log('========================================');
     setValidationError(null);
@@ -185,30 +182,20 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     const endDate = addDays(startDate, rentalDays);
 
     try {
-      // Create order via API - this is the reliable approach
-      // Guest checkout is supported - no authentication required
-      console.log('[CheckoutSummary] Creating order via API with', items.length, 'items (guest checkout allowed)');
+      // Add items to the existing Booqable cart widget
+      console.log('[CheckoutSummary] Adding', booqableItems.length, 'items to cart widget');
       
-      const { orderId, checkoutUrl: url } = await createOrder({ items, startDate, endDate });
-      console.log('[CheckoutSummary] Order created successfully:', orderId, 'Checkout URL:', url);
+      await addToCart({
+        items: booqableItems,
+        startDate,
+        endDate,
+      });
       
-      if (orderId && url) {
-        setCheckoutUrl(url);
-        setCartSynced(true);
-        
-        // Scroll to checkout iframe after a short delay
-        setTimeout(() => {
-          const iframeElement = document.getElementById('booqable-checkout-iframe');
-          if (iframeElement) {
-            iframeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }, 300);
-        
-        console.log('[CheckoutSummary] Order created and checkout URL ready:', url);
-      }
+      setCartSynced(true);
+      console.log('[CheckoutSummary] Cart populated successfully');
     } catch (error) {
-      console.error('[CheckoutSummary] Order creation failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create order. Please try again.';
+      console.error('[CheckoutSummary] Cart sync failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add items to cart. Please try again.';
       setValidationError(errorMessage);
     }
   };
@@ -660,18 +647,18 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           <Button
             size="lg"
             className="w-full"
-            disabled={isOrderCreating || !startDate || cartSynced}
+            disabled={isSyncing || !startDate || cartSynced}
             onClick={handleProceedToCheckout}
           >
-            {isOrderCreating ? (
+            {isSyncing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating Order...
+                Adding to Cart...
               </>
             ) : cartSynced ? (
               <>
                 <Check className="w-4 h-4 mr-2" />
-                Order Created - See Checkout Below
+                Items Added to Cart
               </>
             ) : (
               'Proceed to Checkout'
@@ -680,22 +667,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardContent>
       </Card>
 
-      {/* Embed checkout widget on same page when order is created */}
-      {cartSynced && checkoutUrl && (
-        <div className="mt-8 animate-fade-in">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-4">Complete Your Checkout</h2>
-            {/* Use iframe to embed the checkout URL directly - this ensures the order is loaded */}
-            <iframe
-              src={checkoutUrl}
-              className="w-full min-h-[600px] border-0 rounded-lg"
-              title="Booqable Checkout"
-              allow="payment"
-              id="booqable-checkout-iframe"
-            />
-          </div>
-        </div>
-      )}
+      {/* Hidden staging area for Booqable product buttons */}
+      <BooqableEmbedStaging items={rentals} />
     </div>
   );
 };
