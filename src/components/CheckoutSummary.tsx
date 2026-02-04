@@ -66,26 +66,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     return () => clearTimeout(t);
   }, [isIdMapLoading]);
 
-  // Initialize checkout widget when order is created
-  useEffect(() => {
-    if (!cartSynced || !checkoutUrl) return;
-
-    // Wait for widget container to be in DOM, then refresh Booqable
-    const initWidget = () => {
-      const widgetElement = document.getElementById('booqable-checkout-widget');
-      if (widgetElement) {
-        // Give Booqable script time to process the URL parameters
-        setTimeout(() => {
-          booqableRefresh();
-        }, 500);
-      }
-    };
-
-    // Try immediately and also after a short delay
-    initWidget();
-    const timer = setTimeout(initWidget, 100);
-    return () => clearTimeout(timer);
-  }, [cartSynced, checkoutUrl]);
+  // No need to initialize widget - we're using an iframe that loads the checkout URL directly
   const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
@@ -215,36 +196,15 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         setCheckoutUrl(url);
         setCartSynced(true);
         
-        // Extract order_id and dates from checkout URL and update current page URL
-        // This allows the Booqable widget to pick up the pre-created order
-        try {
-          const checkoutUrlObj = new URL(url);
-          const orderIdParam = checkoutUrlObj.searchParams.get('order_id');
-          const startsAtParam = checkoutUrlObj.searchParams.get('starts_at');
-          const stopsAtParam = checkoutUrlObj.searchParams.get('stops_at');
-          
-          // Update current URL with order parameters (without page reload)
-          const currentUrl = new URL(window.location.href);
-          if (orderIdParam) currentUrl.searchParams.set('order_id', orderIdParam);
-          if (startsAtParam) currentUrl.searchParams.set('starts_at', startsAtParam);
-          if (stopsAtParam) currentUrl.searchParams.set('stops_at', stopsAtParam);
-          
-          // Update URL without reloading page
-          window.history.pushState({}, '', currentUrl.toString());
-          
-          // Refresh Booqable script to pick up the new URL parameters
-          setTimeout(() => {
-            booqableRefresh();
-            
-            // Scroll to checkout widget
-            const widgetElement = document.getElementById('booqable-checkout-widget');
-            if (widgetElement) {
-              widgetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }, 300);
-        } catch (error) {
-          console.error('[CheckoutSummary] Failed to update URL parameters:', error);
-        }
+        // Scroll to checkout iframe after a short delay
+        setTimeout(() => {
+          const iframeElement = document.getElementById('booqable-checkout-iframe');
+          if (iframeElement) {
+            iframeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 300);
+        
+        console.log('[CheckoutSummary] Order created and checkout URL ready:', url);
       }
     } catch (error) {
       console.error('[CheckoutSummary] Order creation failed:', error);
@@ -725,10 +685,13 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         <div className="mt-8 animate-fade-in">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold mb-4">Complete Your Checkout</h2>
-            <div 
-              id="booqable-checkout-widget"
-              data-booqable-cart
-              className="min-h-[400px]"
+            {/* Use iframe to embed the checkout URL directly - this ensures the order is loaded */}
+            <iframe
+              src={checkoutUrl}
+              className="w-full min-h-[600px] border-0 rounded-lg"
+              title="Booqable Checkout"
+              allow="payment"
+              id="booqable-checkout-iframe"
             />
           </div>
         </div>
