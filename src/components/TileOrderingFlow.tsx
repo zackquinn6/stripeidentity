@@ -486,34 +486,45 @@ const TileOrderingFlow = ({
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <div className="flex gap-3 mb-6">
-                <Button 
-                  variant="outline" 
-                  className="flex-1 border-dashed border-2 py-6 hover:border-primary hover:bg-secondary/50 text-foreground" 
-                  onClick={handleSelectEssentials}
-                >
-                  <Package className="w-5 h-5 mr-2 text-muted-foreground" />
-                  Project Essentials
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="flex-1 border-dashed border-2 py-6 bg-highlight border-highlight-border hover:border-primary hover:bg-highlight-hover text-foreground" 
-                  onClick={handleSelectComprehensive}
-                >
-                  <Sparkles className="w-5 h-5 mr-2 text-primary" />
-                  Comprehensive
-                </Button>
+              <div className="mb-6">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Quick Order</p>
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 border-dashed border-2 py-6 hover:border-primary hover:bg-secondary/50 text-foreground" 
+                    onClick={handleSelectEssentials}
+                  >
+                    <Package className="w-5 h-5 mr-2 text-muted-foreground" />
+                    Project Essentials
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 border-dashed border-2 py-6 bg-highlight border-highlight-border hover:border-primary hover:bg-highlight-hover text-foreground" 
+                    onClick={handleSelectComprehensive}
+                  >
+                    <Sparkles className="w-5 h-5 mr-2 text-primary" />
+                    Comprehensive
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-6">
-                {equipment.map(category => <div key={category.id}>
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                      {category.name}
-                    </h4>
-                    <div className="space-y-2">
-                      {category.items.map(item => <EquipmentItem key={item.id} item={item} onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)} onItemClick={handleItemClick} />)}
+                {equipment.map(category => {
+                  // Filter out items without valid Booqable links (no imageUrl from Booqable)
+                  const linkedItems = category.items.filter(item => item.imageUrl && !item.imageUrl.includes('unsplash'));
+                  if (linkedItems.length === 0) return null;
+                  
+                  return (
+                    <div key={category.id}>
+                      <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                        {category.name}
+                      </h4>
+                      <div className="space-y-2">
+                        {linkedItems.map(item => <EquipmentItem key={item.id} item={item} onQuantityChange={(id, qty) => handleEquipmentQuantityChange(category.id, id, qty)} onItemClick={handleItemClick} />)}
+                      </div>
                     </div>
-                  </div>)}
+                  );
+                })}
               </div>
             </AccordionContent>
           </AccordionItem>
