@@ -8,6 +8,7 @@ interface BooqableProduct {
   imageUrl: string;
   firstDayRate: number;
   dailyRate: number;
+  isSalesItem: boolean;
 }
 
 interface SectionItemRow {
@@ -53,7 +54,14 @@ async function fetchBooqableProducts(): Promise<Map<string, BooqableProduct>> {
       return new Map();
     }
 
-    const products: BooqableProduct[] = data?.products ?? [];
+    const products: BooqableProduct[] = (data?.products ?? []).map((p: any) => ({
+      booqableId: p.booqableId,
+      slug: p.slug,
+      imageUrl: p.imageUrl,
+      firstDayRate: p.firstDayRate,
+      dailyRate: p.dailyRate,
+      isSalesItem: p.isSalesItem ?? false,
+    }));
     const productMap = new Map<string, BooqableProduct>();
 
     for (const p of products) {
@@ -81,9 +89,23 @@ function mapItemToRentalItem(
   // Use Booqable image if available, otherwise fall back to DB image
   const imageUrl = booqableProduct?.imageUrl || item.image_url || undefined;
   
-  // Use Booqable pricing if available
-  const dailyRate = booqableProduct?.dailyRate ?? Number(item.daily_rate) ?? 0;
-  const firstDayRate = booqableProduct?.firstDayRate ?? dailyRate;
+  // Determine if this is a sales item (from DB or Booqable)
+  const isSalesItem = item.is_sales_item || booqableProduct?.isSalesItem || false;
+  
+  // Use Booqable pricing if available - respects tiered pricing (day 1 vs day 2+)
+  // For sales items, firstDayRate and dailyRate are the same (sale price)
+  // For rentals, firstDayRate = day 1 rate, dailyRate = day 2+ rate
+  let firstDayRate: number;
+  let dailyRate: number;
+  
+  if (booqableProduct) {
+    firstDayRate = booqableProduct.firstDayRate;
+    dailyRate = booqableProduct.dailyRate;
+  } else {
+    // Fall back to DB values
+    dailyRate = Number(item.daily_rate) ?? 0;
+    firstDayRate = dailyRate;
+  }
 
   return {
     id: item.id,
@@ -95,7 +117,7 @@ function mapItemToRentalItem(
     defaultQuantityEssentials: item.default_quantity_essentials || 0,
     defaultQuantityComprehensive: item.default_quantity_comprehensive || 0,
     isConsumable,
-    isSalesItem: item.is_sales_item || false,
+    isSalesItem,
     imageUrl,
     description: item.description || undefined,
     selectionGuidance: item.selection_guidance || undefined,
