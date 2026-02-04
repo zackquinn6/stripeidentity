@@ -25,10 +25,9 @@ import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useBooqable } from '@/hooks/use-booqable';
-import { useBooqableCart } from '@/hooks/useBooqableCart';
+import { useBooqableOrder } from '@/hooks/useBooqableOrder';
 import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
-import { booqableRefresh } from '@/lib/booqable/client';
-import BooqableEmbedStaging from './BooqableEmbedStaging';
+import { booqableRefresh, getBooqableApi } from '@/lib/booqable/client';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -57,8 +56,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [cartSynced, setCartSynced] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
-  const { addToCart, isLoading: isCartLoading, error: cartError } = useBooqableCart();
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
     queryKey: ['app-options', 'checkout_settings'],
@@ -168,27 +167,23 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     // Calculate end date
     const endDate = addDays(startDate, rentalDays);
 
-    // Wait a moment to ensure BooqableEmbedStaging is rendered and Booqable script has initialized
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Populate the Booqable cart widget
-    const result = await addToCart(items, startDate, endDate);
-    
-    if (result.success) {
-      setCartSynced(true);
-      // Scroll to checkout widget at bottom of page after it renders
-      setTimeout(() => {
-        const checkoutWidget = document.querySelector('#booqable-checkout-widget, [data-booqable-cart], .booqable-cart, .booqable-widget');
-        if (checkoutWidget) {
-          checkoutWidget.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-          // Fallback: scroll to bottom of page
-          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-        }
-      }, 1000);
-    } else {
-      console.error('[CheckoutSummary] Cart sync failed:', result.error);
-      setValidationError(result.error || 'Failed to sync items to cart. Please try again.');
+    try {
+      // Create order via API - this is the reliable approach
+      const { orderId, checkoutUrl: url } = await createOrder({ items, startDate, endDate });
+      
+      if (orderId && url) {
+        setCheckoutUrl(url);
+        setCartSynced(true);
+        
+        // Auto-navigate to checkout after a brief delay to show success message
+        setTimeout(() => {
+          window.location.href = url;
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('[CheckoutSummary] Order creation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create order. Please try again.';
+      setValidationError(errorMessage);
     }
   };
 
@@ -620,11 +615,11 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </div>
           )}
 
-          {/* Cart sync error */}
-          {cartError && !cartSynced && (
+          {/* Order creation error */}
+          {orderError && !cartSynced && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <p>{cartError}</p>
+              <p>{orderError}</p>
             </div>
           )}
 
@@ -639,39 +634,40 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           <Button
             size="lg"
             className="w-full"
-            disabled={isCartLoading || !startDate || cartSynced}
+            disabled={isOrderCreating || !startDate || cartSynced}
             onClick={handleProceedToCheckout}
           >
-            {isCartLoading ? (
+            {isOrderCreating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Syncing to Cart...
+                Creating Order...
               </>
             ) : cartSynced ? (
               <>
                 <Check className="w-4 h-4 mr-2" />
-                Cart Updated - See Checkout Below
+                Order Created - See Checkout Below
               </>
             ) : (
               'Proceed to Checkout'
             )}
           </Button>
-          
-          {/* Hidden staging area for Booqable product buttons - always render to ensure it's available */}
-          <BooqableEmbedStaging items={items} />
         </CardContent>
       </Card>
 
-      {/* Booqable checkout widget - shown at bottom when cart is synced */}
-      {cartSynced && (
+      {/* Navigate to checkout on same page when order is created */}
+      {cartSynced && checkoutUrl && (
         <div className="mt-8 animate-fade-in">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-4">Complete Your Checkout</h2>
-            <div 
-              id="booqable-checkout-widget"
-              data-booqable-cart
-              className="min-h-[400px]"
-            />
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-2xl font-bold mb-4">Redirecting to Checkout...</h2>
+            <p className="text-muted-foreground mb-4">Please complete your payment on the checkout page.</p>
+            <Button 
+              onClick={() => {
+                window.location.href = checkoutUrl;
+              }}
+              size="lg"
+            >
+              Continue to Checkout
+            </Button>
           </div>
         </div>
       )}
