@@ -265,6 +265,12 @@ const BooqableCheckoutEmbed = ({
         <p className="text-center text-sm text-muted-foreground">
           Having trouble? <button className="underline hover:text-foreground" onClick={() => window.open(state.checkoutUrl!, '_blank')}>Open checkout in a new tab</button>
         </p>
+
+        {/* Add-on product button */}
+        <div className="mt-6 p-4 border rounded-lg bg-muted/50">
+          <p className="text-sm font-medium mb-2">Need additional tools?</p>
+          <div className="booqable-product-button" data-id="channel-lock-pliers"></div>
+        </div>
       </div>
     );
   }
