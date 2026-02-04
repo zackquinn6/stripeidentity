@@ -34,9 +34,10 @@ const BooqableEmbedStaging = ({ items }: BooqableEmbedStagingProps) => {
         position: 'fixed',
         left: '-9999px',
         top: 0,
-        width: '1px',
-        height: '1px',
-        opacity: 0,
+        // Keep a measurable box so the third-party script can reliably enhance it.
+        width: '240px',
+        height: '240px',
+        opacity: 0.01,
         overflow: 'hidden',
         // Allow pointer events so programmatic clicks work
         pointerEvents: 'auto',
