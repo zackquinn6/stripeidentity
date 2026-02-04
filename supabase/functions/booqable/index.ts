@@ -13,8 +13,8 @@ const BOOQABLE_BASE_URL_V1 = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/1`
 const BOOQABLE_BASE_URL_V4 = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/4`;
 const BOOQABLE_SHOP_URL = `https://toolio-inc.booqableshop.com`;
 
-// Actions that require authentication
-const AUTH_REQUIRED_ACTIONS = ['create-order', 'add-line', 'book-order', 'reserve-order', 'get-checkout-url'];
+// Actions that require authentication (order creation and checkout work for guests)
+const AUTH_REQUIRED_ACTIONS = ['add-line', 'book-order', 'reserve-order'];
 
 interface BooqableProduct {
   id: string;
@@ -49,17 +49,22 @@ function getId(p: any): string | undefined {
   return p?.id;
 }
 
-async function verifyAuth(req: Request): Promise<{ userId: string | null; error: Response | null }> {
+async function verifyAuth(req: Request, requireAuth: boolean = true): Promise<{ userId: string | null; error: Response | null }> {
   const authHeader = req.headers.get('Authorization');
   
+  // If no auth header and auth is not required, return null userId (guest checkout)
   if (!authHeader?.startsWith('Bearer ')) {
-    return {
-      userId: null,
-      error: new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    };
+    if (requireAuth) {
+      return {
+        userId: null,
+        error: new Response(
+          JSON.stringify({ error: 'Authentication required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      };
+    }
+    // Guest checkout allowed
+    return { userId: null, error: null };
   }
 
   const supabaseClient = createClient(
@@ -71,14 +76,18 @@ async function verifyAuth(req: Request): Promise<{ userId: string | null; error:
   const { data: { user }, error } = await supabaseClient.auth.getUser();
   
   if (error || !user) {
-    console.error('[Booqable] Auth verification failed:', error?.message);
-    return {
-      userId: null,
-      error: new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    };
+    if (requireAuth) {
+      console.error('[Booqable] Auth verification failed:', error?.message);
+      return {
+        userId: null,
+        error: new Response(
+          JSON.stringify({ error: 'Invalid or expired token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      };
+    }
+    // Guest checkout allowed even if token is invalid
+    return { userId: null, error: null };
   }
 
   return { userId: user.id, error: null };
@@ -202,14 +211,22 @@ serve(async (req) => {
     const { action, ...params } = await req.json();
     console.log(`[Booqable] Action: ${action}`, params);
 
-    // Check authentication for protected actions
+    // Check authentication for protected actions (guest checkout is allowed for create-order and get-checkout-url)
     if (AUTH_REQUIRED_ACTIONS.includes(action)) {
-      const { userId, error } = await verifyAuth(req);
+      const { userId, error } = await verifyAuth(req, true);
       if (error) {
         console.log(`[Booqable] Authentication failed for action: ${action}`);
         return error;
       }
       console.log(`[Booqable] Authenticated user ${userId} for action: ${action}`);
+    } else if (action === 'create-order' || action === 'get-checkout-url') {
+      // Guest checkout is allowed - log if user is authenticated but don't require it
+      const { userId } = await verifyAuth(req, false);
+      if (userId) {
+        console.log(`[Booqable] Authenticated user ${userId} creating order (guest checkout also allowed)`);
+      } else {
+        console.log(`[Booqable] Guest checkout - creating order without authentication`);
+      }
     }
 
       switch (action) {

@@ -28,7 +28,6 @@ import { useBooqable } from '@/hooks/use-booqable';
 import { useBooqableOrder } from '@/hooks/useBooqableOrder';
 import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
 import { booqableRefresh } from '@/lib/booqable/client';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -46,9 +45,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   // ========================================
   console.log('🚀 [CheckoutSummary v2.0] Component loaded - API-based checkout');
   console.log('🚀 [CheckoutSummary v2.0] Using useBooqableOrder, NOT useBooqableCart');
-  
-  // Check authentication status
-  const { user, session, isLoading: authLoading } = useAuth();
   
   // Initialize Booqable script for add-on product buttons
   useBooqable();
@@ -191,31 +187,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     console.log('========================================');
     setValidationError(null);
 
-    // Check authentication first
-    if (authLoading) {
-      setValidationError('Checking authentication...');
-      return;
-    }
-
-    if (!user || !session) {
-      setValidationError('Please sign in to proceed with checkout. You will be redirected to the sign-in page.');
-      // Redirect to sign-in after a short delay
-      setTimeout(() => {
-        window.location.href = '/auth';
-      }, 2000);
-      return;
-    }
-
-    // Verify session is still valid
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (!currentSession) {
-      setValidationError('Your session has expired. Please sign in again.');
-      setTimeout(() => {
-        window.location.href = '/auth';
-      }, 2000);
-      return;
-    }
-
     if (!startDate) {
       setValidationError('Please select a rental start date');
       return;
@@ -234,14 +205,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
     try {
       // Create order via API - this is the reliable approach
-      console.log('[CheckoutSummary] Creating order via API with', items.length, 'items');
-      console.log('[CheckoutSummary] User authenticated:', user.id, 'Session valid:', !!currentSession);
-      
-      // Ensure Supabase client has the latest session
-      const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
-      if (!refreshedSession) {
-        throw new Error('Failed to refresh authentication session. Please sign in again.');
-      }
+      // Guest checkout is supported - no authentication required
+      console.log('[CheckoutSummary] Creating order via API with', items.length, 'items (guest checkout allowed)');
       
       const { orderId, checkoutUrl: url } = await createOrder({ items, startDate, endDate });
       console.log('[CheckoutSummary] Order created successfully:', orderId, 'Checkout URL:', url);

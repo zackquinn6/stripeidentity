@@ -50,14 +50,8 @@ export function useBooqableOrder() {
         quantity: item.quantity,
       }));
 
-      // Ensure we have a valid session before calling the function
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Authentication required. Please sign in to continue.');
-      }
-
-      console.log(`[useBooqableOrder] Creating order with ${lines.length} items...`);
-      console.log(`[useBooqableOrder] User ID: ${session.user.id}, Session valid: ${!!session}`);
+      // Guest checkout is supported - no authentication required
+      console.log(`[useBooqableOrder] Creating order with ${lines.length} items... (guest checkout allowed)`);
       
       const { data: orderData, error: orderError } = await supabase.functions.invoke('booqable', {
         body: {
@@ -69,10 +63,6 @@ export function useBooqableOrder() {
       });
 
       if (orderError) {
-        // Provide more specific error messages
-        if (orderError.message?.includes('401') || orderError.message?.includes('Unauthorized') || orderError.message?.includes('token')) {
-          throw new Error('Authentication failed. Please sign in again.');
-        }
         throw new Error(orderError.message || 'Failed to create order');
       }
 
