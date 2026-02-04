@@ -2,6 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { RentalItem, EquipmentCategory, AddOnCategory } from '@/types/rental';
 
+interface BooqableProduct {
+  booqableId: string;
+  slug: string;
+  imageUrl: string;
+  firstDayRate: number;
+  dailyRate: number;
+}
+
 interface SectionItemRow {
   id: string;
   name: string;
@@ -33,19 +41,62 @@ interface SectionRow {
   section_items: SectionItemRow[];
 }
 
-function mapItemToRentalItem(item: SectionItemRow, isConsumable: boolean = false): RentalItem {
+// Fetch Booqable products for image and pricing data
+async function fetchBooqableProducts(): Promise<Map<string, BooqableProduct>> {
+  try {
+    const { data, error } = await supabase.functions.invoke('booqable', {
+      body: { action: 'get-products' },
+    });
+
+    if (error) {
+      console.error('[useProjectItems] Error fetching Booqable products:', error);
+      return new Map();
+    }
+
+    const products: BooqableProduct[] = data?.products ?? [];
+    const productMap = new Map<string, BooqableProduct>();
+
+    for (const p of products) {
+      if (p.slug) {
+        productMap.set(p.slug, p);
+      }
+    }
+
+    console.log(`[useProjectItems] Fetched ${productMap.size} Booqable products for image/pricing merge`);
+    return productMap;
+  } catch (err) {
+    console.error('[useProjectItems] Failed to fetch Booqable products:', err);
+    return new Map();
+  }
+}
+
+function mapItemToRentalItem(
+  item: SectionItemRow, 
+  isConsumable: boolean = false,
+  booqableProducts?: Map<string, BooqableProduct>
+): RentalItem {
+  // Try to find matching Booqable product by slug for image and pricing
+  const booqableProduct = booqableProducts?.get(item.booqable_product_id);
+  
+  // Use Booqable image if available, otherwise fall back to DB image
+  const imageUrl = booqableProduct?.imageUrl || item.image_url || undefined;
+  
+  // Use Booqable pricing if available
+  const dailyRate = booqableProduct?.dailyRate ?? Number(item.daily_rate) ?? 0;
+  const firstDayRate = booqableProduct?.firstDayRate ?? dailyRate;
+
   return {
     id: item.id,
     name: item.name,
     retailPrice: Number(item.retail_price) || 0,
-    dailyRate: Number(item.daily_rate) || 0,
-    firstDayRate: Number(item.daily_rate) || 0,
+    dailyRate,
+    firstDayRate,
     quantity: item.default_quantity || 0,
     defaultQuantityEssentials: item.default_quantity_essentials || 0,
     defaultQuantityComprehensive: item.default_quantity_comprehensive || 0,
     isConsumable,
     isSalesItem: item.is_sales_item || false,
-    imageUrl: item.image_url || undefined,
+    imageUrl,
     description: item.description || undefined,
     selectionGuidance: item.selection_guidance || undefined,
     booqableId: item.booqable_product_id || undefined,
@@ -62,39 +113,44 @@ interface ProjectSectionsData {
 }
 
 async function fetchProjectSections(projectSlug: string): Promise<ProjectSectionsData> {
-  // Fetch all visible sections with their items
-  const { data: sections, error } = await supabase
-    .from('ordering_sections')
-    .select(`
-      id,
-      name,
-      slug,
-      section_type,
-      description,
-      selection_guidance,
-      display_order,
-      section_items (
+  // Fetch Booqable products in parallel with DB sections
+  const [booqableProducts, sectionsResult] = await Promise.all([
+    fetchBooqableProducts(),
+    supabase
+      .from('ordering_sections')
+      .select(`
         id,
         name,
+        slug,
+        section_type,
         description,
         selection_guidance,
-        booqable_product_id,
-        daily_rate,
-        retail_price,
-        image_url,
         display_order,
-        is_visible,
-        default_quantity,
-        default_quantity_essentials,
-        default_quantity_comprehensive,
-        scaling_tile_size,
-        scaling_per_100_sqft,
-        scaling_guidance,
-        is_sales_item
-      )
-    `)
-    .eq('is_visible', true)
-    .order('display_order');
+        section_items (
+          id,
+          name,
+          description,
+          selection_guidance,
+          booqable_product_id,
+          daily_rate,
+          retail_price,
+          image_url,
+          display_order,
+          is_visible,
+          default_quantity,
+          default_quantity_essentials,
+          default_quantity_comprehensive,
+          scaling_tile_size,
+          scaling_per_100_sqft,
+          scaling_guidance,
+          is_sales_item
+        )
+      `)
+      .eq('is_visible', true)
+      .order('display_order'),
+  ]);
+
+  const { data: sections, error } = sectionsResult;
 
   if (error) {
     console.error('[useProjectItems] Error fetching sections:', error);
@@ -114,20 +170,19 @@ async function fetchProjectSections(projectSlug: string): Promise<ProjectSection
       equipment.push({
         id: section.slug,
         name: section.name,
-        items: visibleItems.map(item => mapItemToRentalItem(item, false)),
+        items: visibleItems.map(item => mapItemToRentalItem(item, false, booqableProducts)),
       });
     } else if (section.section_type === 'addon') {
-      // Use section's selection_guidance for the category
       addOns.push({
         id: section.slug,
         name: section.name,
         description: section.description || undefined,
         selectionGuidance: section.selection_guidance || undefined,
-        items: visibleItems.map(item => mapItemToRentalItem(item, false)),
+        items: visibleItems.map(item => mapItemToRentalItem(item, false, booqableProducts)),
       });
     } else if (section.section_type === 'consumable') {
       for (const item of visibleItems) {
-        consumables.push(mapItemToRentalItem(item, true));
+        consumables.push(mapItemToRentalItem(item, true, booqableProducts));
       }
     }
   }
