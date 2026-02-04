@@ -17,8 +17,9 @@ import QuantitySelector from './QuantitySelector';
 import RentalDatePicker, { RentalDuration, durationOptions } from './RentalDatePicker';
 import PackageValueCard from './PackageValueCard';
 import ItemDetailsModal from './ItemDetailsModal';
-import { format, nextFriday, isFriday, startOfDay } from 'date-fns';
+import { format, nextFriday, isFriday, startOfDay, addDays } from 'date-fns';
 import { useProjectSections } from '@/hooks/useProjectItems';
+import { useRushOrderItem } from '@/hooks/useRushOrderItem';
 
 interface TileOrderingFlowProps {
   onBack: () => void;
@@ -33,6 +34,9 @@ const TileOrderingFlow = ({
 }: TileOrderingFlowProps) => {
   // Fetch all sections from database (admin-configured)
   const { data: projectData, isLoading: sectionsLoading } = useProjectSections('tile-flooring');
+  
+  // Fetch rush order item from Booqable
+  const { rushOrderItem } = useRushOrderItem();
 
   // Step 1: Multi-select for tile sizes and underlayment
   const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
@@ -48,6 +52,7 @@ const TileOrderingFlow = ({
   const [equipment, setEquipment] = useState<EquipmentCategory[]>([]);
   const [addOns, setAddOns] = useState<AddOnCategory[]>([]);
   const [materials, setMaterials] = useState<RentalItem[]>([]);
+  const [rushOrderAdded, setRushOrderAdded] = useState<RentalItem | null>(null);
   const [activeAddOn, setActiveAddOn] = useState<AddOnCategory | null>(null);
   const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -108,6 +113,32 @@ const TileOrderingFlow = ({
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const exactSqft = parseFloat(exactSquareFootage) || 0;
   const thinsetBags = Math.ceil(exactSqft / 10);
+
+  // Helper to check if a date is a rush order (within 48 hours)
+  const isRushDate = (date: Date | undefined): boolean => {
+    if (!date) return false;
+    const today = startOfDay(new Date());
+    const rushEnd = addDays(today, 2); // Within 48 hours
+    const dateStart = startOfDay(date);
+    return dateStart > today && dateStart <= rushEnd;
+  };
+
+  // Auto-add/remove rush order based on start date
+  useEffect(() => {
+    if (!rushOrderItem) return;
+    
+    const shouldAddRush = isRushDate(startDate);
+    
+    if (shouldAddRush && !rushOrderAdded) {
+      // Add rush order item with quantity 1
+      setRushOrderAdded({ ...rushOrderItem, quantity: 1 });
+      console.log('[TileOrderingFlow] Auto-added rush order processing fee');
+    } else if (!shouldAddRush && rushOrderAdded) {
+      // Remove rush order item
+      setRushOrderAdded(null);
+      console.log('[TileOrderingFlow] Removed rush order processing fee');
+    }
+  }, [startDate, rushOrderItem, rushOrderAdded]);
 
   // Calculate suggested quantity for a material based on scaling config and tile areas
   const calculateSuggestedQuantity = (item: RentalItem): number | null => {
@@ -287,8 +318,15 @@ const TileOrderingFlow = ({
     const equipmentItems = equipment.flatMap(cat => cat.items).filter(item => item.quantity > 0);
     const addOnItems = addOns.flatMap(cat => cat.items).filter(item => item.quantity > 0);
     const materialItems = materials.filter(item => item.quantity > 0);
-    return [...equipmentItems, ...addOnItems, ...materialItems];
-  }, [equipment, addOns, materials]);
+    const allItems = [...equipmentItems, ...addOnItems, ...materialItems];
+    
+    // Add rush order fee if applicable
+    if (rushOrderAdded && rushOrderAdded.quantity > 0) {
+      allItems.push(rushOrderAdded);
+    }
+    
+    return allItems;
+  }, [equipment, addOns, materials, rushOrderAdded]);
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
     if (selected.length === 0) {
