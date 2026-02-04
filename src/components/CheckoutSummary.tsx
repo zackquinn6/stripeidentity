@@ -169,7 +169,9 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
     try {
       // Create order via API - this is the reliable approach
+      console.log('[CheckoutSummary] Creating order via API with', items.length, 'items');
       const { orderId, checkoutUrl: url } = await createOrder({ items, startDate, endDate });
+      console.log('[CheckoutSummary] Order created successfully:', orderId, 'Checkout URL:', url);
       
       if (orderId && url) {
         setCheckoutUrl(url);
