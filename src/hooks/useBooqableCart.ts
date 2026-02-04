@@ -113,14 +113,21 @@ async function waitForClickableButton(
   container: HTMLElement,
   timeoutMs = 5000
 ): Promise<HTMLElement | null> {
-  const selectors = 'button, a, [role="button"], [data-action], .booqable-button, .bq-add-button';
+  const selectors = 'button, a, [role="button"], [data-action], .booqable-button, .bq-add-button, input[type="submit"]';
   
   try {
     await waitFor(() => !!container.querySelector(selectors), timeoutMs, 100);
-    return container.querySelector<HTMLElement>(selectors);
+    const btn = container.querySelector<HTMLElement>(selectors);
+    if (btn) {
+      // Ensure the button is clickable
+      (btn as HTMLElement).style.pointerEvents = 'auto';
+    }
+    return btn;
   } catch {
     // Booqable didn't inject a child button; the container itself might be clickable
-    if (DEBUG) console.log('[useBooqableCart] No child button found, using container');
+    if (DEBUG) console.log('[useBooqableCart] No child button found, trying direct click on container');
+    // Make container clickable
+    container.style.pointerEvents = 'auto';
     return container;
   }
 }

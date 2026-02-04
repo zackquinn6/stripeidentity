@@ -1,6 +1,6 @@
 const PoweredByFooter = () => {
   return (
-    <div className="fixed bottom-4 right-4 flex items-center gap-1.5 text-xs text-muted-foreground/50">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs text-muted-foreground/50">
       <span>Powered by</span>
       <a 
         href="https://booqable.com" 
