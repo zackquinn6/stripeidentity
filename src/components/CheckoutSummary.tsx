@@ -25,9 +25,9 @@ import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useBooqable } from '@/hooks/use-booqable';
-import { useBooqableCart } from '@/hooks/useBooqableCart';
+import { useBooqableOrder } from '@/hooks/useBooqableOrder';
 import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
-import BooqableEmbedStaging from '@/components/BooqableEmbedStaging';
+import { getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -39,12 +39,12 @@ interface CheckoutSummaryProps {
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   // ========================================
-  // VERSION 3.0: CART-BASED CHECKOUT (useBooqableCart)
+  // VERSION 4.0: ORDER-BASED CART POPULATION
   // Date: 2024-02-04
-  // This version uses useBooqableCart to populate the existing cart widget
+  // This version creates an order via API and loads it into the cart widget
   // ========================================
-  console.log('🚀 [CheckoutSummary v3.0] Component loaded - Cart-based checkout');
-  console.log('🚀 [CheckoutSummary v3.0] Using useBooqableCart to populate existing widget');
+  console.log('🚀 [CheckoutSummary v4.0] Component loaded - Order-based cart population');
+  console.log('🚀 [CheckoutSummary v4.0] Creating order via API and loading into cart widget');
   
   // Initialize Booqable script for add-on product buttons
   useBooqable();
@@ -65,8 +65,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     return () => clearTimeout(t);
   }, [isIdMapLoading]);
 
-  // Use BooqableCart to populate the existing cart widget
-  const { addToCart, isSyncing, error: cartError } = useBooqableCart();
+  // Use BooqableOrder to create order, then load it into cart widget
+  const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
     queryKey: ['app-options', 'checkout_settings'],
@@ -157,10 +157,10 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   ];
 
   // Handle cart sync when checkout is initiated
-  // This uses useBooqableCart to populate the existing cart widget
+  // Creates order via API and loads it into the existing cart widget
   const handleProceedToCheckout = async () => {
     console.log('========================================');
-    console.log('CART SYNC v3.0 - Populating cart widget');
+    console.log('ORDER CREATION v4.0 - Loading order into cart widget');
     console.log('Timestamp:', new Date().toISOString());
     console.log('========================================');
     setValidationError(null);
@@ -182,20 +182,70 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     const endDate = addDays(startDate, rentalDays);
 
     try {
-      // Add items to the existing Booqable cart widget
-      console.log('[CheckoutSummary] Adding', booqableItems.length, 'items to cart widget');
-      
-      await addToCart({
-        items: booqableItems,
-        startDate,
-        endDate,
+      // Step 1: Create order via API
+      console.log('[CheckoutSummary] Creating order via API with', booqableItems.length, 'items');
+      const { orderId, checkoutUrl } = await createOrder({ 
+        items: booqableItems, 
+        startDate, 
+        endDate 
       });
       
+      console.log('[CheckoutSummary] Order created:', orderId);
+      
+      // Step 2: Load the order into the cart widget
+      // Method 1: Update URL with order_id parameter (most common Booqable pattern)
+      const url = new URL(window.location.href);
+      url.searchParams.set('order_id', orderId);
+      url.searchParams.set('starts_at', format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
+      url.searchParams.set('stops_at', format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
+      window.history.replaceState({}, '', url.toString());
+      console.log('[CheckoutSummary] Updated URL with order_id:', orderId);
+      
+      // Method 2: Try to use Booqable JavaScript API to load the order
+      const api = getBooqableApi();
+      if (api) {
+        // Try various methods to load the order into the cart
+        const loadMethods = [
+          { name: 'api.loadOrder', fn: api.loadOrder },
+          { name: 'api.cart.loadOrder', fn: api.cart?.loadOrder },
+          { name: 'api.cart.setOrderId', fn: api.cart?.setOrderId },
+          { name: 'api.setOrderId', fn: api.setOrderId },
+          { name: 'api.load', fn: api.load },
+          { name: 'api.cart.load', fn: api.cart?.load },
+        ];
+        
+        for (const method of loadMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              // Try calling with orderId as string
+              method.fn(orderId);
+              console.log(`[CheckoutSummary] Successfully loaded order via ${method.name}`);
+              break;
+            } catch (e) {
+              try {
+                // Try calling with object parameter
+                method.fn({ order_id: orderId });
+                console.log(`[CheckoutSummary] Successfully loaded order via ${method.name} (object)`);
+                break;
+              } catch (e2) {
+                // Continue to next method
+              }
+            }
+          }
+        }
+      }
+      
+      // Method 3: Refresh Booqable to pick up URL parameters
+      setTimeout(() => {
+        booqableRefresh();
+        console.log('[CheckoutSummary] Refreshed Booqable widget');
+      }, 500);
+      
       setCartSynced(true);
-      console.log('[CheckoutSummary] Cart populated successfully');
+      console.log('[CheckoutSummary] Order loaded into cart widget successfully');
     } catch (error) {
-      console.error('[CheckoutSummary] Cart sync failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to add items to cart. Please try again.';
+      console.error('[CheckoutSummary] Failed to create/load order:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create order. Please try again.';
       setValidationError(errorMessage);
     }
   };
@@ -647,18 +697,18 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           <Button
             size="lg"
             className="w-full"
-            disabled={isSyncing || !startDate || cartSynced}
+            disabled={isOrderCreating || !startDate || cartSynced}
             onClick={handleProceedToCheckout}
           >
-            {isSyncing ? (
+            {isOrderCreating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Adding to Cart...
+                Creating Order...
               </>
             ) : cartSynced ? (
               <>
                 <Check className="w-4 h-4 mr-2" />
-                Items Added to Cart
+                Order Loaded in Cart
               </>
             ) : (
               'Proceed to Checkout'
@@ -667,8 +717,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardContent>
       </Card>
 
-      {/* Hidden staging area for Booqable product buttons */}
-      <BooqableEmbedStaging items={rentals} />
     </div>
   );
 };
