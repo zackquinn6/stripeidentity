@@ -23,9 +23,10 @@ import {
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
-import BooqableCheckoutEmbed from './BooqableCheckoutEmbed';
 import { supabase } from '@/integrations/supabase/client';
 import { useBooqable } from '@/hooks/use-booqable';
+import { useBooqableCart } from '@/hooks/useBooqableCart';
+import BooqableEmbedStaging from './BooqableEmbedStaging';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -43,8 +44,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [showCheckoutEmbed, setShowCheckoutEmbed] = useState(false);
-  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [cartSynced, setCartSynced] = useState(false);
+  const { addToCart, isLoading: isCartLoading, error: cartError } = useBooqableCart();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
     queryKey: ['app-options', 'checkout_settings'],
@@ -134,17 +135,45 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     { icon: Package, text: 'Everything curated for your specific project' },
   ];
 
-  // Show the checkout embed if requested
-  if (showCheckoutEmbed && startDate) {
-    return (
-      <BooqableCheckoutEmbed
-        items={items}
-        startDate={startDate}
-        rentalDays={rentalDays}
-        onBack={() => setShowCheckoutEmbed(false)}
-      />
-    );
-  }
+  // Handle cart sync when checkout is initiated
+  const handleProceedToCheckout = async () => {
+    setValidationError(null);
+
+    if (!startDate) {
+      setValidationError('Please select a rental start date');
+      return;
+    }
+
+    const booqableItems = rentals.filter((item) => item.booqableId);
+    if (booqableItems.length === 0) {
+      setValidationError(
+        'None of the selected items can be booked online. Please contact us for availability.'
+      );
+      return;
+    }
+
+    // Calculate end date
+    const endDate = addDays(startDate, rentalDays);
+
+    // Populate the Booqable cart widget
+    const result = await addToCart(items, startDate, endDate);
+    
+    if (result.success) {
+      setCartSynced(true);
+      // Scroll to checkout widget at bottom of page after it renders
+      setTimeout(() => {
+        const checkoutWidget = document.querySelector('#booqable-checkout-widget, [data-booqable-cart], .booqable-cart, .booqable-widget');
+        if (checkoutWidget) {
+          checkoutWidget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          // Fallback: scroll to bottom of page
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+      }, 1000);
+    } else {
+      setValidationError(result.error || 'Failed to sync items to cart. Please try again.');
+    }
+  };
 
   // Benefits page (shown first)
   if (!showDetails) {
@@ -555,41 +584,61 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </div>
           )}
 
+          {/* Cart sync error */}
+          {cartError && !cartSynced && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <p>{cartError}</p>
+            </div>
+          )}
+
+          {/* Success message when cart is synced */}
+          {cartSynced && (
+            <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/30 rounded-lg text-success text-sm">
+              <Check className="w-4 h-4 flex-shrink-0" />
+              <p>Items added to cart. Complete your checkout below.</p>
+            </div>
+          )}
+
           <Button
             size="lg"
             className="w-full"
-            disabled={isStartingCheckout || !startDate}
-            onClick={() => {
-              setValidationError(null);
-
-              if (!startDate) {
-                setValidationError('Please select a rental start date');
-                return;
-              }
-
-              const booqableItems = rentals.filter((item) => item.booqableId);
-              if (booqableItems.length === 0) {
-                setValidationError(
-                  'None of the selected items can be booked online. Please contact us for availability.'
-                );
-                return;
-              }
-
-              // Show the checkout embed instead of syncing to widget
-              setShowCheckoutEmbed(true);
-            }}
+            disabled={isCartLoading || !startDate || cartSynced}
+            onClick={handleProceedToCheckout}
           >
-            {isStartingCheckout ? (
+            {isCartLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Starting Checkout...
+                Syncing to Cart...
+              </>
+            ) : cartSynced ? (
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                Cart Updated - See Checkout Below
               </>
             ) : (
               'Proceed to Checkout'
             )}
           </Button>
+          
+          {/* Hidden staging area for Booqable product buttons */}
+          <BooqableEmbedStaging items={items} />
         </CardContent>
       </Card>
+
+      {/* Booqable checkout widget - shown at bottom when cart is synced */}
+      {cartSynced && (
+        <div className="mt-8 animate-fade-in">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-2xl font-bold mb-4">Complete Your Checkout</h2>
+            <div 
+              id="booqable-checkout-widget"
+              data-booqable-cart
+              className="min-h-[400px]"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
