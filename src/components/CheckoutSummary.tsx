@@ -197,29 +197,42 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
       const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
       
-      // Update URL with dates first
+      // Update URL with dates and order_id
       const url = new URL(window.location.href);
+      url.searchParams.set('order_id', orderId);
       url.searchParams.set('starts_at', startsAt);
       url.searchParams.set('stops_at', stopsAt);
       window.history.replaceState({}, '', url.toString());
+      console.log('[CheckoutSummary] Updated URL with order_id and dates:', url.toString());
       
       // Wait for Booqable API to be available (with timeout)
       let api = getBooqableApi();
       let attempts = 0;
-      const maxAttempts = 20;
+      const maxAttempts = 30; // Increased timeout
       
       while (!api && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100));
         api = getBooqableApi();
         attempts++;
+        if (api) {
+          console.log(`[CheckoutSummary] Booqable API available after ${attempts * 100}ms`);
+        }
       }
       
       if (!api) {
-        console.warn('[CheckoutSummary] Booqable API not available after waiting');
-        // Still set cart synced - URL params might work
+        console.warn('[CheckoutSummary] Booqable API not available after waiting, URL params may work');
         setCartSynced(true);
+        // Trigger refresh anyway
+        setTimeout(() => booqableRefresh(), 1000);
         return;
       }
+      
+      console.log('[CheckoutSummary] Booqable API found:', {
+        hasApi: !!api,
+        hasCart: !!api.cart,
+        apiKeys: Object.keys(api).slice(0, 30),
+        cartKeys: api.cart ? Object.keys(api.cart).slice(0, 30) : [],
+      });
       
       const cart = api?.cart;
       
