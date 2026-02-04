@@ -206,7 +206,8 @@ const TileOrderingFlow = ({
     setSelectedUnderlayment(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   };
   const step2Complete = equipment.some(cat => cat.items.some(item => item.quantity > 0));
-  const step3Complete = addOns.some(cat => cat.items.some(item => item.quantity > 0));
+  const [step3Visited, setStep3Visited] = useState(false);
+  const step3Complete = step3Visited && openAccordion !== 'step-3';
   const step4Complete = !!startDate && (rentalDuration !== 'daily' || !!endDate);
   const [step5Visited, setStep5Visited] = useState(false);
   const step5Complete = step5Visited && openAccordion !== 'step-5';
@@ -377,6 +378,7 @@ const TileOrderingFlow = ({
         </div>
 
         <Accordion type="single" collapsible value={openAccordion} onValueChange={value => {
+        if (value === 'step-3') setStep3Visited(true);
         if (value === 'step-5') setStep5Visited(true);
         setOpenAccordion(value || '');
       }} className="space-y-4">
