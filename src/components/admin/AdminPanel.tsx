@@ -6,6 +6,7 @@ import { LogOut } from 'lucide-react';
 import ProjectsTab from './ProjectsTab';
 import SectionsTab from './SectionsTab';
 import ItemsTab from './ItemsTab';
+import AppOptionsTab from './AppOptionsTab';
 
 interface AdminPanelProps {
   open: boolean;
@@ -28,10 +29,11 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
         </SheetHeader>
 
         <Tabs defaultValue="projects" className="mt-6 flex-1">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="sections">Sections</TabsTrigger>
             <TabsTrigger value="items">Items</TabsTrigger>
+            <TabsTrigger value="options">App Options</TabsTrigger>
           </TabsList>
 
           <TabsContent value="projects" className="mt-4">
@@ -67,6 +69,10 @@ export default function AdminPanel({ open, onClose, onSignOut }: AdminPanelProps
               sectionName={selectedSectionName}
               sectionType={selectedSectionType || undefined}
             />
+          </TabsContent>
+
+          <TabsContent value="options" className="mt-4">
+            <AppOptionsTab />
           </TabsContent>
         </Tabs>
 

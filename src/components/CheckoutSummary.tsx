@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -24,6 +25,7 @@ import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { useBooqableCart } from '@/hooks/useBooqableCart';
 import BooqableEmbedStaging from './BooqableEmbedStaging';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -38,6 +40,23 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Fetch app options for delivery/pickup visibility
+  const { data: checkoutSettings } = useQuery({
+    queryKey: ['app-options', 'checkout_settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_options')
+        .select('value')
+        .eq('key', 'checkout_settings')
+        .single();
+      
+      if (error) return { show_delivery_pickup: true };
+      return data.value as unknown as { show_delivery_pickup: boolean };
+    },
+  });
+
+  const showDeliveryPickup = checkoutSettings?.show_delivery_pickup ?? true;
 
   // Auto-start generation on mount and handle progress
   useEffect(() => {
@@ -339,15 +358,17 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               </div>
 
               {/* Delivery & Pickup */}
-              <div className="p-4 bg-success/10 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-5 h-5 text-success" />
-                    <p className="font-semibold">Delivery & Pickup</p>
+              {showDeliveryPickup && (
+                <div className="p-4 bg-success/10 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-success" />
+                      <p className="font-semibold">Delivery & Pickup</p>
+                    </div>
+                    <span className="font-bold text-lg text-success">Free</span>
                   </div>
-                  <span className="font-bold text-lg text-success">Free</span>
                 </div>
-              </div>
+              )}
 
               {/* Your Responsibility note - outside materials container */}
               <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
