@@ -345,6 +345,17 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                   We recommend <span className="text-primary font-medium">Floor & Decor</span> for materials.
                 </p>
               </div>
+
+              {/* Delivery & Pickup */}
+              <div className="p-4 bg-success/10 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-success" />
+                    <p className="font-semibold">Delivery & Pickup</p>
+                  </div>
+                  <span className="font-bold text-lg text-success">Free</span>
+                </div>
+              </div>
             </div>
           </div>
 
