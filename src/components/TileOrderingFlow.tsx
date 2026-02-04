@@ -262,12 +262,23 @@ const TileOrderingFlow = ({
       } : prev);
     }
   };
+  const handleSelectEssentials = () => {
+    setEquipment(prev => prev.map(cat => ({
+      ...cat,
+      items: cat.items.map(item => ({
+        ...item,
+        quantity: item.defaultQuantityEssentials || 0
+      }))
+    })));
+    setOpenAccordion('step-3');
+  };
+
   const handleSelectComprehensive = () => {
     setEquipment(prev => prev.map(cat => ({
       ...cat,
       items: cat.items.map(item => ({
         ...item,
-        quantity: 1
+        quantity: item.defaultQuantityComprehensive || 0
       }))
     })));
     setOpenAccordion('step-3');
@@ -437,10 +448,24 @@ const TileOrderingFlow = ({
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6">
-              <Button variant="outline" className="w-full mb-6 border-dashed border-2 py-6 bg-highlight border-highlight-border hover:border-primary hover:bg-highlight-hover text-foreground" onClick={handleSelectComprehensive}>
-                <Sparkles className="w-5 h-5 mr-2 text-primary" />
-                Make it Comprehensive - Pick For Me
-              </Button>
+              <div className="flex gap-3 mb-6">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 border-dashed border-2 py-6 hover:border-primary hover:bg-secondary/50 text-foreground" 
+                  onClick={handleSelectEssentials}
+                >
+                  <Package className="w-5 h-5 mr-2 text-muted-foreground" />
+                  Project Essentials
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1 border-dashed border-2 py-6 bg-highlight border-highlight-border hover:border-primary hover:bg-highlight-hover text-foreground" 
+                  onClick={handleSelectComprehensive}
+                >
+                  <Sparkles className="w-5 h-5 mr-2 text-primary" />
+                  Comprehensive
+                </Button>
+              </div>
 
               <div className="space-y-6">
                 {equipment.map(category => <div key={category.id}>
