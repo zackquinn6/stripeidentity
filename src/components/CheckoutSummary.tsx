@@ -498,8 +498,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                   
                   if (result.success) {
                     toast({
-                      title: "Cart opened!",
-                      description: `${result.itemsAdded} items added. Complete checkout in the new tab.`,
+                       title: "Cart updated!",
+                       description: `${result.itemsAdded} items added to the cart widget.`,
                     });
                   }
                 } catch {
