@@ -38,6 +38,14 @@ interface CheckoutSummaryProps {
 
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
+  // ========================================
+  // VERSION 2.0: API-BASED CHECKOUT (NO useBooqableCart)
+  // Date: 2024-02-13
+  // This version uses useBooqableOrder hook, NOT useBooqableCart
+  // ========================================
+  console.log('🚀 [CheckoutSummary v2.0] Component loaded - API-based checkout');
+  console.log('🚀 [CheckoutSummary v2.0] Using useBooqableOrder, NOT useBooqableCart');
+  
   // Initialize Booqable script for add-on product buttons
   useBooqable();
 
@@ -169,7 +177,14 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   ];
 
   // Handle cart sync when checkout is initiated
+  // FORCE REBUILD - This function uses useBooqableOrder, NOT useBooqableCart
   const handleProceedToCheckout = async () => {
+    // CRITICAL: This is the NEW code path using API-based order creation
+    // If you see [useBooqableCart] errors, the browser is running OLD cached code
+    console.log('========================================');
+    console.log('NEW CODE PATH v2.0 - API ORDER CREATION');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('========================================');
     setValidationError(null);
 
     if (!startDate) {
