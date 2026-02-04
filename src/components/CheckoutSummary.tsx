@@ -26,6 +26,8 @@ import { format, addDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useBooqable } from '@/hooks/use-booqable';
 import { useBooqableCart } from '@/hooks/useBooqableCart';
+import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
+import { booqableRefresh } from '@/lib/booqable/client';
 import BooqableEmbedStaging from './BooqableEmbedStaging';
 
 interface CheckoutSummaryProps {
@@ -39,6 +41,16 @@ interface CheckoutSummaryProps {
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   // Initialize Booqable script for add-on product buttons
   useBooqable();
+
+  // Slug → UUID mapping (Booqable embeds require UUIDs in data-id)
+  const { slugToUuid, isLoading: isIdMapLoading } = useBooqableIdMap();
+
+  // Nudge the library after the add-on placeholders render with resolved IDs.
+  useEffect(() => {
+    if (isIdMapLoading) return;
+    const t = setTimeout(() => booqableRefresh(), 0);
+    return () => clearTimeout(t);
+  }, [isIdMapLoading]);
   
   const [showDetails, setShowDetails] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -573,10 +585,26 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           {/* Add-on product buttons */}
           <div className="p-4 border rounded-lg bg-muted/50">
             <p className="text-sm font-medium mb-3">Need additional tools?</p>
-            <div className="flex flex-wrap gap-3">
-              <div className="booqable-product-button" data-id="channel-lock-pliers"></div>
-              <div className="booqable-product-button" data-id="headlamp"></div>
-            </div>
+            {isIdMapLoading ? (
+              <p className="text-sm text-muted-foreground">Loading add-ons…</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {([
+                  'channel-lock-pliers',
+                  'headlamp',
+                ] as const).map((slug) => {
+                  const resolvedId = slugToUuid[slug] || slug;
+                  return (
+                    <div
+                      key={slug}
+                      className="booqable-product-button"
+                      data-id={resolvedId}
+                      data-slug={slug}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Inline validation error */}
