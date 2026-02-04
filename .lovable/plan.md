@@ -1,197 +1,173 @@
 
-# Booqable API Integration Plan
-
-## Overview
-This plan integrates your Lovable app with Booqable's REST API to:
-1. **Fetch products from Booqable inventory** to populate equipment/materials lists dynamically
-2. **Manage cart/order state locally** in the Lovable ordering flow
-3. **Create and submit orders to Booqable** for checkout when users are ready
+## Goal (what will be true when we’re done)
+On the guided ordering page (`/projects`), when the user clicks **Proceed to Checkout**, the app will:
+1) set the rental start/stop dates for the embedded Booqable cart module, and  
+2) add the selected items + quantities into the **on-page Booqable cart widget**,  
+with **no redirects**, **no separate pages**, and **no toast notifications**.  
+The only “success UI” will be that the widget’s cart contents + dates actually change.
 
 ---
 
-## Architecture
+## What’s happening now (root-cause findings from your code + docs)
+### 1) The current “click hidden `.booqable-product-button` placeholders” approach can’t work reliably yet
+Your `useBooqableCart` tries to:
+- add `starts_at/stops_at` to the URL,
+- refresh Booqable,
+- click `.booqable-product-button[data-id="..."]` elements.
 
-```text
-+------------------+     +---------------------+     +------------------+
-|   Lovable App    | --> | Supabase Edge       | --> |  Booqable API    |
-|   (React/UI)     |     | Functions (Proxy)   |     |  (v1 REST)       |
-+------------------+     +---------------------+     +------------------+
-        |                         |
-        |  1. Fetch products      |
-        |  2. Create order        |
-        |  3. Add lines to order  |
-        |  4. Reserve order       |
-        +-------------------------+
+However, your database-driven items (`section_items.booqable_product_id`) are **slugs** like `angle-grinder-4-1-2`, not UUIDs:
+- Confirmed via query: `section_items.booqable_product_id` values are slugs.
+
+Booqable embed buttons (per Booqable help docs) are meant to be copied as “Embed details” HTML from Booqable admin. Those embeds often rely on **exact IDs/attributes** (commonly a product group UUID / internal id), not necessarily your slug. If `data-id` is wrong, Booqable may still “render something” or your code may “think it clicked”, but the actual cart won’t change.
+
+### 2) False-positive “success”
+`CheckoutSummary.tsx` still displays success states and toasts based on our own bookkeeping (`itemsAdded`) rather than a definitive Booqable source-of-truth (cart contents).
+
+### 3) “Buttons are not showing and should not be”
+Currently `EquipmentItem.tsx` renders visible placeholders right next to quantity controls:
+```tsx
+{item.booqableId && (
+  <div className="booqable-product-button" data-id={item.booqableId}></div>
+)}
 ```
-
-**Why an Edge Function?**
-- Booqable API requires an API key that must stay secret
-- Edge functions keep credentials server-side, not exposed in browser code
-- Handles CORS and error normalization
+That directly conflicts with your UX requirement. We need to keep embeds available to Booqable, but not visible in the guided UI.
 
 ---
 
-## Implementation Steps
+## Documentation we will follow (key takeaways)
+From Booqable Help Center (“How to embed products on an existing website” / Shopify embed articles):
+- Booqable expects you to use the **exact embed HTML** (“Embed details”) for the “product button”.
+- That embed includes the correct internal references for the product and is what the Booqable script scans for.
 
-### Step 1: Store Booqable API Key as Secret
-Add the Booqable API key to Lovable Cloud secrets so the edge function can access it securely.
+From Booqable checkout scripts framework docs:
+- `Booqable._defer(...)` exists and is a safe way to wait up to 10 seconds for conditions before executing.
+- `Booqable.on('page-change', ...)` and `Booqable.trigger('page-change')` patterns are consistent with our current “refresh” approach.
 
-**What you'll need:**
-- Your Booqable API key (found in Booqable → Account Settings → API Keys)
-- Your Booqable company slug (the `xxxxx` in `xxxxx.booqable.com`)
-
----
-
-### Step 2: Create Booqable Edge Function
-
-Create a new Supabase edge function at `supabase/functions/booqable/index.ts` that:
-
-**Endpoints it will handle:**
-| Action | Booqable API Call |
-|--------|------------------|
-| `GET /products` | `GET /api/1/product_groups` |
-| `POST /orders` | `POST /api/1/orders` (create) |
-| `POST /orders/:id/lines` | `POST /api/1/orders/:id/lines` |
-| `POST /orders/:id/book` | `POST /api/1/orders/:id/book` |
-| `POST /orders/:id/reserve` | `POST /api/1/orders/:id/reserve` |
-
-**Key Features:**
-- Proxies requests to Booqable with authentication
-- Maps product data to your `RentalItem` type
-- Returns normalized error messages
+Net: We should stop guessing and instead (a) resolve the correct product identifier and (b) verify success against Booqable’s cart data/state, not DOM text.
 
 ---
 
-### Step 3: Create React Hook for Booqable Data
+## Implementation approach (high-level)
+### A) Make cart sync deterministic by resolving *correct Booqable IDs* before clicking
+We’ll add a “Booqable ID resolution” layer:
+1) Fetch product groups from our existing backend function `booqable` (`action: 'get-products'`) which returns:
+   - `booqableId` (UUID) and `slug`
+2) Build a map: `slug -> booqableId(UUID)`
+3) When building the hidden embed placeholders used for cart sync, use:
+   - `data-id={resolvedUUID}` (preferred)
+   - If we can’t resolve, optionally fall back to slug (but we’ll treat it as “not eligible for online checkout”)
 
-Create `src/hooks/useBooqableProducts.ts`:
-- Fetches product groups from the edge function
-- Maps Booqable products to your `RentalItem` interface
-- Caches data with React Query for performance
-- Falls back to static data if API fails
+This aligns your DB (slugs) with what Booqable embed likely needs (UUIDs).
 
-**Mapping Booqable fields to RentalItem:**
-```text
-Booqable Product Group → RentalItem
------------------------------------------
-id                     → booqableId
-name                   → name  
-base_price_in_cents    → dailyRate (÷100)
-description            → description
-photo_url              → imageUrl
-stock_count            → (availability info)
-```
+### B) Stop relying on “clicking a placeholder div”; ensure Booqable has converted the embed into a real clickable element first
+We’ll tighten the click strategy:
+- Render hidden placeholders in a dedicated container (not `sr-only`, which can cause odd layout/visibility side-effects). Instead we’ll use a “visually hidden but measurable” style:
+  - position off-screen, 1px size, opacity 0, pointer-events enabled (or disable pointer-events but click programmatically on the injected child).
+- Wait until each placeholder contains an injected interactive element (button/link) or until `window.Booqable` signals ready via `_defer`.
 
----
+If the embed never transforms, we will fail with a clear inline error (no toast) indicating “Booqable embed did not initialize product buttons”.
 
-### Step 4: Update TileOrderingFlow to Use Live Data
+### C) Verify success using Booqable’s cart data (source of truth), not our own counters
+Instead of “cart empty text” heuristics, we’ll use:
+- `window.Booqable?.cartData?.items` (documented as available in checkout scripts context; it’s also commonly present in shop embeds)
+- Before clicks: capture `prevCount` / `prevSignature`
+- After clicks + refresh: wait until cartData changes (items length or item quantities)
 
-Modify `TileOrderingFlow.tsx`:
-- Replace static `equipmentCategories` import with `useBooqableProducts()` hook
-- Add loading states while fetching products
-- Show error state with retry option if fetch fails
-- Keep static data as fallback
+If cartData is not available in the embed context, we’ll fall back to a stronger DOM-based check:
+- look for item rows/count inside the widget container (not global page text search)
 
----
+### D) No toasts, no redirects; inline state only
+We will remove `useToast()` usage in `CheckoutSummary.tsx` for the checkout button.
+Instead:
+- show inline “Syncing cart…” state while running
+- show inline error with a Retry button if sync fails
+- show inline success only when the widget cart truly changed
 
-### Step 5: Create Order Submission Logic
+### E) Ensure product buttons are never shown in the guided ordering UI
+We’ll remove (or hide) the inline button in `EquipmentItem.tsx` entirely.
+Instead we’ll render a single hidden “Booqable embeds staging area” at the bottom of the page that includes only the items we might need for syncing.
 
-Create `src/hooks/useBooqableOrder.ts`:
-- Manages local cart state (selected items + quantities)
-- On checkout:
-  1. Creates a new order in Booqable with dates
-  2. Adds each selected product as a line item
-  3. Books the items to reserve inventory
-  4. Reserves the order
-  5. Redirects to Booqable checkout or returns order number
-
----
-
-### Step 6: Update CheckoutSummary Component
-
-Modify `CheckoutSummary.tsx`:
-- Add "Proceed to Checkout" button that triggers order submission
-- Show loading state during order creation
-- On success: redirect to Booqable checkout page or show confirmation
-- Handle errors gracefully with user-friendly messages
+That preserves your guided UI while still giving Booqable DOM anchors to bind to.
 
 ---
 
-## Data Flow Summary
+## Concrete file-level plan (what will change)
+### 1) `src/hooks/useBooqableCart.ts` (refactor into a reliable cart sync engine)
+- Add:
+  - `useBooqableIdMap()` or internal resolver that fetches product groups and maps slug -> UUID.
+  - `waitForBooqableReady()` that uses:
+    - `window.Booqable` + optional `Booqable._defer`
+    - or detection that embeds have been transformed (child button exists)
+  - `getCartSnapshot()`:
+    - Prefer `window.Booqable.cartData` if present.
+    - Else query widget DOM for item count rows.
+- Change `addToCart(...)` flow to:
+  1) resolve IDs for all selected items
+  2) set dates in URL (as now)
+  3) refresh/trigger page-change
+  4) wait until each embed is transformed into a clickable element
+  5) click the real injected button(s) with correct quantities
+  6) refresh
+  7) wait until cart snapshot changes
+  8) return success only if changed
 
-1. **Page Load**: `useBooqableProducts` fetches products from edge function
-2. **User Selects Items**: Local state tracks quantities
-3. **User Clicks Checkout**: 
-   - Edge function creates Booqable order
-   - Adds line items for each selected product
-   - Reserves the order
-4. **Redirect to Booqable**: User completes payment on Booqable's hosted checkout
+### 2) `src/components/CheckoutSummary.tsx` (remove toast usage; provide inline status)
+- Remove `useToast` and all `toast(...)` calls.
+- Replace with:
+  - inline validation messages (“Start date required”, “No online-bookable items”)
+  - inline cart-sync status + retry button
+- Ensure the button label reflects on-page behavior (“Syncing cart…” not “Opening Cart…”).
 
----
+### 3) `src/components/EquipmentItem.tsx` (remove visible Booqable embed)
+- Remove the on-row `booqable-product-button` element so nothing “Booqable-ish” appears in the guided UI.
 
-## Files to Create
+### 4) `src/components/TileOrderingFlow.tsx` or a dedicated component (add hidden embed staging area)
+- Create a single hidden container that renders required Booqable product-button placeholders for:
+  - all currently selected rental items (or potentially all rentals to avoid rerender timing issues)
+- These placeholders will use **resolved UUID ids**, not slugs.
 
-| File | Purpose |
-|------|---------|
-| `supabase/functions/booqable/index.ts` | API proxy edge function |
-| `supabase/config.toml` | Edge function configuration |
-| `src/hooks/useBooqableProducts.ts` | Fetch and cache products |
-| `src/hooks/useBooqableOrder.ts` | Order creation logic |
-| `src/lib/booqable.ts` | Type definitions and API helpers |
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/TileOrderingFlow.tsx` | Use live product data, pass cart to checkout |
-| `src/components/CheckoutSummary.tsx` | Add order submission, redirect to Booqable |
-| `src/types/rental.ts` | Add Booqable-specific fields |
-
----
-
-## Technical Details
-
-### Edge Function Structure
-```text
-supabase/functions/booqable/index.ts
-├── Handle CORS preflight
-├── Parse action from request body
-├── Switch on action type:
-│   ├── get-products → GET /product_groups
-│   ├── create-order → POST /orders
-│   ├── add-line → POST /orders/:id/lines
-│   ├── book-order → POST /orders/:id/book
-│   └── reserve-order → POST /orders/:id/reserve
-└── Return normalized response
-```
-
-### Booqable Order Workflow
-1. **Create Order**: `POST /orders` with `starts_at`, `stops_at`, `customer_id` (optional)
-2. **Add Lines**: `POST /orders/:id/lines` with product ID and quantity for each item
-3. **Book Items**: `POST /orders/:id/book` to reserve inventory
-4. **Reserve Order**: `POST /orders/:id/reserve` to finalize reservation
-
-### Error Handling
-- Network errors: Show retry button
-- API errors: Display Booqable's error message
-- Validation errors: Highlight problematic fields
-- Availability errors: Show which items are unavailable
+This ensures the placeholders exist even when the user navigates to the checkout summary view (and avoids the “buttons not present” / timing race).
 
 ---
 
-## Required Secrets
+## Debug/verification steps (built into the plan)
+We will add a temporary “debug mode” (disabled by default) that logs:
+- whether `window.Booqable` exists
+- whether `cartData` exists
+- for each selected item:
+  - slug
+  - resolved UUID
+  - whether the placeholder was transformed (child button found)
+- cart snapshot before/after
 
-Before implementation, you'll need to add:
-1. **BOOQABLE_API_KEY**: Your Booqable API key
-2. **BOOQABLE_COMPANY_SLUG**: Your company slug (e.g., `feeebb8b-2583-4689-b2f6-d488f8220b65`)
+This will be console-only (no toasts, no UI clutter) and removable once stable.
 
 ---
 
-## Fallback Strategy
+## Acceptance criteria (how you’ll confirm it works)
+1) Go through guided ordering, select 2–3 rental items with quantities > 1, select dates.
+2) Click **Proceed to Checkout**.
+3) The embedded Booqable cart widget (visible on-page) updates:
+   - items appear with correct quantities
+   - rental dates match the chosen range
+4) No toast notifications appear.
+5) No navigation occurs and no new tabs/windows open.
 
-If the Booqable API is unavailable:
-- Show cached/static product data
-- Display message: "Live inventory temporarily unavailable"
-- Allow users to submit inquiry form instead of direct checkout
+---
+
+## Risks & mitigations
+- **Risk:** Booqable embed requires the exact embed HTML (not just `.booqable-product-button` + `data-id`).  
+  **Mitigation:** If our minimal markup still doesn’t transform, we’ll switch to rendering the exact embed snippet format Booqable expects. That may require one-time capture of the embed HTML pattern from Booqable (for a single product) so we can replicate it programmatically for all items.
+
+- **Risk:** `Booqable.cartData` may not be present in this embed context.  
+  **Mitigation:** Implement a robust widget DOM-based “cart changed” detector.
+
+---
+
+## Sequencing
+1) Implement ID resolution (slug -> UUID) + staging container rendering using UUIDs
+2) Remove visible embeds from item rows
+3) Refactor `useBooqableCart` to wait for embed transform + verify via cart snapshot
+4) Remove all toast notifications and replace with inline status/errors
+5) End-to-end test on `/projects` with multiple items and quantities
+
