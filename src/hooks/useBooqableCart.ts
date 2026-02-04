@@ -55,6 +55,20 @@ function findClickableInside(container: HTMLElement): HTMLElement {
   return clickable ?? container;
 }
 
+function isEmbeddedCartEmpty() {
+  // Heuristic: the embedded widget renders this empty-state string in the DOM.
+  // (Observed on /projects in the preview.)
+  const needle = 'your shopping cart is empty';
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  // eslint-disable-next-line no-cond-assign
+  while ((node = walker.nextNode())) {
+    const text = (node.textContent || '').trim().toLowerCase();
+    if (text.includes(needle)) return true;
+  }
+  return false;
+}
+
 /**
  * Hook to programmatically populate the embedded Booqable cart widget.
  *
@@ -123,6 +137,8 @@ export function useBooqableCart() {
         // Best-effort refresh (only works when API is available)
         booqableRefresh();
 
+        const wasEmpty = isEmbeddedCartEmpty();
+
         let addedCount = 0;
 
         for (const item of validItems) {
@@ -155,12 +171,13 @@ export function useBooqableCart() {
         // Nudge the widget one more time after all clicks.
         booqableRefresh();
 
-        setState({
-          isLoading: false,
-          error: null,
-          itemsAdded: validItems.length,
-        });
+        // Only report success if the embedded cart actually changes.
+        // If it stays empty, we treat it as a failure so we don't show misleading toasts.
+        if (wasEmpty) {
+          await waitFor(() => !isEmbeddedCartEmpty(), 8000, 100);
+        }
 
+        setState({ isLoading: false, error: null, itemsAdded: validItems.length });
         return { success: true, itemsAdded: validItems.length };
       } catch (e: any) {
         const message = e?.message || 'Failed to add items to cart widget';
