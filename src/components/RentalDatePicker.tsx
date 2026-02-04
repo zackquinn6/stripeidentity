@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { format, addDays, nextFriday, isFriday, startOfDay } from 'date-fns';
 import { CalendarIcon, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -76,14 +76,14 @@ const calculateEndDate = (startDate: Date, duration: RentalDuration, customEndDa
   return addDays(startDate, option?.days || 3);
 };
 
-const RentalDatePicker = ({
+const RentalDatePicker = forwardRef<HTMLDivElement, RentalDatePickerProps>(({
   startDate,
   endDate: customEndDate,
   duration,
   onStartDateChange,
   onEndDateChange,
   onDurationChange
-}: RentalDatePickerProps) => {
+}, ref) => {
   const [startCalendarOpen, setStartCalendarOpen] = useState(false);
   const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const calculatedEndDate = startDate ? calculateEndDate(startDate, duration, customEndDate) : undefined;
@@ -118,7 +118,7 @@ const RentalDatePicker = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div ref={ref} className="space-y-6">
       {/* Duration Selection */}
       <div>
         <div className="flex items-center gap-2 mb-3">
@@ -290,7 +290,9 @@ const RentalDatePicker = ({
       </div>
     </div>
   );
-};
+});
+
+RentalDatePicker.displayName = "RentalDatePicker";
 
 export { calculateEndDate, durationOptions };
 export default RentalDatePicker;
