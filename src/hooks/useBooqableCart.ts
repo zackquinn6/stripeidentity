@@ -275,6 +275,25 @@ export function useBooqableCart() {
       }
 
       try {
+        // Wait for Booqable script to be loaded
+        const api = getBooqableApi();
+        if (!api) {
+          // Wait up to 3 seconds for Booqable to load
+          let attempts = 0;
+          while (!api && attempts < 30) {
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
+            if (getBooqableApi()) break;
+          }
+          
+          if (!getBooqableApi()) {
+            const err = 'Booqable script not loaded. Please refresh the page and try again.';
+            if (DEBUG) console.error('[useBooqableCart]', err);
+            setState({ isLoading: false, error: err, itemsAdded: 0 });
+            return { success: false, itemsAdded: 0, error: err };
+          }
+        }
+
         // Apply dates for the widget to pick up (URL + best-effort cart API)
         const { appliedVia } = applyRentalPeriod(startsAt, stopsAt);
         if (DEBUG) console.log('[useBooqableCart] Applied rental period via:', appliedVia);
@@ -289,14 +308,33 @@ export function useBooqableCart() {
         const beforeSnapshot = getCartSnapshot();
         if (DEBUG) console.log('[useBooqableCart] Before snapshot:', beforeSnapshot);
 
+        // Check if staging area exists
+        const stagingArea = document.getElementById('booqable-embed-staging');
+        if (!stagingArea) {
+          const err = 'Booqable staging area not found. Please ensure items are selected.';
+          if (DEBUG) console.error('[useBooqableCart]', err);
+          setState({ isLoading: false, error: err, itemsAdded: 0 });
+          return { success: false, itemsAdded: 0, error: err };
+        }
+
         // Attempt to use the booqable.js cart API (if present) using resolved product group IDs
         const cartApiItems = validItems
           .map((item) => {
             const placeholder = findProductButton(item.booqableId!);
+            if (!placeholder && DEBUG) {
+              console.warn(`[useBooqableCart] No placeholder found for ${item.name} (${item.booqableId})`);
+            }
             const productGroupId = placeholder?.getAttribute('data-id') || item.booqableId!;
             return { productGroupId, quantity: item.quantity, name: item.name };
           })
           .filter((x) => !!x.productGroupId);
+
+        if (cartApiItems.length === 0) {
+          const err = 'No product buttons found. The Booqable widget may not be initialized.';
+          if (DEBUG) console.error('[useBooqableCart]', err);
+          setState({ isLoading: false, error: err, itemsAdded: 0 });
+          return { success: false, itemsAdded: 0, error: err };
+        }
 
         const cartApiAttempt = tryAddItemsViaCartApi(cartApiItems);
         if (cartApiAttempt.ok) {

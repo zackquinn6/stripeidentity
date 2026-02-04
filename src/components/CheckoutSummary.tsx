@@ -57,6 +57,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [cartSynced, setCartSynced] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
   const { addToCart, isLoading: isCartLoading, error: cartError } = useBooqableCart();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
@@ -167,6 +168,9 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     // Calculate end date
     const endDate = addDays(startDate, rentalDays);
 
+    // Wait a moment to ensure BooqableEmbedStaging is rendered and Booqable script has initialized
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     // Populate the Booqable cart widget
     const result = await addToCart(items, startDate, endDate);
     
@@ -183,6 +187,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         }
       }, 1000);
     } else {
+      console.error('[CheckoutSummary] Cart sync failed:', result.error);
       setValidationError(result.error || 'Failed to sync items to cart. Please try again.');
     }
   };
@@ -652,7 +657,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             )}
           </Button>
           
-          {/* Hidden staging area for Booqable product buttons */}
+          {/* Hidden staging area for Booqable product buttons - always render to ensure it's available */}
           <BooqableEmbedStaging items={items} />
         </CardContent>
       </Card>
