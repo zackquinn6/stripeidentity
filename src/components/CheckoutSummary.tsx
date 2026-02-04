@@ -207,8 +207,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
           {/* Pricing breakdown */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-lg">How pricing works:</h3>
-            
             <div className="space-y-3">
               {/* Day 1 section with rental items accordion */}
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
@@ -313,9 +311,9 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           <Separator />
 
           {/* Total */}
-          <div className="flex justify-between items-center text-2xl font-bold">
-            <span>Your Total</span>
-            <span className="text-primary">${grandTotal.toFixed(2)}</span>
+          <div className="flex justify-between items-center p-4 border-2 border-foreground rounded-lg">
+            <span className="text-2xl font-bold">Your Total</span>
+            <span className="text-2xl font-bold">${grandTotal.toFixed(2)}</span>
           </div>
 
           <Separator />
@@ -325,7 +323,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-5 h-5 text-success" />
-                <h3 className="font-semibold text-lg">On average save ${averageSavings.toFixed(0)}</h3>
+                <h3 className="font-semibold text-lg">Your expected savings: ${averageSavings.toFixed(0)}</h3>
               </div>
               <Badge variant="secondary" className="bg-success/10 text-success border-0">
                 vs buying
@@ -352,7 +350,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="savings-comparison" className="border rounded-lg">
                 <AccordionTrigger className="px-4 hover:no-underline">
-                  <span className="font-semibold">See the savings</span>
+                  <span className="font-semibold">See how pricing compares</span>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
                   <div className="space-y-4">
