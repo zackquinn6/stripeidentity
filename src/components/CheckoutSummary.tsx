@@ -32,8 +32,6 @@ interface CheckoutSummaryProps {
   onBack: () => void;
 }
 
-const DAY_1_FEE = 150; // Processing, delivery, damage waiver
-const DAY_2_PLUS_RATE = 25; // Flat fee per additional day
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const [showDetails, setShowDetails] = useState(false);
@@ -83,9 +81,14 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
   const consumableTotal = salesItems.filter(i => i.quantity > 0).reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
   
-  // New pricing model: Day 1 + (Days - 1) * flat rate
-  const additionalDays = Math.max(0, rentalDays - 1);
-  const rentalTotal = DAY_1_FEE + (additionalDays * DAY_2_PLUS_RATE);
+  // Calculate rental total from actual item pricing
+  const rentalTotal = rentals.reduce((sum, item) => {
+    const firstDayRate = item.firstDayRate ?? item.dailyRate;
+    const day2PlusRate = item.dailyRate;
+    const additionalDays = Math.max(0, rentalDays - 1);
+    return sum + (firstDayRate * item.quantity) + (day2PlusRate * item.quantity * additionalDays);
+  }, 0);
+  
   const grandTotal = rentalTotal + consumableTotal;
 
   // Comparison totals (purchase instead of rent) - simulated retailer prices
@@ -97,6 +100,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const allComparisonTotals = [proPurchaseTotal, diyPurchaseTotal, usedPurchaseTotal];
   const averageComparisonPrice = allComparisonTotals.reduce((a, b) => a + b, 0) / allComparisonTotals.length;
   const averageSavings = Math.max(0, averageComparisonPrice - grandTotal);
+  const isLowSavings = averageSavings < 50;
 
   const benefits = [
     { icon: Truck, text: 'Free delivery & pickup' },
@@ -208,55 +212,50 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           {/* Pricing breakdown */}
           <div className="space-y-4">
             <div className="space-y-3">
-              {/* Day 1 section with rental items accordion */}
+              {/* Rental items section */}
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold">Day 1</p>
+                    <p className="font-semibold">Rental Items</p>
                     <p className="text-sm text-muted-foreground">
-                      Processing, delivery & damage waiver
+                      {rentalDays} day{rentalDays > 1 ? 's' : ''} · Includes delivery & damage waiver
                     </p>
                   </div>
-                  <span className="font-bold text-lg">${DAY_1_FEE}</span>
+                  <span className="font-bold text-lg">${rentalTotal.toFixed(2)}</span>
                 </div>
                 
-                {/* Rental items accordion under Day 1 */}
+                {/* Rental items accordion */}
                 <Accordion type="single" collapsible className="w-full">
                   <AccordionItem value="rental-items" className="border-0">
                     <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
                       <span className="flex items-center gap-2">
                         <Wrench className="w-4 h-4" />
-                        View {rentals.length} rental items included
+                        View {rentals.length} rental items
                       </span>
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-2 pt-2">
-                        {rentals.map((item) => (
-                          <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg text-sm">
-                            {item.imageUrl && (
-                              <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
-                            )}
-                            <span className="flex-1">{item.name}</span>
-                            <span className="text-muted-foreground">×{item.quantity}</span>
-                          </div>
-                        ))}
+                        {rentals.map((item) => {
+                          const firstDay = item.firstDayRate ?? item.dailyRate;
+                          const day2Plus = item.dailyRate;
+                          const additionalDays = Math.max(0, rentalDays - 1);
+                          const itemTotal = (firstDay * item.quantity) + (day2Plus * item.quantity * additionalDays);
+                          return (
+                            <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-secondary/30 rounded-lg text-sm">
+                              {item.imageUrl && (
+                                <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                              )}
+                              <span className="flex-1">{item.name}</span>
+                              <span className="text-muted-foreground">×{item.quantity}</span>
+                              <span className="font-medium">${itemTotal.toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
               </div>
-
-              {additionalDays > 0 && (
-                <div className="flex justify-between items-start p-4 bg-secondary/50 rounded-lg">
-                  <div>
-                    <p className="font-semibold">Day 2–{rentalDays}</p>
-                    <p className="text-sm text-muted-foreground">
-                      ${DAY_2_PLUS_RATE}/day × {additionalDays} days
-                    </p>
-                  </div>
-                  <span className="font-bold text-lg">${additionalDays * DAY_2_PLUS_RATE}</span>
-                </div>
-              )}
 
               {/* Materials & Sales section - always show */}
               <div className="p-4 bg-amber-soft rounded-lg space-y-3">
@@ -318,33 +317,63 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
           <Separator />
 
-          {/* Savings highlight and comparison accordion */}
+          {/* Savings section - conditional based on savings amount */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="w-5 h-5 text-success" />
-                <h3 className="font-semibold text-lg">Your expected savings: ${averageSavings.toFixed(0)}</h3>
-              </div>
-              <Badge variant="secondary" className="bg-success/10 text-success border-0">
-                vs buying
-              </Badge>
-            </div>
-            
-            {/* Toolio Package highlight */}
-            <div className="flex justify-between items-center p-4 bg-success/10 rounded-lg border border-success/30">
-              <div className="flex items-start gap-3">
-                <div className="p-1.5 rounded-full bg-success/20 mt-0.5">
-                  <Check className="w-4 h-4 text-success" />
+            {isLowSavings ? (
+              /* Low savings accordion explanation */
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="savings-explanation" className="border rounded-lg">
+                  <AccordionTrigger className="px-4 hover:no-underline">
+                    <span className="font-semibold">Learn about your expected savings</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4">
+                    <div className="space-y-4 text-sm text-muted-foreground">
+                      <p>
+                        Most Toolio rentals save customers money compared to buying tools outright. For this project, the specific tools and rental length mean the savings may be smaller than usual. We want to be upfront about that while also highlighting what you do gain.
+                      </p>
+                      <p className="font-medium text-foreground">
+                        You'll never pay more than retail for any item—ever. That's our commitment, and this project is no exception.
+                      </p>
+                      <p>
+                        Even when the dollar savings aren't the headline, the value still is:
+                      </p>
+                      <ul className="space-y-2 list-none">
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                          <span>No storing bulky tools you'll rarely use</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                          <span>Pro‑grade, well‑maintained equipment</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                          <span>Delivery to your home</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                          <span>The right mix of tools curated for your project</span>
+                        </li>
+                      </ul>
+                      <p>
+                        Toolio exists to make your project easier, faster, and more successful than buying tools the traditional way—even in cases where the savings aren't the main benefit.
+                      </p>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            ) : (
+              /* Normal savings display */
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5 text-success" />
+                  <h3 className="font-semibold text-lg">Your expected savings: ${averageSavings.toFixed(0)}</h3>
                 </div>
-                <div>
-                  <p className="font-semibold text-success">Toolio Package</p>
-                  <p className="text-sm text-muted-foreground">
-                    The right stuff, delivered, ready to help you succeed
-                  </p>
-                </div>
+                <Badge variant="secondary" className="bg-success/10 text-success border-0">
+                  vs buying
+                </Badge>
               </div>
-              <span className="font-bold text-xl text-success">${grandTotal.toFixed(2)}</span>
-            </div>
+            )}
 
             {/* See the savings accordion */}
             <Accordion type="single" collapsible className="w-full">
