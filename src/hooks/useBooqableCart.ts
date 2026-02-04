@@ -46,6 +46,15 @@ function findProductButton(productId: string): HTMLElement | null {
   return document.querySelector(`.booqable-product-button[data-id="${CSS.escape(productId)}"]`);
 }
 
+function findClickableInside(container: HTMLElement): HTMLElement {
+  // Booqable often injects a real clickable element inside our placeholder.
+  // Clicking the placeholder div may do nothing if the listener is bound to a child.
+  const clickable = container.querySelector<HTMLElement>(
+    'button, a, [role="button"], [data-action="add"], .booqable-button'
+  );
+  return clickable ?? container;
+}
+
 /**
  * Hook to programmatically populate the embedded Booqable cart widget.
  *
@@ -105,6 +114,10 @@ export function useBooqableCart() {
           12000
         );
 
+        // Give the embed a moment to transform placeholders into real buttons.
+        // (Some themes delay this until after initial asset loads.)
+        await new Promise((r) => setTimeout(r, 500));
+
         // Set the rental period on the *current page* so the embedded widget uses it.
         setBooqableDatesOnPage(startsAt, stopsAt);
         // Best-effort refresh (only works when API is available)
@@ -116,19 +129,21 @@ export function useBooqableCart() {
           const btn = findProductButton(item.booqableId!);
           if (!btn) continue;
 
+          const clickTarget = findClickableInside(btn);
+
           // Try to let Booqable handle quantity in one click.
           // If Booqable ignores data-quantity, we fall back to repeated clicks below.
           btn.setAttribute('data-quantity', String(item.quantity));
 
           // Click once first.
-          (btn as HTMLDivElement).click();
+          clickTarget.click();
           addedCount += 1;
 
           // If quantity > 1, do best-effort repeated clicks (some shops require it)
           if (item.quantity > 1) {
             for (let i = 1; i < item.quantity; i++) {
               await new Promise((r) => setTimeout(r, 120));
-              (btn as HTMLDivElement).click();
+              clickTarget.click();
               addedCount += 1;
             }
           }

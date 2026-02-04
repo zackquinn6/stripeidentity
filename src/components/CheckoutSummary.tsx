@@ -455,7 +455,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {itemsAdded} items have been added to your Booqable cart. 
-                  Complete your checkout in the new tab that opened.
+                  You can complete checkout directly in the cart widget.
                 </p>
               </div>
               <Button 
