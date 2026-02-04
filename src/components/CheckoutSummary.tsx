@@ -29,6 +29,7 @@ import { useBooqableCart } from '@/hooks/useBooqableCart';
 import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
 import { booqableRefresh } from '@/lib/booqable/client';
 import BooqableEmbedStaging from './BooqableEmbedStaging';
+import BooqableScriptBottom from './BooqableScriptBottom';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -672,6 +673,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               data-booqable-cart
               className="min-h-[400px]"
             />
+            {/* Re-add booqable.js at the bottom of the checkout page (as requested) */}
+            <BooqableScriptBottom />
           </div>
         </div>
       )}
