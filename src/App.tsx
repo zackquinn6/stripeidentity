@@ -9,6 +9,7 @@ import Projects from "./pages/Projects";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AdminButton from "@/components/admin/AdminButton";
+import PoweredByFooter from "@/components/PoweredByFooter";
 import { useBooqable } from "@/hooks/use-booqable";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const AppContent = () => {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AdminButton />
+      <PoweredByFooter />
     </>
   );
 };
