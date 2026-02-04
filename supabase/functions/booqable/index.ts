@@ -364,14 +364,17 @@ serve(async (req) => {
         // Map variants with their own pricing
         const variants = (pg.products || []).map((p: Record<string, unknown>) => {
           const variantBasePriceInCents = Number(p.base_price_in_cents) || 0;
-          const variantFlatFeeInCents = Number(p.flat_fee_in_cents) || 0;
+          // Note: Booqable uses "flat_fee_price_in_cents" for variants (not "flat_fee_in_cents")
+          const variantFlatFeeInCents = Number(p.flat_fee_price_in_cents) || Number(p.flat_fee_in_cents) || 0;
           const variantPriceStructure = p.price_structure as { day?: number } | undefined;
           
-          // For sales items, use flat_fee if available
+          // For sales items, use flat_fee if available, otherwise base_price
           const variantSalePrice = (variantFlatFeeInCents > 0 ? variantFlatFeeInCents : variantBasePriceInCents) / 100;
           const variantDailyRate = isSalesItem 
             ? variantSalePrice 
             : (variantPriceStructure?.day ?? (variantBasePriceInCents / 100));
+          
+          console.log(`[Booqable] Variant ${p.id}: base_price_in_cents=${variantBasePriceInCents}, flat_fee_price_in_cents=${variantFlatFeeInCents}, calculated rate=${variantDailyRate}`);
           
           return {
             id: String(p.id || ''),
