@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      item_scaling_configs: {
+        Row: {
+          created_at: string
+          guidance: string | null
+          id: string
+          section_item_id: string
+          tile_size: string
+          units_per_100_sqft: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          guidance?: string | null
+          id?: string
+          section_item_id: string
+          tile_size: string
+          units_per_100_sqft?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          guidance?: string | null
+          id?: string
+          section_item_id?: string
+          tile_size?: string
+          units_per_100_sqft?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_scaling_configs_section_item_id_fkey"
+            columns: ["section_item_id"]
+            isOneToOne: false
+            referencedRelation: "section_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ordering_sections: {
         Row: {
           created_at: string

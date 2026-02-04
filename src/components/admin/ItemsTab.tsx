@@ -87,10 +87,10 @@ interface ItemsTabProps {
 }
 
 const TILE_SIZE_OPTIONS = [
-  { value: 'small', label: 'Small Tiles (< 6")' },
-  { value: 'medium', label: 'Medium Tiles (6" - 12")' },
-  { value: 'large', label: 'Large Format (> 12")' },
-  { value: 'all', label: 'All Tile Sizes' },
+  { value: 'small', label: 'Small (< 6")' },
+  { value: 'medium', label: 'Medium (6" - 12")' },
+  { value: 'large', label: 'Large (12" - 18")' },
+  { value: 'extra-large', label: 'XL Large Format (18"+)' },
 ];
 
 export default function ItemsTab({ sectionId, projectName, sectionName, sectionType }: ItemsTabProps) {
@@ -119,7 +119,16 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
     selection_guidance: '',
     scaling_tile_size: '',
     scaling_per_100_sqft: '',
-    scaling_guidance: ''
+    scaling_guidance: '',
+    // Per-tile-size scaling configs
+    'scaling_small_per_100': '',
+    'scaling_small_guidance': '',
+    'scaling_medium_per_100': '',
+    'scaling_medium_guidance': '',
+    'scaling_large_per_100': '',
+    'scaling_large_guidance': '',
+    'scaling_extra-large_per_100': '',
+    'scaling_extra-large_guidance': '',
   });
 
   const { data: booqableProducts, isLoading: isLoadingProducts, refetch: refetchProducts } = useBooqableProducts();
@@ -185,7 +194,15 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         selection_guidance: '',
         scaling_tile_size: '',
         scaling_per_100_sqft: '',
-        scaling_guidance: ''
+        scaling_guidance: '',
+        'scaling_small_per_100': '',
+        'scaling_small_guidance': '',
+        'scaling_medium_per_100': '',
+        'scaling_medium_guidance': '',
+        'scaling_large_per_100': '',
+        'scaling_large_guidance': '',
+        'scaling_extra-large_per_100': '',
+        'scaling_extra-large_guidance': '',
       });
 
       // If no variants, use the slug as the booqable_product_id
@@ -271,7 +288,15 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         selection_guidance: item.selection_guidance || '',
         scaling_tile_size: item.scaling_tile_size || '',
         scaling_per_100_sqft: item.scaling_per_100_sqft?.toString() || '',
-        scaling_guidance: item.scaling_guidance || ''
+        scaling_guidance: item.scaling_guidance || '',
+        'scaling_small_per_100': '',
+        'scaling_small_guidance': '',
+        'scaling_medium_per_100': '',
+        'scaling_medium_guidance': '',
+        'scaling_large_per_100': '',
+        'scaling_large_guidance': '',
+        'scaling_extra-large_per_100': '',
+        'scaling_extra-large_guidance': '',
       });
       // Fetch existing pricing comparisons for this item
       fetchPricingComparisons(item.id);
@@ -279,7 +304,7 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
       setEditingItem(null);
       setSelectedBooqableId('');
       setPricingComparisons([]);
-      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, default_quantity_essentials: 0, default_quantity_comprehensive: 0, is_visible: true, is_sales_item: false, selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '' });
+      setFormData({ name: '', description: '', daily_rate: 0, retail_price: 0, image_url: '', default_quantity: 0, default_quantity_essentials: 0, default_quantity_comprehensive: 0, is_visible: true, is_sales_item: false, selection_guidance: '', scaling_tile_size: '', scaling_per_100_sqft: '', scaling_guidance: '', 'scaling_small_per_100': '', 'scaling_small_guidance': '', 'scaling_medium_per_100': '', 'scaling_medium_guidance': '', 'scaling_large_per_100': '', 'scaling_large_guidance': '', 'scaling_extra-large_per_100': '', 'scaling_extra-large_guidance': '' });
     }
     setIsDialogOpen(true);
   };
@@ -657,54 +682,46 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               <div className="space-y-4 p-4 bg-secondary/50 rounded-lg border border-border">
                 <div className="flex items-center gap-2">
                   <Calculator className="h-4 w-4 text-primary" />
-                  <Label className="text-sm font-medium">Auto-Scaling Configuration</Label>
+                  <Label className="text-sm font-medium">Auto-Scaling Configuration (per Tile Size)</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Configure how this material scales based on project square footage
+                  Configure how this material scales for each tile size. Leave units at 0 if not applicable.
                 </p>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Applies to Tile Size</Label>
-                    <Select 
-                      value={formData.scaling_tile_size} 
-                      onValueChange={(v) => setFormData({ ...formData, scaling_tile_size: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select tile size..." />
-                      </SelectTrigger>
-                      <SelectContent className="z-[10002]">
-                        {TILE_SIZE_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Units per 100 sq ft</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.scaling_per_100_sqft}
-                      onChange={(e) => setFormData({ ...formData, scaling_per_100_sqft: e.target.value })}
-                      placeholder="e.g., 5"
-                    />
-                  </div>
+                {/* One row per tile size */}
+                <div className="space-y-3">
+                  {TILE_SIZE_OPTIONS.filter(opt => opt.value !== 'all').map((sizeOpt) => (
+                    <div key={sizeOpt.value} className="grid grid-cols-3 gap-3 items-end p-3 bg-background/50 rounded-lg">
+                      <div>
+                        <Label className="text-xs font-medium text-muted-foreground">{sizeOpt.label}</Label>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Units per 100 sq ft</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          className="h-8"
+                          value={String(formData[`scaling_${sizeOpt.value}_per_100` as keyof typeof formData] || '')}
+                          onChange={(e) => setFormData({ ...formData, [`scaling_${sizeOpt.value}_per_100`]: e.target.value })}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Guidance</Label>
+                        <Input
+                          className="h-8"
+                          value={String(formData[`scaling_${sizeOpt.value}_guidance` as keyof typeof formData] || '')}
+                          onChange={(e) => setFormData({ ...formData, [`scaling_${sizeOpt.value}_guidance`]: e.target.value })}
+                          placeholder="e.g., 1 bag per 20 sq ft"
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Scaling Guidance (shown to users)</Label>
-                  <Input
-                    value={formData.scaling_guidance}
-                    onChange={(e) => setFormData({ ...formData, scaling_guidance: e.target.value })}
-                    placeholder="e.g., 1 bag per 20 sq ft. Buy 10% extra for waste."
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Explains the calculation to help users understand quantities
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Set different scaling rates for each tile size. Small tiles may need more grout, large tiles more mortar, etc.
+                </p>
               </div>
             )}
             {/* Pricing from Booqable - read-only */}
