@@ -23,6 +23,10 @@ async function waitFor(condition: () => boolean, timeoutMs = 4000, intervalMs = 
   throw new Error('Timed out waiting for Booqable to be ready');
 }
 
+function hasBooqableButtons() {
+  return !!document.querySelector('.booqable-product-button');
+}
+
 function booqableRefresh() {
   const api = getBooqableApi();
   if (!api) return;
@@ -90,17 +94,20 @@ export function useBooqableCart() {
       console.log(`[useBooqableCart] Dates: ${startsAt} → ${stopsAt}`);
 
       try {
-        // Ensure the Booqable script is loaded (App uses useBooqable() but we still guard)
-        await waitFor(() => !!getBooqableApi());
+        // Some embeds don't expose window.Booqable immediately (or at all), but the
+        // rendered product buttons can still work. Proceed when either the API OR the
+        // button placeholders are present.
+        await waitFor(() => !!getBooqableApi() || hasBooqableButtons(), 12000);
 
         // Ensure our button placeholders are present in the DOM
         await waitFor(
           () => validItems.every((i) => !!i.booqableId && !!findProductButton(i.booqableId)),
-          4000
+          12000
         );
 
         // Set the rental period on the *current page* so the embedded widget uses it.
         setBooqableDatesOnPage(startsAt, stopsAt);
+        // Best-effort refresh (only works when API is available)
         booqableRefresh();
 
         let addedCount = 0;
