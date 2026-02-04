@@ -354,27 +354,75 @@ serve(async (req) => {
         
         // Parse group-level pricing
         const groupBasePriceInCents = Number(pg.base_price_in_cents) || 0;
-        const groupFlatFeeInCents = Number(pg.flat_fee_in_cents) || 0;
-        const groupPriceStructure = pg.price_structure as { day?: number } | undefined;
+        const groupFlatFeeInCents = Number(pg.flat_fee_in_cents) || Number(pg.flat_fee_price_in_cents) || 0;
+        
+        // Get price_tiles for tiered pricing (day 1, day 2+, etc.)
+        const groupPriceTiles = pg.price_tiles as Array<{ period?: string; quantity?: number; price?: number; multiplier?: number }> | undefined;
+        
+        // Extract day 1 and day 2+ rates from price_tiles if available
+        let groupDay1Rate = 0;
+        let groupDay2PlusRate = 0;
+        
+        if (Array.isArray(groupPriceTiles) && groupPriceTiles.length > 0) {
+          // Sort by quantity to get day 1 and day 2+
+          const sortedTiles = [...groupPriceTiles].sort((a, b) => (a.quantity || 0) - (b.quantity || 0));
+          
+          // First tile is typically day 1
+          if (sortedTiles[0]) {
+            groupDay1Rate = Number(sortedTiles[0].price) || 0;
+          }
+          // Second tile (if exists) is day 2+ or use multiplier from first
+          if (sortedTiles[1]) {
+            groupDay2PlusRate = Number(sortedTiles[1].price) || 0;
+          } else if (sortedTiles[0]?.multiplier) {
+            groupDay2PlusRate = (Number(sortedTiles[0].price) || 0) * (Number(sortedTiles[0].multiplier) || 1);
+          }
+          
+          console.log(`[Booqable] Group price_tiles found: day1=${groupDay1Rate}, day2+=${groupDay2PlusRate}`);
+        }
         
         // For sales items, use flat_fee if available, otherwise base_price
         const groupSalePrice = (groupFlatFeeInCents > 0 ? groupFlatFeeInCents : groupBasePriceInCents) / 100;
-        const groupDailyRate = isSalesItem ? groupSalePrice : (groupPriceStructure?.day ?? (groupBasePriceInCents / 100));
+        
+        // For rentals, use price_tiles if available, otherwise fall back to base_price
+        const effectiveDay1Rate = isSalesItem ? groupSalePrice : (groupDay1Rate > 0 ? groupDay1Rate : (groupBasePriceInCents / 100));
+        const effectiveDay2PlusRate = isSalesItem ? groupSalePrice : (groupDay2PlusRate > 0 ? groupDay2PlusRate : effectiveDay1Rate);
         
         // Map variants with their own pricing
         const variants = (pg.products || []).map((p: Record<string, unknown>) => {
           const variantBasePriceInCents = Number(p.base_price_in_cents) || 0;
           // Note: Booqable uses "flat_fee_price_in_cents" for variants (not "flat_fee_in_cents")
           const variantFlatFeeInCents = Number(p.flat_fee_price_in_cents) || Number(p.flat_fee_in_cents) || 0;
-          const variantPriceStructure = p.price_structure as { day?: number } | undefined;
+          
+          // Get variant-level price_tiles
+          const variantPriceTiles = p.price_tiles as Array<{ period?: string; quantity?: number; price?: number; multiplier?: number }> | undefined;
+          
+          let variantDay1Rate = 0;
+          let variantDay2PlusRate = 0;
+          
+          if (Array.isArray(variantPriceTiles) && variantPriceTiles.length > 0) {
+            const sortedTiles = [...variantPriceTiles].sort((a, b) => (a.quantity || 0) - (b.quantity || 0));
+            
+            if (sortedTiles[0]) {
+              variantDay1Rate = Number(sortedTiles[0].price) || 0;
+            }
+            if (sortedTiles[1]) {
+              variantDay2PlusRate = Number(sortedTiles[1].price) || 0;
+            } else if (sortedTiles[0]?.multiplier) {
+              variantDay2PlusRate = (Number(sortedTiles[0].price) || 0) * (Number(sortedTiles[0].multiplier) || 1);
+            }
+            
+            console.log(`[Booqable] Variant ${p.id} price_tiles: day1=${variantDay1Rate}, day2+=${variantDay2PlusRate}`);
+          }
           
           // For sales items, use flat_fee if available, otherwise base_price
           const variantSalePrice = (variantFlatFeeInCents > 0 ? variantFlatFeeInCents : variantBasePriceInCents) / 100;
-          const variantDailyRate = isSalesItem 
-            ? variantSalePrice 
-            : (variantPriceStructure?.day ?? (variantBasePriceInCents / 100));
           
-          console.log(`[Booqable] Variant ${p.id}: base_price_in_cents=${variantBasePriceInCents}, flat_fee_price_in_cents=${variantFlatFeeInCents}, calculated rate=${variantDailyRate}`);
+          // For rentals, prefer price_tiles, then base_price
+          const effectiveVarDay1Rate = isSalesItem ? variantSalePrice : (variantDay1Rate > 0 ? variantDay1Rate : (variantBasePriceInCents / 100));
+          const effectiveVarDay2PlusRate = isSalesItem ? variantSalePrice : (variantDay2PlusRate > 0 ? variantDay2PlusRate : effectiveVarDay1Rate);
+          
+          console.log(`[Booqable] Variant ${p.id}: base_price_in_cents=${variantBasePriceInCents}, flat_fee_price_in_cents=${variantFlatFeeInCents}, day1Rate=${effectiveVarDay1Rate}, day2PlusRate=${effectiveVarDay2PlusRate}`);
           
           return {
             id: String(p.id || ''),
@@ -382,8 +430,11 @@ serve(async (req) => {
             sku: String(p.sku || ''),
             variationValues: Array.isArray(p.variation_values) ? p.variation_values : [],
             quantity: Number(p.quantity) || 0,
-            // Variant-specific pricing
-            dailyRate: variantDailyRate,
+            // Tiered pricing
+            day1Rate: effectiveVarDay1Rate,
+            day2PlusRate: effectiveVarDay2PlusRate,
+            // Keep dailyRate for backwards compatibility (use day1 rate)
+            dailyRate: effectiveVarDay1Rate,
             imageUrl: String(p.photo_url || ''),
           };
         });
@@ -394,7 +445,11 @@ serve(async (req) => {
           name: String(pg.name || ''),
           description: String(pg.description || ''),
           imageUrl: String(pg.photo_url || ''),
-          dailyRate: groupDailyRate,
+          // Tiered pricing
+          day1Rate: effectiveDay1Rate,
+          day2PlusRate: effectiveDay2PlusRate,
+          // Keep dailyRate for backwards compatibility
+          dailyRate: effectiveDay1Rate,
           depositAmount: (Number(pg.deposit_in_cents) || 0) / 100,
           stockCount: Number(pg.stock_count) || 0,
           trackable: Boolean(pg.trackable),
@@ -405,7 +460,7 @@ serve(async (req) => {
           isSalesItem,
         };
 
-        console.log(`[Booqable] Product has ${variants.length} variants, hasVariations: ${productDetails.hasVariations}`);
+        console.log(`[Booqable] Product has ${variants.length} variants, hasVariations: ${productDetails.hasVariations}, day1Rate: ${productDetails.day1Rate}, day2PlusRate: ${productDetails.day2PlusRate}`);
 
         return new Response(
           JSON.stringify({ product: productDetails }),

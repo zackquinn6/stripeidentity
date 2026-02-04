@@ -54,6 +54,8 @@ interface ProductVariant {
   variationValues: string[];
   quantity: number;
   dailyRate?: number;
+  day1Rate?: number;
+  day2PlusRate?: number;
   imageUrl?: string;
 }
 
@@ -72,7 +74,7 @@ interface ProductDetails {
   variants: ProductVariant[];
   productType: string;
   isSalesItem: boolean;
-  // Tiered pricing from Booqable price structure
+  // Tiered pricing from Booqable price tiles
   day1Rate?: number;
   day2PlusRate?: number;
 }
@@ -168,15 +170,16 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
       setProductDetails(details);
       
       // Auto-populate form with product group info
+      // Default essentials and comprehensive quantities to 1
       setFormData({
         name: details.name,
         description: details.description || '',
-        daily_rate: details.dailyRate,
+        daily_rate: details.day1Rate ?? details.dailyRate,
         retail_price: 0,
         image_url: details.imageUrl || '',
         default_quantity: 0,
-        default_quantity_essentials: 0,
-        default_quantity_comprehensive: 0,
+        default_quantity_essentials: 1,
+        default_quantity_comprehensive: 1,
         is_visible: true,
         is_sales_item: details.isSalesItem || false,
         selection_guidance: '',
@@ -192,10 +195,16 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
         // Auto-select the first variant (whether there's 1 or many)
         const firstVariant = details.variants[0];
         setSelectedVariantId(firstVariant.id);
+        
+        // Use variant-specific day1 rate
+        const variantDay1Rate = firstVariant.day1Rate ?? firstVariant.dailyRate ?? details.day1Rate ?? details.dailyRate;
+        
         if (firstVariant.variationValues.length > 0) {
           setFormData(prev => ({
             ...prev,
-            name: `${details.name} - ${firstVariant.variationValues.join(', ')}`
+            name: `${details.name} - ${firstVariant.variationValues.join(', ')}`,
+            daily_rate: variantDay1Rate,
+            image_url: firstVariant.imageUrl || details.imageUrl || prev.image_url,
           }));
         }
       }
@@ -225,11 +234,13 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
           ? `${productDetails.name} - ${variant.variationValues.join(', ')}`
           : (variant.name || productDetails.name);
         
-        // Use variant-specific pricing and image if available
+        // Use variant-specific tiered pricing (day1Rate) and image if available
+        const variantDay1Rate = variant.day1Rate ?? variant.dailyRate ?? productDetails.day1Rate ?? productDetails.dailyRate;
+        
         setFormData(prev => ({
           ...prev,
           name: variantName,
-          daily_rate: variant.dailyRate ?? productDetails.dailyRate,
+          daily_rate: variantDay1Rate,
           image_url: variant.imageUrl || productDetails.imageUrl || prev.image_url,
         }));
       }
@@ -697,40 +708,65 @@ export default function ItemsTab({ sectionId, projectName, sectionName, sectionT
               </div>
             )}
             {/* Pricing from Booqable - read-only */}
-            {productDetails && !productDetails.isSalesItem && (
-              <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Booqable Pricing (read-only)</Label>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Day 1 Rate</p>
-                    <p className="text-lg font-semibold text-primary">
-                      ${productDetails.dailyRate.toFixed(2)}
-                    </p>
+            {productDetails && !productDetails.isSalesItem && (() => {
+              // Get the selected variant's pricing if a variant is selected
+              const selectedVariant = selectedVariantId 
+                ? productDetails.variants.find(v => v.id === selectedVariantId)
+                : null;
+              
+              const day1Rate = selectedVariant?.day1Rate ?? selectedVariant?.dailyRate ?? productDetails.day1Rate ?? productDetails.dailyRate;
+              const day2PlusRate = selectedVariant?.day2PlusRate ?? selectedVariant?.day1Rate ?? selectedVariant?.dailyRate ?? productDetails.day2PlusRate ?? productDetails.day1Rate ?? productDetails.dailyRate;
+              
+              return (
+                <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">
+                      Booqable Pricing (read-only)
+                      {selectedVariant && <span className="text-xs text-muted-foreground ml-1">- Variant</span>}
+                    </Label>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Day 2+ Rate</p>
-                    <p className="text-lg font-semibold text-primary">
-                      ${productDetails.dailyRate.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/day</span>
-                    </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Day 1 Rate</p>
+                      <p className="text-lg font-semibold text-primary">
+                        ${day1Rate.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Day 2+ Rate</p>
+                      <p className="text-lg font-semibold text-primary">
+                        ${day2PlusRate.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/day</span>
+                      </p>
+                    </div>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Rates are pulled directly from Booqable price tiles and cannot be edited here.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Rates are pulled directly from Booqable and cannot be edited here.
-                </p>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Sales item pricing - read-only */}
-            {productDetails?.isSalesItem && (
-              <div className="space-y-2 p-4 bg-secondary/50 rounded-lg border border-secondary">
-                <Label className="text-sm font-medium">Sale Price</Label>
-                <p className="text-lg font-semibold text-primary">
-                  ${productDetails.dailyRate.toFixed(2)}
-                </p>
-              </div>
-            )}
+            {productDetails?.isSalesItem && (() => {
+              // Get the selected variant's pricing if a variant is selected
+              const selectedVariant = selectedVariantId 
+                ? productDetails.variants.find(v => v.id === selectedVariantId)
+                : null;
+              
+              const salePrice = selectedVariant?.dailyRate ?? productDetails.dailyRate;
+              
+              return (
+                <div className="space-y-2 p-4 bg-secondary/50 rounded-lg border border-secondary">
+                  <Label className="text-sm font-medium">
+                    Sale Price
+                    {selectedVariant && <span className="text-xs text-muted-foreground ml-1">- Variant</span>}
+                  </Label>
+                  <p className="text-lg font-semibold text-primary">
+                    ${salePrice.toFixed(2)}
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Package Quantity Configuration - only for equipment sections */}
             {sectionType === 'equipment' && (
