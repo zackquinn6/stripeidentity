@@ -570,10 +570,13 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </Accordion>
           </div>
 
-          {/* Add-on product button */}
+          {/* Add-on product buttons */}
           <div className="p-4 border rounded-lg bg-muted/50">
             <p className="text-sm font-medium mb-3">Need additional tools?</p>
-            <div className="booqable-product-button" data-id="channel-lock-pliers"></div>
+            <div className="flex flex-wrap gap-3">
+              <div className="booqable-product-button" data-id="channel-lock-pliers"></div>
+              <div className="booqable-product-button" data-id="headlamp"></div>
+            </div>
           </div>
 
           {/* Inline validation error */}
