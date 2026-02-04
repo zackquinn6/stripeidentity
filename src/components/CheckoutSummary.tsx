@@ -23,7 +23,7 @@ import {
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import { useBooqableCart } from '@/hooks/useBooqableCart';
-import { useToast } from '@/hooks/use-toast';
+import BooqableEmbedStaging from './BooqableEmbedStaging';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -39,7 +39,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [showDetails, setShowDetails] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
-  const { toast } = useToast();
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Auto-start generation on mount and handle progress
   useEffect(() => {
@@ -78,9 +78,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const rentals = items.filter(item => !item.isConsumable && !item.isSalesItem && item.quantity > 0);
   const salesItems = items.filter(item => (item.isConsumable || item.isSalesItem));
 
-  // Render Booqable product-button placeholders on the checkout screen so the
-  // cart-sync hook can click them even though the item list UI is no longer shown.
-  const booqableButtonItems = rentals.filter((i) => !!i.booqableId && i.quantity > 0);
+  // All items for the hidden staging container (uses resolved UUIDs)
+  const allItems = items.filter(item => item.quantity > 0);
 
   const consumableTotal = salesItems.filter(i => i.quantity > 0).reduce((sum, item) => sum + (item.dailyRate * item.quantity), 0);
   
@@ -203,12 +202,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Hidden Booqable buttons: required for programmatic add-to-cart */}
-          <div className="sr-only" aria-hidden="true">
-            {booqableButtonItems.map((item) => (
-              <div key={item.id} className="booqable-product-button" data-id={item.booqableId} />
-            ))}
-          </div>
+          {/* Hidden Booqable embed staging area with resolved UUIDs */}
+          <BooqableEmbedStaging items={allItems} />
 
           {/* Pricing breakdown */}
           <div className="space-y-4">
@@ -468,58 +463,48 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               </Button>
             </div>
           ) : (
-            <Button 
-              size="lg" 
-              className="w-full"
-              disabled={isCreating || !startDate}
-              onClick={async () => {
-                if (!startDate) {
-                  toast({
-                    title: "Start date required",
-                    description: "Please select a rental start date",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-
-                const booqableItems = rentals.filter(item => item.booqableId);
-                if (booqableItems.length === 0) {
-                  toast({
-                    title: "No items available",
-                    description: "None of the selected items can be booked online. Please contact us for availability.",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-
-                try {
-                  const endDate = addDays(startDate, rentalDays);
-                  const result = await addToCart(rentals, startDate, endDate);
-                  
-                  if (result.success) {
-                    toast({
-                       title: "Cart updated!",
-                       description: `${result.itemsAdded} items added to the cart widget.`,
-                    });
-                  }
-                } catch {
-                  toast({
-                    title: "Failed to open cart",
-                    description: "There was an error. Please try again.",
-                    variant: "destructive"
-                  });
-                }
-              }}
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Opening Cart...
-                </>
-              ) : (
-                'Proceed to Checkout'
+            <>
+              {/* Inline validation error */}
+              {validationError && (
+                <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <p>{validationError}</p>
+                </div>
               )}
-            </Button>
+              
+              <Button 
+                size="lg" 
+                className="w-full"
+                disabled={isCreating || !startDate}
+                onClick={async () => {
+                  setValidationError(null);
+                  
+                  if (!startDate) {
+                    setValidationError('Please select a rental start date');
+                    return;
+                  }
+
+                  const booqableItems = rentals.filter(item => item.booqableId);
+                  if (booqableItems.length === 0) {
+                    setValidationError('None of the selected items can be booked online. Please contact us for availability.');
+                    return;
+                  }
+
+                  const endDate = addDays(startDate, rentalDays);
+                  await addToCart(rentals, startDate, endDate);
+                  // Success/error states are handled inline by orderError and itemsAdded
+                }}
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Syncing Cart...
+                  </>
+                ) : (
+                  'Proceed to Checkout'
+                )}
+              </Button>
+            </>
           )}
         </CardContent>
       </Card>
