@@ -27,7 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useBooqable } from '@/hooks/use-booqable';
 import { useBooqableOrder } from '@/hooks/useBooqableOrder';
 import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
-import { booqableRefresh, getBooqableApi } from '@/lib/booqable/client';
+import { booqableRefresh } from '@/lib/booqable/client';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -657,6 +657,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       {/* Navigate to checkout on same page when order is created */}
       {cartSynced && checkoutUrl && (
         <div className="mt-8 animate-fade-in">
+<<<<<<< HEAD
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-2xl font-bold mb-4">Redirecting to Checkout...</h2>
             <p className="text-muted-foreground mb-4">Please complete your payment on the checkout page.</p>
