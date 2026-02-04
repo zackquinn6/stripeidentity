@@ -25,6 +25,7 @@ import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
 import BooqableCheckoutEmbed from './BooqableCheckoutEmbed';
 import { supabase } from '@/integrations/supabase/client';
+import { useBooqable } from '@/hooks/use-booqable';
 
 interface CheckoutSummaryProps {
   items: RentalItem[];
@@ -35,6 +36,9 @@ interface CheckoutSummaryProps {
 
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
+  // Initialize Booqable script for add-on product buttons
+  useBooqable();
+  
   const [showDetails, setShowDetails] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -535,6 +539,12 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
+          </div>
+
+          {/* Add-on product button */}
+          <div className="p-4 border rounded-lg bg-muted/50">
+            <p className="text-sm font-medium mb-3">Need additional tools?</p>
+            <div className="booqable-product-button" data-id="channel-lock-pliers"></div>
           </div>
 
           {/* Inline validation error */}
