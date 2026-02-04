@@ -63,10 +63,34 @@ async function verifyAuth(req: Request, requireAuth: boolean = true): Promise<{ 
         )
       };
     }
-    // Guest checkout allowed
+    // Guest checkout allowed - no auth header
     return { userId: null, error: null };
   }
 
+  // If auth header exists but auth is not required, try to verify but don't fail if invalid
+  if (!requireAuth) {
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: authHeader } } }
+      );
+
+      const { data: { user }, error } = await supabaseClient.auth.getUser();
+      
+      if (!error && user) {
+        // Valid authenticated user
+        return { userId: user.id, error: null };
+      }
+      // Invalid token but guest checkout allowed - return null userId
+      return { userId: null, error: null };
+    } catch (e) {
+      // Any error during verification - allow guest checkout
+      return { userId: null, error: null };
+    }
+  }
+
+  // Auth is required - verify and return error if invalid
   const supabaseClient = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -76,18 +100,14 @@ async function verifyAuth(req: Request, requireAuth: boolean = true): Promise<{ 
   const { data: { user }, error } = await supabaseClient.auth.getUser();
   
   if (error || !user) {
-    if (requireAuth) {
-      console.error('[Booqable] Auth verification failed:', error?.message);
-      return {
-        userId: null,
-        error: new Response(
-          JSON.stringify({ error: 'Invalid or expired token' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      };
-    }
-    // Guest checkout allowed even if token is invalid
-    return { userId: null, error: null };
+    console.error('[Booqable] Auth verification failed:', error?.message);
+    return {
+      userId: null,
+      error: new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    };
   }
 
   return { userId: user.id, error: null };
@@ -220,12 +240,18 @@ serve(async (req) => {
       }
       console.log(`[Booqable] Authenticated user ${userId} for action: ${action}`);
     } else if (action === 'create-order' || action === 'get-checkout-url') {
-      // Guest checkout is allowed - log if user is authenticated but don't require it
-      const { userId } = await verifyAuth(req, false);
-      if (userId) {
-        console.log(`[Booqable] Authenticated user ${userId} creating order (guest checkout also allowed)`);
-      } else {
-        console.log(`[Booqable] Guest checkout - creating order without authentication`);
+      // Guest checkout is allowed - try to get user if authenticated, but don't require it
+      // Silently handle any auth errors since guest checkout is allowed
+      try {
+        const { userId } = await verifyAuth(req, false);
+        if (userId) {
+          console.log(`[Booqable] Authenticated user ${userId} creating order (guest checkout also allowed)`);
+        } else {
+          console.log(`[Booqable] Guest checkout - creating order without authentication`);
+        }
+      } catch (error) {
+        // Ignore any auth errors for guest checkout actions
+        console.log(`[Booqable] Guest checkout - ignoring auth error:`, error);
       }
     }
 
