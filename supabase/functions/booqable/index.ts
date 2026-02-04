@@ -231,13 +231,14 @@ serve(async (req) => {
     const { action, ...params } = await req.json();
     console.log(`[Booqable] Action: ${action}`, params);
 
-    // Check authentication for protected actions (guest checkout is allowed for create-order and get-checkout-url)
-    // IMPORTANT: For guest checkout actions, we completely bypass auth checks to avoid any 401 errors
-    if (action === 'create-order' || action === 'get-checkout-url') {
-      // Guest checkout is allowed - optionally check for authenticated user but NEVER return an error
+    // CRITICAL: For guest checkout actions, completely skip ALL auth checks
+    // This prevents any 401 errors from being returned, even if invalid tokens are sent
+    const isGuestCheckoutAction = action === 'create-order' || action === 'get-checkout-url';
+    
+    if (isGuestCheckoutAction) {
+      // Guest checkout - log auth status but NEVER return errors
       const authHeader = req.headers.get('Authorization');
       if (authHeader?.startsWith('Bearer ')) {
-        // Try to get user if token is present, but silently ignore any errors
         try {
           const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
@@ -246,17 +247,25 @@ serve(async (req) => {
           );
           const { data: { user }, error } = await supabaseClient.auth.getUser();
           if (!error && user) {
-            console.log(`[Booqable] Authenticated user ${user.id} creating order (guest checkout also allowed)`);
+            console.log(`[Booqable] Authenticated user ${user.id} for ${action} (guest checkout also allowed)`);
           } else {
-            console.log(`[Booqable] Guest checkout - invalid/expired token ignored, proceeding as guest`);
+            console.log(`[Booqable] Guest checkout for ${action} - invalid/expired token ignored`);
           }
         } catch (e) {
-          // Completely ignore any errors - guest checkout is always allowed
-          console.log(`[Booqable] Guest checkout - auth check failed, proceeding as guest`);
+          console.log(`[Booqable] Guest checkout for ${action} - auth check failed, proceeding as guest`);
         }
       } else {
-        console.log(`[Booqable] Guest checkout - no auth header, proceeding as guest`);
+        console.log(`[Booqable] Guest checkout for ${action} - no auth header`);
       }
+      // Continue to switch statement - do NOT check AUTH_REQUIRED_ACTIONS
+    } else if (AUTH_REQUIRED_ACTIONS.includes(action)) {
+      // Actions that require authentication
+      const { userId, error } = await verifyAuth(req, true);
+      if (error) {
+        console.log(`[Booqable] Authentication failed for action: ${action}`);
+        return error;
+      }
+      console.log(`[Booqable] Authenticated user ${userId} for action: ${action}`);
     } else if (AUTH_REQUIRED_ACTIONS.includes(action)) {
       // Actions that require authentication
       const { userId, error } = await verifyAuth(req, true);
