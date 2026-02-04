@@ -115,11 +115,13 @@ const BooqableCheckoutEmbed = ({
         throw new Error('No items could be added to the order. Check Booqable product mappings.');
       }
 
-      // Step 3: Get checkout URL
+      // Step 3: Book/reserve the order and get checkout URL
+      // Per Booqable guidance: order must be booked before checkout is available
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('booqable', {
         body: {
           action: 'get-checkout-url',
           order_id: orderId,
+          book_order: true, // Reserve stock and enable checkout
         }
       });
 
