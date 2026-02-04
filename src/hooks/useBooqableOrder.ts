@@ -43,13 +43,20 @@ export function useBooqableOrder() {
         return hasExplicitBooqableId && hasQuantity;
       });
 
-      // Step 1: Create the order (even if no Booqable items - user may want to track dates)
-      console.log('[useBooqableOrder] Creating order...');
+      // Step 1: Create the order with all items included
+      // Per Booqable guidance: Create order with all items and dates in one call
+      const lines = booqableItems.map(item => ({
+        product_id: item.booqableId!,
+        quantity: item.quantity,
+      }));
+
+      console.log(`[useBooqableOrder] Creating order with ${lines.length} items...`);
       const { data: orderData, error: orderError } = await supabase.functions.invoke('booqable', {
         body: {
           action: 'create-order',
           starts_at: format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"),
           stops_at: format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"),
+          lines: lines,
         }
       });
 
@@ -62,42 +69,15 @@ export function useBooqableOrder() {
         throw new Error('Order created but no ID returned');
       }
 
-      console.log(`[useBooqableOrder] Order created: ${orderId}`);
+      console.log(`[useBooqableOrder] Order created: ${orderId} with ${lines.length} items`);
 
-      // Step 2: Add line items (only items with explicit Booqable mappings)
-      let successCount = 0;
-      let failCount = 0;
-      
-      for (const item of booqableItems) {
-        console.log(`[useBooqableOrder] Adding line: ${item.name} (${item.booqableId}) x${item.quantity}`);
-        const { data: lineData, error: lineError } = await supabase.functions.invoke('booqable', {
-          body: {
-            action: 'add-line',
-            order_id: orderId,
-            product_id: item.booqableId,
-            quantity: item.quantity,
-          }
-        });
-
-        if (lineError || lineData?.error) {
-          console.warn(`[useBooqableOrder] Could not add ${item.name}:`, lineError || lineData?.error);
-          failCount++;
-        } else {
-          successCount++;
-        }
-      }
-      
-      console.log(`[useBooqableOrder] Added ${successCount} items, ${failCount} failed`);
-      
-      if (booqableItems.length > 0 && successCount === 0) {
-        console.warn('[useBooqableOrder] No items could be added to order - check Booqable product mappings');
-      }
-
-      // Step 3: Get checkout URL
+      // Step 2: Book/reserve the order and get checkout URL
+      // Per Booqable guidance: Order must be booked before checkout is available
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('booqable', {
         body: {
           action: 'get-checkout-url',
           order_id: orderId,
+          book_order: true, // Reserve stock and enable checkout
         }
       });
 

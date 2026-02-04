@@ -468,7 +468,7 @@ serve(async (req) => {
       }
 
       case 'create-order': {
-        // Per Booqable guidance: Use API v4 to create order with all items in one call
+        // Per Booqable guidance: Create order with all items and rental period
         // Then book items and redirect to checkout
         const { starts_at, stops_at, customer_id, lines } = params;
         
@@ -508,6 +508,61 @@ serve(async (req) => {
         const order = data.data || data.order;
         const orderId = order?.id;
         console.log(`[Booqable] Order created (v4): ${orderId}`, JSON.stringify(order).slice(0, 300));
+
+        // If lines were provided, add them to the order
+        // Per Booqable guidance: Book items to the order using the booking endpoint
+        if (Array.isArray(lines) && lines.length > 0) {
+          console.log(`[Booqable] Adding ${lines.length} items to order ${orderId}...`);
+          let successCount = 0;
+          let failCount = 0;
+
+          for (const line of lines) {
+            const { product_id, quantity } = line;
+            if (!product_id || !quantity) {
+              console.warn(`[Booqable] Skipping invalid line:`, line);
+              failCount++;
+              continue;
+            }
+
+            // Resolve slug to UUID if needed
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(product_id);
+            let actualProductId = product_id;
+
+            if (!isUUID) {
+              console.log(`[Booqable] Looking up product by slug: ${product_id}`);
+              const foundId = await findProductGroupIdBySlug(String(product_id));
+              if (foundId) {
+                actualProductId = foundId;
+                console.log(`[Booqable] Found product ID: ${actualProductId} for slug: ${product_id}`);
+              } else {
+                console.warn(`[Booqable] No product found for slug: ${product_id}`);
+                failCount++;
+                continue;
+              }
+            }
+
+            // Add line using API v1 (booking endpoint)
+            const lineData = {
+              line: {
+                product_group_id: actualProductId,
+                quantity: quantity || 1,
+              }
+            };
+
+            const lineResponse = await booqableRequest(`/orders/${orderId}/lines`, 'POST', lineData, 'v1');
+            const lineResponseText = await lineResponse.text();
+
+            if (!lineResponse.ok) {
+              console.error(`[Booqable] Error adding line for product ${actualProductId}:`, lineResponseText);
+              failCount++;
+            } else {
+              successCount++;
+              console.log(`[Booqable] Added line: product ${actualProductId}, quantity ${quantity}`);
+            }
+          }
+
+          console.log(`[Booqable] Added ${successCount} items, ${failCount} failed to order ${orderId}`);
+        }
 
         return new Response(
           JSON.stringify({ order: { id: orderId, ...order?.attributes, ...order } }),

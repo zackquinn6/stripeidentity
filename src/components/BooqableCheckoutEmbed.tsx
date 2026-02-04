@@ -65,12 +65,21 @@ const BooqableCheckoutEmbed = ({
 
       console.log('[BooqableCheckoutEmbed] Creating order with dates:', startsAt, '→', stopsAt);
 
-      // Step 1: Create the order
+      // Step 1: Create the order with all items included
+      // Per Booqable guidance: Create order with all items and dates in one call
+      const lines = rentalItems.map(item => ({
+        product_id: item.booqableId!,
+        quantity: item.quantity,
+      }));
+
+      console.log(`[BooqableCheckoutEmbed] Creating order with ${lines.length} items...`);
+
       const { data: orderData, error: orderError } = await supabase.functions.invoke('booqable', {
         body: {
           action: 'create-order',
           starts_at: startsAt,
           stops_at: stopsAt,
+          lines: lines,
         }
       });
 
@@ -83,39 +92,9 @@ const BooqableCheckoutEmbed = ({
         throw new Error('Order created but no ID returned');
       }
 
-      console.log(`[BooqableCheckoutEmbed] Order created: ${orderId}`);
+      console.log(`[BooqableCheckoutEmbed] Order created: ${orderId} with ${lines.length} items`);
 
-      // Step 2: Add line items for each rental item
-      let successCount = 0;
-      let failCount = 0;
-      
-      for (const item of rentalItems) {
-        console.log(`[BooqableCheckoutEmbed] Adding line: ${item.name} (${item.booqableId}) x${item.quantity}`);
-        
-        const { data: lineData, error: lineError } = await supabase.functions.invoke('booqable', {
-          body: {
-            action: 'add-line',
-            order_id: orderId,
-            product_id: item.booqableId,
-            quantity: item.quantity,
-          }
-        });
-
-        if (lineError || lineData?.error) {
-          console.warn(`[BooqableCheckoutEmbed] Could not add ${item.name}:`, lineError || lineData?.error);
-          failCount++;
-        } else {
-          successCount++;
-        }
-      }
-
-      console.log(`[BooqableCheckoutEmbed] Added ${successCount} items, ${failCount} failed`);
-
-      if (rentalItems.length > 0 && successCount === 0) {
-        throw new Error('No items could be added to the order. Check Booqable product mappings.');
-      }
-
-      // Step 3: Book/reserve the order and get checkout URL
+      // Step 2: Book/reserve the order and get checkout URL
       // Per Booqable guidance: order must be booked before checkout is available
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('booqable', {
         body: {
