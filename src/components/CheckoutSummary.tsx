@@ -192,44 +192,48 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       
       console.log('[CheckoutSummary] Order created:', orderId);
       
-      // Step 2: Get order line items and add them to the cart widget
-      // Fetch the order's line items from the API
-      const { data: orderLinesData, error: linesError } = await supabase.functions.invoke('booqable', {
-        body: {
-          action: 'get-order-lines',
-          order_id: orderId,
-        }
-      });
-
-      if (linesError || !orderLinesData?.lines) {
-        console.warn('[CheckoutSummary] Could not fetch order lines, will try direct cart API:', linesError);
-      } else {
-        console.log('[CheckoutSummary] Fetched', orderLinesData.lines.length, 'line items from order');
+      // Step 2: Add items directly to cart widget using Booqable JavaScript API
+      // Use the original items we already have - no need to fetch from order
+      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      
+      // Update URL with dates first
+      const url = new URL(window.location.href);
+      url.searchParams.set('starts_at', startsAt);
+      url.searchParams.set('stops_at', stopsAt);
+      window.history.replaceState({}, '', url.toString());
+      
+      // Wait for Booqable API to be available (with timeout)
+      let api = getBooqableApi();
+      let attempts = 0;
+      const maxAttempts = 20;
+      
+      while (!api && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        api = getBooqableApi();
+        attempts++;
       }
-
-      // Step 3: Add items to cart widget using Booqable JavaScript API
-      const api = getBooqableApi();
+      
+      if (!api) {
+        console.warn('[CheckoutSummary] Booqable API not available after waiting');
+        // Still set cart synced - URL params might work
+        setCartSynced(true);
+        return;
+      }
+      
       const cart = api?.cart;
       
-      if (api && cart) {
+      if (cart) {
         console.log('[CheckoutSummary] Booqable API and cart available');
         console.log('[CheckoutSummary] Available cart methods:', Object.keys(cart).filter(k => typeof cart[k] === 'function'));
-        
-        // Set rental period first
-        const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
-        const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
-        
-        // Update URL with dates
-        const url = new URL(window.location.href);
-        url.searchParams.set('starts_at', startsAt);
-        url.searchParams.set('stops_at', stopsAt);
-        window.history.replaceState({}, '', url.toString());
+        console.log('[CheckoutSummary] Cart object:', cart);
         
         // Try to set dates via API
         const dateMethods = [
           { name: 'cart.setTimespan', fn: cart.setTimespan },
           { name: 'cart.setPeriod', fn: cart.setPeriod },
           { name: 'cart.setDates', fn: cart.setDates },
+          { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
         ];
         
         for (const method of dateMethods) {
@@ -239,18 +243,24 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
               console.log(`[CheckoutSummary] Set dates via ${method.name}`);
               break;
             } catch (e) {
-              // continue
+              try {
+                method.fn({ starts_at: startsAt, stops_at: stopsAt });
+                console.log(`[CheckoutSummary] Set dates via ${method.name} (object)`);
+                break;
+              } catch (e2) {
+                // continue
+              }
             }
           }
         }
         
-        // Add items to cart using the order's line items or original items
-        const itemsToAdd = orderLinesData?.lines || booqableItems.map(item => ({
+        // Prepare items for cart - use product_group_id format
+        const itemsToAdd = booqableItems.map(item => ({
           product_group_id: item.booqableId,
           quantity: item.quantity,
         }));
         
-        console.log('[CheckoutSummary] Adding', itemsToAdd.length, 'items to cart via API');
+        console.log('[CheckoutSummary] Adding', itemsToAdd.length, 'items to cart via API:', itemsToAdd);
         
         // Try batch add methods first
         const batchMethods = [
@@ -264,7 +274,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           if (typeof method.fn === 'function') {
             try {
               method.fn(itemsToAdd);
-              console.log(`[CheckoutSummary] Added items via ${method.name}`);
+              console.log(`[CheckoutSummary] ✅ Added items via ${method.name}`);
               itemsAdded = true;
               break;
             } catch (e) {
@@ -275,27 +285,35 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         
         // Fallback: add items one by one
         if (!itemsAdded) {
+          console.log('[CheckoutSummary] Batch methods failed, trying per-item methods');
           const perItemMethods = [
             { name: 'cart.addItem', fn: cart.addItem },
             { name: 'cart.addProductGroup', fn: cart.addProductGroup },
             { name: 'cart.add', fn: cart.add },
           ];
           
+          let successCount = 0;
           for (const item of itemsToAdd) {
-            const productId = item.product_group_id || item.product_id;
-            const quantity = item.quantity || 1;
+            const productId = item.product_group_id;
+            const quantity = item.quantity;
             
+            let itemAdded = false;
             for (const method of perItemMethods) {
               if (typeof method.fn === 'function') {
                 try {
+                  // Try string, quantity format
                   method.fn(productId, quantity);
-                  console.log(`[CheckoutSummary] Added item via ${method.name}:`, productId, quantity);
+                  console.log(`[CheckoutSummary] ✅ Added item via ${method.name}:`, productId, quantity);
+                  itemAdded = true;
+                  successCount++;
                   break;
                 } catch (e) {
-                  // Try object format
                   try {
+                    // Try object format
                     method.fn({ product_group_id: productId, quantity });
-                    console.log(`[CheckoutSummary] Added item via ${method.name} (object):`, productId, quantity);
+                    console.log(`[CheckoutSummary] ✅ Added item via ${method.name} (object):`, productId, quantity);
+                    itemAdded = true;
+                    successCount++;
                     break;
                   } catch (e2) {
                     // continue
@@ -303,7 +321,13 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                 }
               }
             }
+            
+            if (!itemAdded) {
+              console.warn(`[CheckoutSummary] ❌ Could not add item:`, productId, quantity);
+            }
           }
+          
+          console.log(`[CheckoutSummary] Added ${successCount}/${itemsToAdd.length} items to cart`);
         }
         
         // Refresh cart to update display
@@ -312,12 +336,9 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
           console.log('[CheckoutSummary] Refreshed Booqable widget');
         }, 500);
       } else {
-        console.warn('[CheckoutSummary] Booqable API or cart not available, cannot add items directly');
-        // Fallback: Update URL with order_id and hope widget picks it up
-        const url = new URL(window.location.href);
+        console.warn('[CheckoutSummary] Booqable cart not available');
+        // Fallback: Update URL with order_id and dates
         url.searchParams.set('order_id', orderId);
-        url.searchParams.set('starts_at', format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
-        url.searchParams.set('stops_at', format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
         window.history.replaceState({}, '', url.toString());
         
         setTimeout(() => {
