@@ -101,6 +101,83 @@ function canReliablyDetectCartChange(snapshot: { signature: string }): boolean {
 }
 
 /**
+ * Best-effort attempt to add items via the booqable.js cart API (if exposed).
+ * This is far more reliable than clicking hidden DOM placeholders when available.
+ */
+function tryAddItemsViaCartApi(
+  items: Array<{ productGroupId: string; quantity: number; name: string }>
+): { ok: boolean; appliedVia: string[] } {
+  const api = getBooqableApi();
+  const cart = api?.cart;
+  const appliedVia: string[] = [];
+  if (!cart) return { ok: false, appliedVia };
+
+  // Try batched APIs first
+  const batchCandidates: Array<{ name: string; fn: unknown }>
+    = [
+      { name: 'cart.addItems', fn: cart?.addItems },
+      { name: 'cart.addLineItems', fn: cart?.addLineItems },
+      { name: 'cart.addLines', fn: cart?.addLines },
+    ];
+
+  for (const c of batchCandidates) {
+    if (typeof c.fn !== 'function') continue;
+    try {
+      (c.fn as any)(
+        items.map((i) => ({ product_group_id: i.productGroupId, quantity: i.quantity }))
+      );
+      appliedVia.push(c.name);
+      return { ok: true, appliedVia };
+    } catch {
+      // continue
+    }
+  }
+
+  // Fallback: per-item APIs with multiple method name candidates
+  const perItemCandidates: Array<{ name: string; fn: (cart: any) => unknown }>
+    = [
+      { name: 'cart.addItem', fn: (c) => c?.addItem },
+      { name: 'cart.addProductGroup', fn: (c) => c?.addProductGroup },
+      { name: 'cart.addProduct', fn: (c) => c?.addProduct },
+      { name: 'cart.add', fn: (c) => c?.add },
+    ];
+
+  let anySucceeded = false;
+  for (const item of items) {
+    let added = false;
+    for (const cand of perItemCandidates) {
+      const fn = cand.fn(cart);
+      if (typeof fn !== 'function') continue;
+      try {
+        // Most variants accept (productGroupId, quantity)
+        (fn as any)(item.productGroupId, item.quantity);
+        appliedVia.push(`${cand.name}(${item.name})`);
+        added = true;
+        anySucceeded = true;
+        break;
+      } catch {
+        // Try object payload
+        try {
+          (fn as any)({ product_group_id: item.productGroupId, quantity: item.quantity });
+          appliedVia.push(`${cand.name}:object(${item.name})`);
+          added = true;
+          anySucceeded = true;
+          break;
+        } catch {
+          // continue
+        }
+      }
+    }
+
+    if (!added && DEBUG) {
+      console.warn('[useBooqableCart] cart API could not add item:', item);
+    }
+  }
+
+  return { ok: anySucceeded, appliedVia };
+}
+
+/**
  * Find product button placeholder by slug or UUID.
  * Our staging container sets both data-id (UUID) and data-slug.
  */
@@ -212,8 +289,28 @@ export function useBooqableCart() {
         const beforeSnapshot = getCartSnapshot();
         if (DEBUG) console.log('[useBooqableCart] Before snapshot:', beforeSnapshot);
 
+        // Attempt to use the booqable.js cart API (if present) using resolved product group IDs
+        const cartApiItems = validItems
+          .map((item) => {
+            const placeholder = findProductButton(item.booqableId!);
+            const productGroupId = placeholder?.getAttribute('data-id') || item.booqableId!;
+            return { productGroupId, quantity: item.quantity, name: item.name };
+          })
+          .filter((x) => !!x.productGroupId);
+
+        const cartApiAttempt = tryAddItemsViaCartApi(cartApiItems);
+        if (cartApiAttempt.ok) {
+          if (DEBUG) console.log('[useBooqableCart] Added items via cart API:', cartApiAttempt.appliedVia);
+          booqableRefresh();
+        }
+
         let clickedCount = 0;
         const failedItems: string[] = [];
+
+        // If cart API succeeded, skip brittle DOM clicking and proceed to verification.
+        if (cartApiAttempt.ok) {
+          clickedCount = validItems.length;
+        } else {
 
         for (const item of validItems) {
           const slug = item.booqableId!;
@@ -253,6 +350,8 @@ export function useBooqableCart() {
 
           clickedCount++;
           if (DEBUG) console.log(`[useBooqableCart] Clicked ${item.quantity}x for: ${item.name}`);
+        }
+
         }
 
         if (clickedCount === 0) {

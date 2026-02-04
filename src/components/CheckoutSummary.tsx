@@ -23,7 +23,8 @@ import {
 } from 'lucide-react';
 import { RentalItem } from '@/types/rental';
 import { format, addDays } from 'date-fns';
-import BooqableCheckoutEmbed from './BooqableCheckoutEmbed';
+import { useBooqableCart } from '@/hooks/useBooqableCart';
+import BooqableEmbedStaging from './BooqableEmbedStaging';
 import { supabase } from '@/integrations/supabase/client';
 
 interface CheckoutSummaryProps {
@@ -36,10 +37,11 @@ interface CheckoutSummaryProps {
 
 const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSummaryProps) => {
   const [showDetails, setShowDetails] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const { isLoading: isCreating, error: orderError, itemsAdded, addToCart, reset } = useBooqableCart();
   // Fetch app options for delivery/pickup visibility
   const { data: checkoutSettings } = useQuery({
     queryKey: ['app-options', 'checkout_settings'],
@@ -128,18 +130,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     { icon: RefreshCw, text: 'No storage, no depreciation, no clutter' },
     { icon: Package, text: 'Everything curated for your specific project' },
   ];
-
-  // Show embedded checkout when user clicks proceed
-  if (showCheckout && startDate) {
-    return (
-      <BooqableCheckoutEmbed
-        items={items}
-        startDate={startDate}
-        rentalDays={rentalDays}
-        onBack={() => setShowCheckout(false)}
-      />
-    );
-  }
 
   // Benefits page (shown first)
   if (!showDetails) {
@@ -236,6 +226,8 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Hidden Booqable embed staging area with resolved UUIDs */}
+          <BooqableEmbedStaging items={items.filter((i) => i.quantity > 0)} />
 
           {/* Pricing breakdown */}
           <div className="space-y-4">
@@ -536,38 +528,78 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             </Accordion>
           </div>
 
-          {/* Inline validation error */}
-          {validationError && (
-            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <p>{validationError}</p>
+          {orderError && (
+            <div className="flex items-center gap-2 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm">{orderError}</p>
+              <Button variant="ghost" size="sm" onClick={reset} className="ml-auto">
+                Retry
+              </Button>
             </div>
           )}
-          
-          <Button 
-            size="lg" 
-            className="w-full"
-            disabled={!startDate}
-            onClick={() => {
-              setValidationError(null);
-              
-              if (!startDate) {
-                setValidationError('Please select a rental start date');
-                return;
-              }
 
-              const booqableItems = rentals.filter(item => item.booqableId);
-              if (booqableItems.length === 0) {
-                setValidationError('None of the selected items can be booked online. Please contact us for availability.');
-                return;
-              }
+          {itemsAdded > 0 ? (
+            <div className="space-y-3">
+              <div className="p-4 bg-success/10 border border-success/30 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-success">
+                  <Check className="w-5 h-5" />
+                  <p className="font-semibold">Cart Updated!</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {itemsAdded} items have been added to your Booqable cart.
+                  You can complete checkout directly in the cart widget.
+                </p>
+              </div>
+              <Button size="lg" className="w-full" onClick={onBack}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Ordering
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Inline validation error */}
+              {validationError && (
+                <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <p>{validationError}</p>
+                </div>
+              )}
 
-              // Transition to embedded checkout
-              setShowCheckout(true);
-            }}
-          >
-            Proceed to Checkout
-          </Button>
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={isCreating || !startDate}
+                onClick={async () => {
+                  setValidationError(null);
+
+                  if (!startDate) {
+                    setValidationError('Please select a rental start date');
+                    return;
+                  }
+
+                  const booqableItems = rentals.filter((item) => item.booqableId);
+                  if (booqableItems.length === 0) {
+                    setValidationError(
+                      'None of the selected items can be booked online. Please contact us for availability.'
+                    );
+                    return;
+                  }
+
+                  const endDate = addDays(startDate, rentalDays);
+                  await addToCart(rentals, startDate, endDate);
+                }}
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Syncing Cart...
+                  </>
+                ) : (
+                  'Proceed to Checkout'
+                )}
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
