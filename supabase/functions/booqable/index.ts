@@ -739,6 +739,52 @@ serve(async (req) => {
         );
       }
 
+      case 'get-order-lines': {
+        // Get line items from an order so they can be added to the cart widget
+        const { order_id } = params;
+        
+        if (!order_id) {
+          return new Response(
+            JSON.stringify({ error: 'order_id is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const orderResponse = await booqableRequest(`/orders/${order_id}`, 'GET', undefined, 'v4');
+        if (!orderResponse.ok) {
+          const errorText = await orderResponse.text();
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch order', details: errorText }),
+            { status: orderResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const orderData = await orderResponse.json();
+        const order = orderData.data;
+        
+        // Extract line items/bookings from the order
+        // Booqable v4 API structure: order.relationships.bookings or order.attributes.bookings
+        const bookings = order?.relationships?.bookings?.data || 
+                        order?.attributes?.bookings || 
+                        orderData.included?.filter((item: any) => item.type === 'bookings') || [];
+        
+        const lines = bookings.map((booking: any) => {
+          const bookingData = booking.attributes || booking;
+          return {
+            product_group_id: bookingData.product_group_id || booking.relationships?.product_group?.data?.id,
+            product_id: bookingData.product_id || booking.relationships?.product?.data?.id,
+            quantity: bookingData.quantity || 1,
+          };
+        }).filter((line: any) => line.product_group_id || line.product_id);
+
+        console.log(`[Booqable] Extracted ${lines.length} line items from order ${order_id}`);
+
+        return new Response(
+          JSON.stringify({ lines, order_id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'get-checkout-url': {
         const { order_id, book_order, starts_at, stops_at } = params;
         

@@ -192,94 +192,138 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       
       console.log('[CheckoutSummary] Order created:', orderId);
       
-      // Step 2: Load the order into the cart widget
-      // Extract order token from checkout URL if available
-      let orderToken: string | null = null;
-      try {
-        const checkoutUrlObj = new URL(checkoutUrl);
-        orderToken = checkoutUrlObj.searchParams.get('token') || checkoutUrlObj.searchParams.get('order_token') || orderId;
-      } catch (e) {
-        orderToken = orderId;
-      }
-      
-      console.log('[CheckoutSummary] Order token:', orderToken);
-      
-      // Method 1: Update URL with order_id and token parameters
-      const url = new URL(window.location.href);
-      url.searchParams.set('order_id', orderId);
-      if (orderToken && orderToken !== orderId) {
-        url.searchParams.set('token', orderToken);
-      }
-      url.searchParams.set('starts_at', format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
-      url.searchParams.set('stops_at', format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
-      window.history.replaceState({}, '', url.toString());
-      console.log('[CheckoutSummary] Updated URL with order_id and dates');
-      
-      // Method 2: Try to use Booqable JavaScript API to load the order
-      const api = getBooqableApi();
-      if (api) {
-        console.log('[CheckoutSummary] Booqable API available, attempting to load order');
-        console.log('[CheckoutSummary] API methods:', Object.keys(api).slice(0, 20));
-        if (api.cart) {
-          console.log('[CheckoutSummary] Cart methods:', Object.keys(api.cart).slice(0, 20));
+      // Step 2: Get order line items and add them to the cart widget
+      // Fetch the order's line items from the API
+      const { data: orderLinesData, error: linesError } = await supabase.functions.invoke('booqable', {
+        body: {
+          action: 'get-order-lines',
+          order_id: orderId,
         }
+      });
+
+      if (linesError || !orderLinesData?.lines) {
+        console.warn('[CheckoutSummary] Could not fetch order lines, will try direct cart API:', linesError);
+      } else {
+        console.log('[CheckoutSummary] Fetched', orderLinesData.lines.length, 'line items from order');
+      }
+
+      // Step 3: Add items to cart widget using Booqable JavaScript API
+      const api = getBooqableApi();
+      const cart = api?.cart;
+      
+      if (api && cart) {
+        console.log('[CheckoutSummary] Booqable API and cart available');
+        console.log('[CheckoutSummary] Available cart methods:', Object.keys(cart).filter(k => typeof cart[k] === 'function'));
         
-        // Try various methods to load the order into the cart
-        const loadMethods = [
-          { name: 'api.loadOrder', fn: api.loadOrder, params: [orderId] },
-          { name: 'api.loadOrder (token)', fn: api.loadOrder, params: [orderToken] },
-          { name: 'api.cart.loadOrder', fn: api.cart?.loadOrder, params: [orderId] },
-          { name: 'api.cart.loadOrder (token)', fn: api.cart?.loadOrder, params: [orderToken] },
-          { name: 'api.cart.setOrderId', fn: api.cart?.setOrderId, params: [orderId] },
-          { name: 'api.setOrderId', fn: api.setOrderId, params: [orderId] },
-          { name: 'api.load', fn: api.load, params: [{ order_id: orderId }] },
-          { name: 'api.load (token)', fn: api.load, params: [{ token: orderToken }] },
-          { name: 'api.cart.load', fn: api.cart?.load, params: [{ order_id: orderId }] },
-          { name: 'api.cart.load (token)', fn: api.cart?.load, params: [{ token: orderToken }] },
-          { name: 'api.init', fn: api.init, params: [{ order_id: orderId }] },
-          { name: 'api.trigger(order-loaded)', fn: api.trigger, params: ['order-loaded', { order_id: orderId }] },
+        // Set rental period first
+        const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+        const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+        
+        // Update URL with dates
+        const url = new URL(window.location.href);
+        url.searchParams.set('starts_at', startsAt);
+        url.searchParams.set('stops_at', stopsAt);
+        window.history.replaceState({}, '', url.toString());
+        
+        // Try to set dates via API
+        const dateMethods = [
+          { name: 'cart.setTimespan', fn: cart.setTimespan },
+          { name: 'cart.setPeriod', fn: cart.setPeriod },
+          { name: 'cart.setDates', fn: cart.setDates },
         ];
         
-        let loaded = false;
-        for (const method of loadMethods) {
+        for (const method of dateMethods) {
           if (typeof method.fn === 'function') {
             try {
-              method.fn(...method.params);
-              console.log(`[CheckoutSummary] Called ${method.name} with params:`, method.params);
-              loaded = true;
-              // Don't break - try multiple methods
+              method.fn(startsAt, stopsAt);
+              console.log(`[CheckoutSummary] Set dates via ${method.name}`);
+              break;
+            } catch (e) {
+              // continue
+            }
+          }
+        }
+        
+        // Add items to cart using the order's line items or original items
+        const itemsToAdd = orderLinesData?.lines || booqableItems.map(item => ({
+          product_group_id: item.booqableId,
+          quantity: item.quantity,
+        }));
+        
+        console.log('[CheckoutSummary] Adding', itemsToAdd.length, 'items to cart via API');
+        
+        // Try batch add methods first
+        const batchMethods = [
+          { name: 'cart.addItems', fn: cart.addItems },
+          { name: 'cart.addLineItems', fn: cart.addLineItems },
+          { name: 'cart.addLines', fn: cart.addLines },
+        ];
+        
+        let itemsAdded = false;
+        for (const method of batchMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              method.fn(itemsToAdd);
+              console.log(`[CheckoutSummary] Added items via ${method.name}`);
+              itemsAdded = true;
+              break;
             } catch (e) {
               console.log(`[CheckoutSummary] ${method.name} failed:`, e);
             }
           }
         }
         
-        if (loaded) {
-          console.log('[CheckoutSummary] Attempted to load order via API methods');
-        }
-      } else {
-        console.warn('[CheckoutSummary] Booqable API not available');
-      }
-      
-      // Method 3: Trigger multiple refresh attempts with delays
-      const refreshAttempts = [100, 500, 1000, 2000];
-      refreshAttempts.forEach((delay, index) => {
-        setTimeout(() => {
-          booqableRefresh();
-          console.log(`[CheckoutSummary] Refresh attempt ${index + 1} after ${delay}ms`);
+        // Fallback: add items one by one
+        if (!itemsAdded) {
+          const perItemMethods = [
+            { name: 'cart.addItem', fn: cart.addItem },
+            { name: 'cart.addProductGroup', fn: cart.addProductGroup },
+            { name: 'cart.add', fn: cart.add },
+          ];
           
-          // Also try dispatching custom events
-          if (index === refreshAttempts.length - 1) {
-            try {
-              document.dispatchEvent(new CustomEvent('booqable:order-loaded', { detail: { order_id: orderId } }));
-              window.dispatchEvent(new CustomEvent('booqable:refresh'));
-              console.log('[CheckoutSummary] Dispatched custom events');
-            } catch (e) {
-              // ignore
+          for (const item of itemsToAdd) {
+            const productId = item.product_group_id || item.product_id;
+            const quantity = item.quantity || 1;
+            
+            for (const method of perItemMethods) {
+              if (typeof method.fn === 'function') {
+                try {
+                  method.fn(productId, quantity);
+                  console.log(`[CheckoutSummary] Added item via ${method.name}:`, productId, quantity);
+                  break;
+                } catch (e) {
+                  // Try object format
+                  try {
+                    method.fn({ product_group_id: productId, quantity });
+                    console.log(`[CheckoutSummary] Added item via ${method.name} (object):`, productId, quantity);
+                    break;
+                  } catch (e2) {
+                    // continue
+                  }
+                }
+              }
             }
           }
-        }, delay);
-      });
+        }
+        
+        // Refresh cart to update display
+        setTimeout(() => {
+          booqableRefresh();
+          console.log('[CheckoutSummary] Refreshed Booqable widget');
+        }, 500);
+      } else {
+        console.warn('[CheckoutSummary] Booqable API or cart not available, cannot add items directly');
+        // Fallback: Update URL with order_id and hope widget picks it up
+        const url = new URL(window.location.href);
+        url.searchParams.set('order_id', orderId);
+        url.searchParams.set('starts_at', format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
+        url.searchParams.set('stops_at', format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"));
+        window.history.replaceState({}, '', url.toString());
+        
+        setTimeout(() => {
+          booqableRefresh();
+        }, 500);
+      }
       
       setCartSynced(true);
       console.log('[CheckoutSummary] Order loaded into cart widget successfully');
