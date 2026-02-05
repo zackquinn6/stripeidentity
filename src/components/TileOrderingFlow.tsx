@@ -346,26 +346,114 @@ const TileOrderingFlow = ({
     // Don't sync if checkout summary is shown (it handles its own sync)
     if (showCheckout) return;
     
-    const api = getBooqableApi();
-    if (!api) {
-      // Booqable not ready yet, will retry on next render
-      return;
-    }
-
     // Set rental dates if available
     if (startDate && endDate) {
       const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
       const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
       
-      console.log('[TileOrderingFlow] Setting rental period:', { startsAt, stopsAt });
-      const appliedVia = applyRentalPeriod(startsAt, stopsAt);
-      console.log('[TileOrderingFlow] Rental period applied via:', appliedVia);
+      console.log('[TileOrderingFlow] ========================================');
+      console.log('[TileOrderingFlow] Setting rental period');
+      console.log('[TileOrderingFlow] Start Date:', startDate);
+      console.log('[TileOrderingFlow] End Date:', endDate);
+      console.log('[TileOrderingFlow] Formatted startsAt:', startsAt);
+      console.log('[TileOrderingFlow] Formatted stopsAt:', stopsAt);
       
-      // Refresh cart to update display
-      setTimeout(() => {
-        booqableRefresh();
-        console.log('[TileOrderingFlow] Refreshed Booqable widget');
-      }, 300);
+      // Method 1: Update URL parameters (most reliable for widget)
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('starts_at', startsAt);
+        url.searchParams.set('stops_at', stopsAt);
+        window.history.replaceState({}, '', url.toString());
+        console.log('[TileOrderingFlow] ✅ Updated URL params:', url.toString());
+      } catch (e) {
+        console.error('[TileOrderingFlow] ❌ Failed to update URL:', e);
+      }
+      
+      // Method 2: Try Booqable API methods
+      const syncViaApi = () => {
+        const api = getBooqableApi();
+        if (!api) {
+          console.log('[TileOrderingFlow] Booqable API not available yet, will retry...');
+          setTimeout(syncViaApi, 500);
+          return;
+        }
+        
+        console.log('[TileOrderingFlow] Booqable API available, trying date methods...');
+        console.log('[TileOrderingFlow] API keys:', Object.keys(api).slice(0, 20));
+        
+        const cart = api?.cart;
+        if (cart) {
+          console.log('[TileOrderingFlow] Cart object available, keys:', Object.keys(cart).slice(0, 20));
+        }
+        
+        // Try all known date-setting methods
+        const methods = [
+          { name: 'cart.setTimespan', fn: cart?.setTimespan },
+          { name: 'cart.setTimeSpan', fn: cart?.setTimeSpan },
+          { name: 'cart.setPeriod', fn: cart?.setPeriod },
+          { name: 'cart.setDates', fn: cart?.setDates },
+          { name: 'cart.setRentalPeriod', fn: cart?.setRentalPeriod },
+          { name: 'api.setTimespan', fn: api?.setTimespan },
+          { name: 'api.setPeriod', fn: api?.setPeriod },
+          { name: 'api.setDates', fn: api?.setDates },
+        ];
+        
+        let methodUsed = false;
+        for (const method of methods) {
+          if (typeof method.fn === 'function') {
+            try {
+              // Try (startsAt, stopsAt) format
+              method.fn(startsAt, stopsAt);
+              console.log(`[TileOrderingFlow] ✅ Called ${method.name}(startsAt, stopsAt)`);
+              methodUsed = true;
+              break;
+            } catch (e) {
+              try {
+                // Try object format
+                method.fn({ starts_at: startsAt, stops_at: stopsAt });
+                console.log(`[TileOrderingFlow] ✅ Called ${method.name}({starts_at, stops_at})`);
+                methodUsed = true;
+                break;
+              } catch (e2) {
+                console.log(`[TileOrderingFlow] ❌ ${method.name} failed:`, e2);
+              }
+            }
+          }
+        }
+        
+        if (!methodUsed) {
+          console.warn('[TileOrderingFlow] ⚠️ No date-setting methods found on Booqable API');
+        }
+        
+        // Trigger refresh/events
+        if (api.refresh) {
+          api.refresh();
+          console.log('[TileOrderingFlow] ✅ Called api.refresh()');
+        }
+        if (api.trigger) {
+          api.trigger('page-change');
+          api.trigger('refresh');
+          api.trigger('date-change');
+          console.log('[TileOrderingFlow] ✅ Triggered events: page-change, refresh, date-change');
+        }
+        
+        // Also try setting on cartData if it exists
+        if (api.cartData) {
+          try {
+            api.cartData.starts_at = startsAt;
+            api.cartData.stops_at = stopsAt;
+            console.log('[TileOrderingFlow] ✅ Set cartData.starts_at and cartData.stops_at');
+          } catch (e) {
+            console.log('[TileOrderingFlow] Could not set cartData:', e);
+          }
+        }
+      };
+      
+      // Try API methods immediately and with retries
+      syncViaApi();
+      setTimeout(syncViaApi, 500);
+      setTimeout(syncViaApi, 1000);
+      setTimeout(syncViaApi, 2000);
     }
   }, [startDate, endDate, showCheckout]);
 
