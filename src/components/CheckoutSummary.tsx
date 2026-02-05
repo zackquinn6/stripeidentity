@@ -73,6 +73,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     const enhanceButtons = () => {
       const api = getBooqableApi();
       if (!api) {
+        console.log('[CheckoutSummary] Booqable API not available yet, retrying...');
         // Retry if API not ready
         setTimeout(enhanceButtons, 200);
         return;
@@ -81,38 +82,89 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       // Find all product buttons in the "Need additional tools?" section
       const buttons = document.querySelectorAll('.booqable-product-button[data-id]');
       if (buttons.length === 0) {
+        console.log('[CheckoutSummary] No product buttons found in DOM yet, retrying...');
         // Buttons not in DOM yet, retry
         setTimeout(enhanceButtons, 200);
         return;
       }
 
       console.log(`[CheckoutSummary] Found ${buttons.length} product buttons to enhance`);
+      console.log('[CheckoutSummary] Button details:', Array.from(buttons).map(btn => ({
+        dataId: btn.getAttribute('data-id'),
+        dataSlug: btn.getAttribute('data-slug'),
+        className: btn.className,
+        hasChildren: btn.children.length > 0,
+        innerHTML: btn.innerHTML.substring(0, 100),
+      })));
+
+      console.log('[CheckoutSummary] Booqable API available:', {
+        hasApi: !!api,
+        apiKeys: Object.keys(api).slice(0, 20),
+        hasScan: typeof api.scan === 'function',
+        hasRefresh: typeof api.refresh === 'function',
+        hasEnhance: typeof api.enhance === 'function',
+        hasTrigger: typeof api.trigger === 'function',
+      });
 
       // Try multiple enhancement methods
+      let methodsCalled = 0;
       if (typeof api.scan === 'function') {
-        api.scan();
-        console.log('[CheckoutSummary] Called api.scan()');
+        try {
+          api.scan();
+          console.log('[CheckoutSummary] ✅ Called api.scan()');
+          methodsCalled++;
+        } catch (e) {
+          console.error('[CheckoutSummary] ❌ api.scan() failed:', e);
+        }
       }
       if (typeof api.refresh === 'function') {
-        api.refresh();
-        console.log('[CheckoutSummary] Called api.refresh()');
+        try {
+          api.refresh();
+          console.log('[CheckoutSummary] ✅ Called api.refresh()');
+          methodsCalled++;
+        } catch (e) {
+          console.error('[CheckoutSummary] ❌ api.refresh() failed:', e);
+        }
       }
       if (typeof api.enhance === 'function') {
-        api.enhance();
-        console.log('[CheckoutSummary] Called api.enhance()');
+        try {
+          api.enhance();
+          console.log('[CheckoutSummary] ✅ Called api.enhance()');
+          methodsCalled++;
+        } catch (e) {
+          console.error('[CheckoutSummary] ❌ api.enhance() failed:', e);
+        }
+      }
+      if (typeof api.trigger === 'function') {
+        try {
+          api.trigger('refresh');
+          api.trigger('dom-change');
+          console.log('[CheckoutSummary] ✅ Called api.trigger()');
+          methodsCalled++;
+        } catch (e) {
+          console.error('[CheckoutSummary] ❌ api.trigger() failed:', e);
+        }
       }
       
       // Also trigger refresh via our helper
-      booqableRefresh();
+      try {
+        booqableRefresh();
+        console.log('[CheckoutSummary] ✅ Called booqableRefresh()');
+      } catch (e) {
+        console.error('[CheckoutSummary] ❌ booqableRefresh() failed:', e);
+      }
       
       // Dispatch custom events that Booqable might listen for
       try {
         document.dispatchEvent(new CustomEvent('booqable:refresh'));
         document.dispatchEvent(new CustomEvent('booqable:dom-change'));
         window.dispatchEvent(new CustomEvent('booqable:refresh'));
+        console.log('[CheckoutSummary] ✅ Dispatched custom events');
       } catch (e) {
-        // ignore
+        console.error('[CheckoutSummary] ❌ Custom events failed:', e);
       }
+
+      console.log(`[CheckoutSummary] Enhancement complete. Called ${methodsCalled} API methods.`);
     };
 
     // Start enhancement after a short delay to ensure DOM is ready
@@ -120,12 +172,14 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     const timeout2 = setTimeout(enhanceButtons, 500);
     const timeout3 = setTimeout(enhanceButtons, 1000);
     const timeout4 = setTimeout(enhanceButtons, 2000);
+    const timeout5 = setTimeout(enhanceButtons, 3000);
 
     return () => {
       clearTimeout(timeout1);
       clearTimeout(timeout2);
       clearTimeout(timeout3);
       clearTimeout(timeout4);
+      clearTimeout(timeout5);
     };
   }, [isIdMapLoading, showDetails]);
 
