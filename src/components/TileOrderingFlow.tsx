@@ -386,7 +386,31 @@ const TileOrderingFlow = ({
           console.log('[TileOrderingFlow] Cart object available, keys:', Object.keys(cart).slice(0, 20));
         }
         
-        // Try all known date-setting methods
+        // Method 1: Try setCartData (available in the API)
+        if (typeof api.setCartData === 'function') {
+          try {
+            api.setCartData({
+              starts_at: startsAt,
+              stops_at: stopsAt,
+            });
+            console.log('[TileOrderingFlow] ✅ Called api.setCartData({starts_at, stops_at})');
+          } catch (e) {
+            console.warn('[TileOrderingFlow] ❌ api.setCartData failed:', e);
+          }
+        }
+        
+        // Method 2: Try setting cartData directly
+        if (api.cartData) {
+          try {
+            api.cartData.starts_at = startsAt;
+            api.cartData.stops_at = stopsAt;
+            console.log('[TileOrderingFlow] ✅ Set cartData.starts_at and cartData.stops_at directly');
+          } catch (e) {
+            console.log('[TileOrderingFlow] Could not set cartData:', e);
+          }
+        }
+        
+        // Method 3: Try all known date-setting methods
         const methods = [
           { name: 'cart.setTimespan', fn: cart?.setTimespan },
           { name: 'cart.setTimeSpan', fn: cart?.setTimeSpan },
@@ -421,10 +445,6 @@ const TileOrderingFlow = ({
           }
         }
         
-        if (!methodUsed) {
-          console.warn('[TileOrderingFlow] ⚠️ No date-setting methods found on Booqable API');
-        }
-        
         // Trigger refresh/events
         if (api.refresh) {
           api.refresh();
@@ -435,17 +455,6 @@ const TileOrderingFlow = ({
           api.trigger('refresh');
           api.trigger('date-change');
           console.log('[TileOrderingFlow] ✅ Triggered events: page-change, refresh, date-change');
-        }
-        
-        // Also try setting on cartData if it exists
-        if (api.cartData) {
-          try {
-            api.cartData.starts_at = startsAt;
-            api.cartData.stops_at = stopsAt;
-            console.log('[TileOrderingFlow] ✅ Set cartData.starts_at and cartData.stops_at');
-          } catch (e) {
-            console.log('[TileOrderingFlow] Could not set cartData:', e);
-          }
         }
       };
       

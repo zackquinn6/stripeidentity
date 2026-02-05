@@ -87,9 +87,35 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       }
       
       console.log('[CheckoutSummary] Booqable API available, setting dates...');
+      console.log('[CheckoutSummary] API methods:', Object.keys(api).filter(k => typeof api[k] === 'function').slice(0, 20));
+      
       const cart = api?.cart;
       
-      // Try all known date-setting methods
+      // Method 1: Try setCartData (available in the API)
+      if (typeof api.setCartData === 'function') {
+        try {
+          api.setCartData({
+            starts_at: startsAt,
+            stops_at: stopsAt,
+          });
+          console.log('[CheckoutSummary] ✅ Called api.setCartData({starts_at, stops_at})');
+        } catch (e) {
+          console.warn('[CheckoutSummary] ❌ api.setCartData failed:', e);
+        }
+      }
+      
+      // Method 2: Try setting cartData directly
+      if (api.cartData) {
+        try {
+          api.cartData.starts_at = startsAt;
+          api.cartData.stops_at = stopsAt;
+          console.log('[CheckoutSummary] ✅ Set cartData.starts_at and cartData.stops_at directly');
+        } catch (e) {
+          console.warn('[CheckoutSummary] ❌ Could not set cartData:', e);
+        }
+      }
+      
+      // Method 3: Try all known date-setting methods
       const methods = [
         { name: 'cart.setTimespan', fn: cart?.setTimespan },
         { name: 'cart.setTimeSpan', fn: cart?.setTimeSpan },
@@ -122,7 +148,7 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         }
       }
       
-      if (!methodUsed) {
+      if (!methodUsed && !api.setCartData && !api.cartData) {
         console.warn('[CheckoutSummary] ⚠️ No date-setting methods found on Booqable API');
       }
       
