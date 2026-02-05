@@ -30,6 +30,16 @@ const Index = () => {
         <LogIn className="w-3 h-3 mr-1" />
         Admin
       </Button>
+
+      {/* Test button - bottom right */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate('/test')}
+        className="fixed bottom-4 right-4 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+      >
+        Test
+      </Button>
     </div>
   );
 };

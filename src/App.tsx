@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Projects from "./pages/Projects";
 import Auth from "./pages/Auth";
+import Test from "./pages/Test";
 import NotFound from "./pages/NotFound";
 import AdminButton from "@/components/admin/AdminButton";
 import PoweredByFooter from "@/components/PoweredByFooter";
@@ -24,6 +25,7 @@ const AppContent = () => {
           <Route path="/" element={<Index />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/test" element={<Test />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
