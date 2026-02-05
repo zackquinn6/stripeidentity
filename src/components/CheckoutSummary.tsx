@@ -846,6 +846,11 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
                       className="booqable-product-button"
                       data-id={resolvedId}
                       data-slug={slug}
+                      style={{
+                        minWidth: '200px',
+                        minHeight: '40px',
+                        display: 'inline-block',
+                      }}
                     />
                   );
                 })}
