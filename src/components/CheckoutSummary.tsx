@@ -65,6 +65,70 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
     return () => clearTimeout(t);
   }, [isIdMapLoading]);
 
+  // Explicitly enhance product buttons when they're rendered in the "Need additional tools?" section
+  useEffect(() => {
+    if (isIdMapLoading || !showDetails) return;
+    
+    // Wait for buttons to be in DOM, then enhance them
+    const enhanceButtons = () => {
+      const api = getBooqableApi();
+      if (!api) {
+        // Retry if API not ready
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      // Find all product buttons in the "Need additional tools?" section
+      const buttons = document.querySelectorAll('.booqable-product-button[data-id]');
+      if (buttons.length === 0) {
+        // Buttons not in DOM yet, retry
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      console.log(`[CheckoutSummary] Found ${buttons.length} product buttons to enhance`);
+
+      // Try multiple enhancement methods
+      if (typeof api.scan === 'function') {
+        api.scan();
+        console.log('[CheckoutSummary] Called api.scan()');
+      }
+      if (typeof api.refresh === 'function') {
+        api.refresh();
+        console.log('[CheckoutSummary] Called api.refresh()');
+      }
+      if (typeof api.enhance === 'function') {
+        api.enhance();
+        console.log('[CheckoutSummary] Called api.enhance()');
+      }
+      
+      // Also trigger refresh via our helper
+      booqableRefresh();
+      
+      // Dispatch custom events that Booqable might listen for
+      try {
+        document.dispatchEvent(new CustomEvent('booqable:refresh'));
+        document.dispatchEvent(new CustomEvent('booqable:dom-change'));
+        window.dispatchEvent(new CustomEvent('booqable:refresh'));
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    // Start enhancement after a short delay to ensure DOM is ready
+    const timeout1 = setTimeout(enhanceButtons, 100);
+    const timeout2 = setTimeout(enhanceButtons, 500);
+    const timeout3 = setTimeout(enhanceButtons, 1000);
+    const timeout4 = setTimeout(enhanceButtons, 2000);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+      clearTimeout(timeout4);
+    };
+  }, [isIdMapLoading, showDetails]);
+
   // Use BooqableOrder to create order, then load it into cart widget
   const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
   // Fetch app options for delivery/pickup visibility
