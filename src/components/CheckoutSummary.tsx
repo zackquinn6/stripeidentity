@@ -43,8 +43,6 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   // Date: 2024-02-04
   // This version creates an order via API and loads it into the cart widget
   // ========================================
-  console.log('🚀 [CheckoutSummary v4.0] Component loaded - Order-based cart population');
-  console.log('🚀 [CheckoutSummary v4.0] Creating order via API and loading into cart widget');
   
   // Initialize Booqable script for add-on product buttons
   useBooqable();
@@ -57,6 +55,88 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
   const [progress, setProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [cartSynced, setCartSynced] = useState(false);
+
+  // Set rental dates in URL and widget when component loads or dates change
+  useEffect(() => {
+    if (!startDate) return;
+    
+    const endDate = addDays(startDate, rentalDays);
+    const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+    const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+    
+    console.log('[CheckoutSummary] Setting rental dates in URL:', { startsAt, stopsAt });
+    
+    // Update URL with dates
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('starts_at', startsAt);
+      url.searchParams.set('stops_at', stopsAt);
+      window.history.replaceState({}, '', url.toString());
+      console.log('[CheckoutSummary] ✅ Updated URL with dates:', url.toString());
+    } catch (e) {
+      console.error('[CheckoutSummary] ❌ Failed to update URL:', e);
+    }
+    
+    // Try to set dates via Booqable API
+    const setDatesViaApi = () => {
+      const api = getBooqableApi();
+      if (!api) {
+        console.log('[CheckoutSummary] Booqable API not ready, will retry...');
+        setTimeout(setDatesViaApi, 500);
+        return;
+      }
+      
+      console.log('[CheckoutSummary] Booqable API available, setting dates...');
+      const cart = api?.cart;
+      
+      // Try all known date-setting methods
+      const methods = [
+        { name: 'cart.setTimespan', fn: cart?.setTimespan },
+        { name: 'cart.setTimeSpan', fn: cart?.setTimeSpan },
+        { name: 'cart.setPeriod', fn: cart?.setPeriod },
+        { name: 'cart.setDates', fn: cart?.setDates },
+        { name: 'cart.setRentalPeriod', fn: cart?.setRentalPeriod },
+        { name: 'api.setTimespan', fn: api?.setTimespan },
+        { name: 'api.setPeriod', fn: api?.setPeriod },
+        { name: 'api.setDates', fn: api?.setDates },
+      ];
+      
+      let methodUsed = false;
+      for (const method of methods) {
+        if (typeof method.fn === 'function') {
+          try {
+            method.fn(startsAt, stopsAt);
+            console.log(`[CheckoutSummary] ✅ Called ${method.name}(startsAt, stopsAt)`);
+            methodUsed = true;
+            break;
+          } catch (e) {
+            try {
+              method.fn({ starts_at: startsAt, stops_at: stopsAt });
+              console.log(`[CheckoutSummary] ✅ Called ${method.name}({starts_at, stops_at})`);
+              methodUsed = true;
+              break;
+            } catch (e2) {
+              // continue
+            }
+          }
+        }
+      }
+      
+      if (!methodUsed) {
+        console.warn('[CheckoutSummary] ⚠️ No date-setting methods found on Booqable API');
+      }
+      
+      // Refresh widget to pick up URL changes
+      booqableRefresh();
+      console.log('[CheckoutSummary] ✅ Refreshed Booqable widget');
+    };
+    
+    // Try immediately and with retries
+    setDatesViaApi();
+    setTimeout(setDatesViaApi, 500);
+    setTimeout(setDatesViaApi, 1000);
+    setTimeout(setDatesViaApi, 2000);
+  }, [startDate, rentalDays]);
 
   // Nudge the library after the add-on placeholders render with resolved IDs.
   useEffect(() => {
