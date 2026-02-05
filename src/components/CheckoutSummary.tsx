@@ -835,6 +835,63 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
         </CardContent>
       </Card>
 
+      {/* Sander product button at bottom of checkout page */}
+      <SanderProductButton />
+    </div>
+  );
+};
+
+// Separate component to handle Booqable button enhancement with useEffect
+const SanderProductButton = () => {
+  useEffect(() => {
+    // Wait for Booqable to be available, then enhance the button
+    const enhanceButton = () => {
+      const api = getBooqableApi();
+      if (api) {
+        // Try multiple methods to ensure button is enhanced
+        if (typeof api.scan === 'function') {
+          setTimeout(() => api.scan(), 100);
+        }
+        if (typeof api.refresh === 'function') {
+          setTimeout(() => api.refresh(), 200);
+        }
+        if (typeof api.enhance === 'function') {
+          setTimeout(() => api.enhance(), 300);
+        }
+        // Also trigger a general refresh
+        booqableRefresh();
+      }
+    };
+
+    // Try immediately
+    enhanceButton();
+    
+    // Retry after delays to handle async loading
+    const timeout1 = setTimeout(enhanceButton, 500);
+    const timeout2 = setTimeout(enhanceButton, 1000);
+    const timeout3 = setTimeout(enhanceButton, 2000);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+    };
+  }, []);
+
+  return (
+    <Card className="mt-6 shadow-elevated">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-center">
+          <div 
+            className="booqable-product-button" 
+            data-id="sander"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
     </div>
   );
 };
