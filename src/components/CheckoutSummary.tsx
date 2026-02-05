@@ -67,80 +67,106 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
 
   // Explicitly enhance product buttons when they're rendered in the "Need additional tools?" section
   useEffect(() => {
-    if (isIdMapLoading || !showDetails) return;
+    if (!showDetails) return;
     
     // Wait for buttons to be in DOM, then enhance them
     const enhanceButtons = () => {
       const api = getBooqableApi();
       if (!api) {
         console.log('[CheckoutSummary] Booqable API not available yet, retrying...');
-        // Retry if API not ready
         setTimeout(enhanceButtons, 200);
         return;
       }
 
       // Find all product buttons in the "Need additional tools?" section
-      const buttons = document.querySelectorAll('.booqable-product-button[data-id]');
+      const container = document.getElementById('booqable-addon-products');
+      if (!container) {
+        console.log('[CheckoutSummary] Container not found, retrying...');
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      const buttons = container.querySelectorAll('.booqable-product-button[data-id]');
       if (buttons.length === 0) {
-        console.log('[CheckoutSummary] No product buttons found in DOM yet, retrying...');
-        // Buttons not in DOM yet, retry
+        console.log('[CheckoutSummary] No product buttons found in container, retrying...');
         setTimeout(enhanceButtons, 200);
         return;
       }
 
       console.log(`[CheckoutSummary] Found ${buttons.length} product buttons to enhance`);
-      console.log('[CheckoutSummary] Button details:', Array.from(buttons).map(btn => ({
-        dataId: btn.getAttribute('data-id'),
-        dataSlug: btn.getAttribute('data-slug'),
-        className: btn.className,
-        hasChildren: btn.children.length > 0,
-        innerHTML: btn.innerHTML.substring(0, 100),
-      })));
+      
+      // Log button details
+      Array.from(buttons).forEach((btn, idx) => {
+        console.log(`[CheckoutSummary] Button ${idx + 1}:`, {
+          dataId: btn.getAttribute('data-id'),
+          dataSlug: btn.getAttribute('data-product-slug'),
+          className: btn.className,
+          hasChildren: btn.children.length > 0,
+          computedStyle: window.getComputedStyle(btn).display,
+        });
+      });
 
-      console.log('[CheckoutSummary] Booqable API available:', {
+      // Log API details
+      console.log('[CheckoutSummary] Booqable API:', {
         hasApi: !!api,
-        apiKeys: Object.keys(api).slice(0, 20),
+        apiKeys: Object.keys(api).filter(k => typeof api[k] === 'function').slice(0, 15),
         hasScan: typeof api.scan === 'function',
         hasRefresh: typeof api.refresh === 'function',
         hasEnhance: typeof api.enhance === 'function',
         hasTrigger: typeof api.trigger === 'function',
+        hasInit: typeof api.init === 'function',
       });
 
-      // Try multiple enhancement methods
-      let methodsCalled = 0;
+      // Try multiple enhancement methods with detailed logging
+      const methods = [];
+      
       if (typeof api.scan === 'function') {
         try {
           api.scan();
+          methods.push('scan');
           console.log('[CheckoutSummary] ✅ Called api.scan()');
-          methodsCalled++;
         } catch (e) {
           console.error('[CheckoutSummary] ❌ api.scan() failed:', e);
         }
       }
+      
       if (typeof api.refresh === 'function') {
         try {
           api.refresh();
+          methods.push('refresh');
           console.log('[CheckoutSummary] ✅ Called api.refresh()');
-          methodsCalled++;
         } catch (e) {
           console.error('[CheckoutSummary] ❌ api.refresh() failed:', e);
         }
       }
+      
       if (typeof api.enhance === 'function') {
         try {
           api.enhance();
+          methods.push('enhance');
           console.log('[CheckoutSummary] ✅ Called api.enhance()');
-          methodsCalled++;
         } catch (e) {
           console.error('[CheckoutSummary] ❌ api.enhance() failed:', e);
         }
       }
+      
+      if (typeof api.init === 'function') {
+        try {
+          api.init();
+          methods.push('init');
+          console.log('[CheckoutSummary] ✅ Called api.init()');
+        } catch (e) {
+          console.error('[CheckoutSummary] ❌ api.init() failed:', e);
+        }
+      }
+      
       if (typeof api.trigger === 'function') {
         try {
           api.trigger('refresh');
           api.trigger('dom-change');
+          api.trigger('page-change');
+          methods.push('trigger');
           console.log('[CheckoutSummary] ✅ Called api.trigger()');
-          methodsCalled++;
         } catch (e) {
           console.error('[CheckoutSummary] ❌ api.trigger() failed:', e);
         }
@@ -149,39 +175,44 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       // Also trigger refresh via our helper
       try {
         booqableRefresh();
+        methods.push('booqableRefresh');
         console.log('[CheckoutSummary] ✅ Called booqableRefresh()');
       } catch (e) {
         console.error('[CheckoutSummary] ❌ booqableRefresh() failed:', e);
       }
       
-      // Dispatch custom events that Booqable might listen for
+      // Dispatch custom events
       try {
         document.dispatchEvent(new CustomEvent('booqable:refresh'));
         document.dispatchEvent(new CustomEvent('booqable:dom-change'));
         window.dispatchEvent(new CustomEvent('booqable:refresh'));
+        methods.push('customEvents');
         console.log('[CheckoutSummary] ✅ Dispatched custom events');
       } catch (e) {
         console.error('[CheckoutSummary] ❌ Custom events failed:', e);
       }
 
-      console.log(`[CheckoutSummary] Enhancement complete. Called ${methodsCalled} API methods.`);
+      console.log(`[CheckoutSummary] Enhancement complete. Methods called: ${methods.join(', ')}`);
+      
+      // Check if buttons were enhanced after a delay
+      setTimeout(() => {
+        const enhancedButtons = Array.from(buttons).filter(btn => btn.children.length > 0 || btn.innerHTML.trim().length > 0);
+        console.log(`[CheckoutSummary] After enhancement: ${enhancedButtons.length}/${buttons.length} buttons have content`);
+        if (enhancedButtons.length === 0) {
+          console.warn('[CheckoutSummary] ⚠️ No buttons were enhanced. Booqable may not recognize the product slugs.');
+        }
+      }, 2000);
     };
 
-    // Start enhancement after a short delay to ensure DOM is ready
-    const timeout1 = setTimeout(enhanceButtons, 100);
-    const timeout2 = setTimeout(enhanceButtons, 500);
-    const timeout3 = setTimeout(enhanceButtons, 1000);
-    const timeout4 = setTimeout(enhanceButtons, 2000);
-    const timeout5 = setTimeout(enhanceButtons, 3000);
+    // Start enhancement with multiple retries
+    const timeouts = [100, 300, 500, 1000, 2000, 3000, 5000].map(delay => 
+      setTimeout(enhanceButtons, delay)
+    );
 
     return () => {
-      clearTimeout(timeout1);
-      clearTimeout(timeout2);
-      clearTimeout(timeout3);
-      clearTimeout(timeout4);
-      clearTimeout(timeout5);
+      timeouts.forEach(clearTimeout);
     };
-  }, [isIdMapLoading, showDetails]);
+  }, [showDetails]);
 
   // Use BooqableOrder to create order, then load it into cart widget
   const { createOrder, isCreating: isOrderCreating, error: orderError } = useBooqableOrder();
@@ -887,23 +918,26 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
             {isIdMapLoading ? (
               <p className="text-sm text-muted-foreground">Loading add-ons…</p>
             ) : (
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3" id="booqable-addon-products">
                 {([
                   'channel-lock-pliers',
                   'headlamp',
                   'sander',
                 ] as const).map((slug) => {
-                  const resolvedId = slugToUuid[slug] || slug;
+                  // Use slug directly - Booqable accepts slugs in data-id
+                  // Also try UUID if available as fallback
+                  const uuid = slugToUuid[slug];
                   return (
                     <div
                       key={slug}
                       className="booqable-product-button"
-                      data-id={resolvedId}
-                      data-slug={slug}
+                      data-id={slug}
+                      data-product-slug={slug}
                       style={{
                         minWidth: '200px',
                         minHeight: '40px',
-                        display: 'inline-block',
+                        display: 'block',
+                        visibility: 'visible',
                       }}
                     />
                   );
