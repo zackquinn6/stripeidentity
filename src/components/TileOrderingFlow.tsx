@@ -340,7 +340,38 @@ const TileOrderingFlow = ({
     return allItems;
   }, [equipment, addOns, materials, rushOrderAdded]);
 
+  // TEST MODE: Only sync rental period, not products
+  // Auto-sync rental period to Booqable cart widget when dates change
+  useEffect(() => {
+    // Don't sync if checkout summary is shown (it handles its own sync)
+    if (showCheckout) return;
+    
+    const api = getBooqableApi();
+    if (!api) {
+      // Booqable not ready yet, will retry on next render
+      return;
+    }
+
+    // Set rental dates if available
+    if (startDate && endDate) {
+      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      
+      console.log('[TileOrderingFlow] Setting rental period:', { startsAt, stopsAt });
+      const appliedVia = applyRentalPeriod(startsAt, stopsAt);
+      console.log('[TileOrderingFlow] Rental period applied via:', appliedVia);
+      
+      // Refresh cart to update display
+      setTimeout(() => {
+        booqableRefresh();
+        console.log('[TileOrderingFlow] Refreshed Booqable widget');
+      }, 300);
+    }
+  }, [startDate, endDate, showCheckout]);
+
+  // DISABLED: Product addition - testing rental period only
   // Auto-sync selected items to Booqable cart widget when quantities change
+  /*
   useEffect(() => {
     // Don't sync if checkout summary is shown (it handles its own sync)
     if (showCheckout) return;
@@ -362,13 +393,6 @@ const TileOrderingFlow = ({
     if (rentalItems.length === 0) {
       // No items to sync, clear cart if needed
       return;
-    }
-
-    // Set rental dates if available
-    if (startDate && endDate) {
-      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
-      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
-      applyRentalPeriod(startsAt, stopsAt);
     }
 
     // Add items to cart using Booqable API
@@ -451,6 +475,7 @@ const TileOrderingFlow = ({
     const timeoutId = setTimeout(syncToCart, 500);
     return () => clearTimeout(timeoutId);
   }, [getAllSelectedItems, startDate, endDate, slugToUuid, isIdMapLoading, showCheckout]);
+  */
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
     if (selected.length === 0) {
