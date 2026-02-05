@@ -36,7 +36,7 @@ const Index = () => {
         variant="ghost"
         size="sm"
         onClick={() => navigate('/test')}
-        className="fixed bottom-4 right-4 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+        className="fixed bottom-4 right-4 z-50 text-muted-foreground/50 hover:text-muted-foreground text-xs"
       >
         Test
       </Button>
