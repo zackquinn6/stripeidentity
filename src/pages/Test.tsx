@@ -17,6 +17,7 @@ const Test = () => {
   const [startCalendarOpen, setStartCalendarOpen] = useState(false);
   const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const [cartDataState, setCartDataState] = useState<any>(null);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -84,6 +85,12 @@ const Test = () => {
           api.cartData.stops_at = stopsAt;
           appliedMethods.push('cartData direct assignment');
           console.log('[Test] ✅ Set cartData.starts_at and cartData.stops_at directly');
+          console.log('[Test] cartData after setting:', {
+            starts_at: api.cartData.starts_at,
+            stops_at: api.cartData.stops_at,
+            items: api.cartData.items?.length || 0,
+            fullCartData: api.cartData
+          });
         } catch (e) {
           console.warn('[Test] ❌ Could not set cartData:', e);
         }
@@ -165,9 +172,34 @@ const Test = () => {
         console.warn('[Test] ❌ Custom events failed:', e);
       }
       
+      // Check final state
+      const finalCartData = api.cartData;
+      if (finalCartData) {
+        const cartState = {
+          starts_at: finalCartData.starts_at,
+          stops_at: finalCartData.stops_at,
+          hasItems: !!finalCartData.items,
+          itemCount: finalCartData.items?.length || 0
+        };
+        console.log('[Test] Final cartData state:', cartState);
+        setCartDataState(finalCartData);
+      } else {
+        setCartDataState(null);
+      }
+      
       // Update status
       const allMethods = ['url', ...appliedMethods, ...refreshMethods];
-      setStatus(`Applied via: ${allMethods.join(', ')}`);
+      let statusMsg = `Applied via: ${allMethods.join(', ')}`;
+      
+      if (finalCartData) {
+        if (finalCartData.starts_at && finalCartData.stops_at) {
+          statusMsg += `\n✅ Dates set in cartData: ${finalCartData.starts_at} → ${finalCartData.stops_at}`;
+        } else {
+          statusMsg += `\n⚠️ Dates may not be in cartData (check console)`;
+        }
+      }
+      
+      setStatus(statusMsg);
       
       if (appliedMethods.length === 0 && !api.setCartData && !api.cartData) {
         console.warn('[Test] ⚠️ No date-setting methods found on Booqable API');
@@ -270,21 +302,73 @@ const Test = () => {
           </div>
         )}
 
-        <Button
-          onClick={handleAddToCart}
-          className="w-full"
-          size="lg"
-          disabled={!startDate || !endDate}
-        >
-          Add to cart
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleAddToCart}
+            className="flex-1"
+            size="lg"
+            disabled={!startDate || !endDate}
+          >
+            Add to cart
+          </Button>
+          <Button
+            onClick={() => {
+              const api = getBooqableApi();
+              if (api?.cartData) {
+                setCartDataState(api.cartData);
+                console.log('[Test] Current cartData:', api.cartData);
+                setStatus('Cart data refreshed. Check the cartData state section below.');
+              } else {
+                setCartDataState(null);
+                setStatus('No cartData found. Booqable API may not be initialized.');
+              }
+            }}
+            variant="outline"
+            size="lg"
+          >
+            Check Cart
+          </Button>
+        </div>
 
         {status && (
           <div className="p-4 bg-muted rounded-lg">
             <p className="text-sm font-medium">Status:</p>
-            <p className="text-sm text-muted-foreground">{status}</p>
+            <p className="text-sm text-muted-foreground whitespace-pre-line">{status}</p>
           </div>
         )}
+
+        {cartDataState && (
+          <div className="p-4 bg-secondary/50 rounded-lg border">
+            <p className="text-sm font-medium mb-2">Current cartData State:</p>
+            <div className="text-xs font-mono space-y-1">
+              <div>
+                <span className="text-muted-foreground">starts_at:</span>{' '}
+                <span className={cartDataState.starts_at ? 'text-green-600' : 'text-red-600'}>
+                  {cartDataState.starts_at || 'NOT SET'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">stops_at:</span>{' '}
+                <span className={cartDataState.stops_at ? 'text-green-600' : 'text-red-600'}>
+                  {cartDataState.stops_at || 'NOT SET'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Items:</span>{' '}
+                {cartDataState.items?.length || 0}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm font-medium mb-2">Note:</p>
+          <p className="text-xs text-muted-foreground">
+            This page sets the rental period in the Booqable cart data. To see the cart widget update, 
+            you need to have a Booqable cart widget embedded on this page or navigate to a page that has one.
+            Check the browser console for detailed debugging information.
+          </p>
+        </div>
       </div>
     </div>
   );
