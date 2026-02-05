@@ -892,8 +892,4 @@ const SanderProductButton = () => {
   );
 };
 
-    </div>
-  );
-};
-
 export default CheckoutSummary;
