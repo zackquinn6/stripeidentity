@@ -20,6 +20,9 @@ import ItemDetailsModal from './ItemDetailsModal';
 import { format, nextFriday, isFriday, startOfDay, addDays } from 'date-fns';
 import { useProjectSections } from '@/hooks/useProjectItems';
 import { useRushOrderItem } from '@/hooks/useRushOrderItem';
+import { useBooqable } from '@/hooks/use-booqable';
+import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
+import { getBooqableApi, booqableRefresh, applyRentalPeriod } from '@/lib/booqable/client';
 
 interface TileOrderingFlowProps {
   onBack: () => void;
@@ -37,6 +40,12 @@ const TileOrderingFlow = ({
   
   // Fetch rush order item from Booqable
   const { rushOrderItem } = useRushOrderItem();
+
+  // Initialize Booqable script
+  useBooqable();
+  
+  // Slug → UUID mapping for Booqable product buttons
+  const { slugToUuid, isLoading: isIdMapLoading } = useBooqableIdMap();
 
   // Step 1: Multi-select for tile sizes and underlayment
   const [selectedTileSizes, setSelectedTileSizes] = useState<string[]>([]);
@@ -330,6 +339,118 @@ const TileOrderingFlow = ({
     
     return allItems;
   }, [equipment, addOns, materials, rushOrderAdded]);
+
+  // Auto-sync selected items to Booqable cart widget when quantities change
+  useEffect(() => {
+    // Don't sync if checkout summary is shown (it handles its own sync)
+    if (showCheckout) return;
+    
+    // Wait for Booqable API and ID map to be ready
+    if (isIdMapLoading) return;
+    
+    const api = getBooqableApi();
+    if (!api || !api.cart) {
+      // Booqable not ready yet, will retry on next render
+      return;
+    }
+
+    // Only sync rental items (not consumables/sales items)
+    const rentalItems = getAllSelectedItems.filter(
+      item => item.booqableId && !item.isConsumable && !item.isSalesItem
+    );
+
+    if (rentalItems.length === 0) {
+      // No items to sync, clear cart if needed
+      return;
+    }
+
+    // Set rental dates if available
+    if (startDate && endDate) {
+      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      applyRentalPeriod(startsAt, stopsAt);
+    }
+
+    // Add items to cart using Booqable API
+    const syncToCart = async () => {
+      try {
+        const cart = api.cart;
+        
+        // Try batch add first
+        const itemsToAdd = rentalItems.map(item => {
+          const productId = slugToUuid[item.booqableId!] || item.booqableId!;
+          return {
+            product_group_id: productId,
+            quantity: item.quantity,
+          };
+        });
+
+        // Try batch methods
+        let itemsAdded = false;
+        const batchMethods = [
+          { name: 'cart.addItems', fn: cart.addItems },
+          { name: 'cart.addLineItems', fn: cart.addLineItems },
+          { name: 'cart.addLines', fn: cart.addLines },
+        ];
+
+        for (const method of batchMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              method.fn(itemsToAdd);
+              console.log(`[TileOrderingFlow] ✅ Added items via ${method.name}`);
+              itemsAdded = true;
+              break;
+            } catch (e) {
+              // Try next method
+            }
+          }
+        }
+
+        // Fallback to per-item methods
+        if (!itemsAdded) {
+          const perItemMethods = [
+            { name: 'cart.addItem', fn: cart.addItem },
+            { name: 'cart.addProductGroup', fn: cart.addProductGroup },
+            { name: 'cart.add', fn: cart.add },
+          ];
+
+          for (const item of itemsToAdd) {
+            const productId = item.product_group_id;
+            const quantity = item.quantity;
+            
+            for (const method of perItemMethods) {
+              if (typeof method.fn === 'function') {
+                try {
+                  method.fn(productId, quantity);
+                  console.log(`[TileOrderingFlow] ✅ Added item via ${method.name}:`, productId, quantity);
+                  break;
+                } catch (e) {
+                  try {
+                    method.fn({ product_group_id: productId, quantity });
+                    console.log(`[TileOrderingFlow] ✅ Added item via ${method.name} (object):`, productId, quantity);
+                    break;
+                  } catch (e2) {
+                    // continue
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Refresh cart to update display
+        setTimeout(() => {
+          booqableRefresh();
+        }, 300);
+      } catch (error) {
+        console.warn('[TileOrderingFlow] Error syncing to cart:', error);
+      }
+    };
+
+    // Debounce to avoid too many API calls
+    const timeoutId = setTimeout(syncToCart, 500);
+    return () => clearTimeout(timeoutId);
+  }, [getAllSelectedItems, startDate, endDate, slugToUuid, isIdMapLoading, showCheckout]);
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
     if (selected.length === 0) {
