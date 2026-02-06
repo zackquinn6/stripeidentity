@@ -16,8 +16,8 @@ const Test = () => {
   // Fetch real Booqable products from database
   const { data: booqableProducts, isLoading: isProductsLoading } = useBooqableProducts();
   
-  // Get rental products (not sales items) for the "Need additional tools" section
-  const rentalProducts = booqableProducts?.filter(p => !p.isSalesItem && p.slug) || [];
+  // Get only headlamp product
+  const headlampProduct = booqableProducts?.find(p => p.slug === 'headlamp');
 
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
@@ -34,9 +34,9 @@ const Test = () => {
 
   // Track button enhancements and clicks
   useEffect(() => {
-    if (!rentalProducts.length) return;
+    if (!headlampProduct) return;
     
-    const productSlugs = rentalProducts.slice(0, 5).map(p => p.slug); // Track first 5 products
+    const productSlugs = ['headlamp'];
     
     // Track cart changes
     const trackCartChanges = () => {
@@ -166,21 +166,21 @@ const Test = () => {
         clearInterval(interval);
       };
     }
-  }, [rentalProducts]);
+  }, [headlampProduct]);
 
-  // Refresh Booqable after product buttons are rendered
+  // Refresh Booqable after product button is rendered
   useEffect(() => {
-    if (isProductsLoading || !rentalProducts.length) return;
+    if (isProductsLoading || !headlampProduct) return;
     const timer = setTimeout(() => {
       booqableRefresh();
-      console.log('[Test] Refreshed Booqable after products loaded');
+      console.log('[Test] Refreshed Booqable after product loaded');
     }, 500);
     return () => clearTimeout(timer);
-  }, [isProductsLoading, rentalProducts]);
+  }, [isProductsLoading, headlampProduct]);
 
-  // Explicitly enhance product buttons when they're rendered
+  // Explicitly enhance product button when it's rendered
   useEffect(() => {
-    if (isProductsLoading || !rentalProducts.length) return;
+    if (isProductsLoading || !headlampProduct) return;
     
     const enhanceButtons = () => {
       const api = getBooqableApi();
@@ -208,7 +208,7 @@ const Test = () => {
     };
     
     enhanceButtons();
-  }, [isProductsLoading, rentalProducts]);
+  }, [isProductsLoading, headlampProduct]);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -553,38 +553,30 @@ const Test = () => {
           </div>
         )}
 
-        {/* Add-on product buttons */}
+        {/* Add-on product button */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
           {isProductsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading products…</p>
-          ) : rentalProducts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No rental products available</p>
+            <p className="text-sm text-muted-foreground">Loading product…</p>
+          ) : !headlampProduct ? (
+            <p className="text-sm text-muted-foreground">Headlamp product not found</p>
           ) : (
-            <div className="flex flex-wrap gap-3" id="booqable-addon-products">
-              {rentalProducts.slice(0, 5).map((product) => {
-                const tracking = buttonTracking[product.slug];
-                return (
-                  <div key={product.slug} className="space-y-2">
-                    <div
-                      className="booqable-product"
-                      data-id={product.slug}
-                    />
-                    {tracking && (
-                      <div className="text-xs text-muted-foreground">
-                        {tracking.enhanced ? (
-                          <span className="text-green-600">✅ Enhanced ({tracking.childType})</span>
-                        ) : (
-                          <span className="text-yellow-600">⏳ Waiting...</span>
-                        )}
-                      </div>
+            <div id="booqable-addon-products">
+              <div className="space-y-2">
+                <div
+                  className="booqable-product"
+                  data-id="headlamp"
+                />
+                {buttonTracking['headlamp'] && (
+                  <div className="text-xs text-muted-foreground">
+                    {buttonTracking['headlamp'].enhanced ? (
+                      <span className="text-green-600">✅ Enhanced ({buttonTracking['headlamp'].childType})</span>
+                    ) : (
+                      <span className="text-yellow-600">⏳ Waiting...</span>
                     )}
-                    <div className="text-xs text-muted-foreground">
-                      {product.name}
-                    </div>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           )}
         </div>
