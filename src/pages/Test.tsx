@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -6,8 +6,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyRentalPeriod, getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
+import { useBooqable } from '@/hooks/use-booqable';
 
 const Test = () => {
+  // Initialize Booqable script
+  useBooqable();
+
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
   const defaultEndDate = startOfDay(new Date(2026, 1, 25));
@@ -18,6 +22,14 @@ const Test = () => {
   const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [cartDataState, setCartDataState] = useState<any>(null);
+
+  // Refresh Booqable after product button is rendered
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      booqableRefresh();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -220,6 +232,33 @@ const Test = () => {
     } catch (error) {
       console.error('[Test] applyRentalPeriod error:', error);
     }
+
+    // After setting dates, wait a bit then try to click the product button to add to cart
+    setTimeout(() => {
+      const productButton = document.querySelector('.booqable-product-button[data-id="channel-lock-pliers"]');
+      if (productButton) {
+        console.log('[Test] Found product button, looking for clickable child...');
+        
+        // Wait for Booqable to enhance the button
+        const tryClick = (attempts = 0) => {
+          const clickable = productButton.querySelector('button, a, [role="button"], [data-action]');
+          if (clickable) {
+            console.log('[Test] Found clickable element, clicking...', clickable);
+            (clickable as HTMLElement).click();
+            setStatus(prev => prev + '\n✅ Clicked product button to add to cart');
+          } else if (attempts < 10) {
+            setTimeout(() => tryClick(attempts + 1), 500);
+          } else {
+            console.warn('[Test] Product button not enhanced after 5 seconds');
+            setStatus(prev => prev + '\n⚠️ Product button not ready - try clicking it manually');
+          }
+        };
+        
+        tryClick();
+      } else {
+        console.warn('[Test] Product button not found');
+      }
+    }, 1000);
   };
 
   return (
@@ -361,12 +400,26 @@ const Test = () => {
           </div>
         )}
 
+        {/* Add-on product button */}
+        <div className="p-4 border rounded-lg bg-muted/50">
+          <p className="text-sm font-medium mb-3">Need additional tools?</p>
+          <div className="booqable-product-button" 
+            data-id="channel-lock-pliers"
+            data-product-slug="channel-lock-pliers"
+            style={{
+              minWidth: '200px',
+              minHeight: '40px',
+              display: 'block',
+              visibility: 'visible',
+            }}
+          />
+        </div>
+
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm font-medium mb-2">Note:</p>
           <p className="text-xs text-muted-foreground">
-            This page sets the rental period in the Booqable cart data. To see the cart widget update, 
-            you need to have a Booqable cart widget embedded on this page or navigate to a page that has one.
-            Check the browser console for detailed debugging information.
+            This page sets the rental period in the Booqable cart data. The product button above should 
+            add items to the cart with the rental period you set. Check the browser console for detailed debugging information.
           </p>
         </div>
       </div>
