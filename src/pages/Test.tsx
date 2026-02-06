@@ -7,32 +7,10 @@ import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyRentalPeriod, getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
 import { useBooqable } from '@/hooks/use-booqable';
-import { useBooqableProducts } from '@/hooks/useBooqableProducts';
 
 const Test = () => {
   // Initialize Booqable script
   useBooqable();
-  
-  // Fetch real Booqable products from database
-  const { data: booqableProducts, isLoading: isProductsLoading, error: productsError } = useBooqableProducts();
-  
-  // Get only headlamp product
-  const headlampProduct = booqableProducts?.find(p => p.slug === 'headlamp');
-  
-  // Debug logging
-  useEffect(() => {
-    if (booqableProducts) {
-      console.log('[Test] Products loaded:', {
-        total: booqableProducts.length,
-        slugs: booqableProducts.map(p => p.slug).slice(0, 10),
-        headlampFound: !!headlampProduct,
-        headlampSlug: headlampProduct?.slug
-      });
-    }
-    if (productsError) {
-      console.error('[Test] Error loading products:', productsError);
-    }
-  }, [booqableProducts, headlampProduct, productsError]);
 
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
@@ -75,7 +53,7 @@ const Test = () => {
       const updates: Record<string, any> = {};
       
       productSlugs.forEach(slug => {
-        const button = document.querySelector(`.booqable-product[data-id="${slug}"]`);
+        const button = document.querySelector(`.booqable-product-button[data-id="${slug}"]`);
         if (button) {
           const clickable = button.querySelector('button, a, [role="button"], [data-action]');
           const hasChild = !!clickable;
@@ -207,7 +185,7 @@ const Test = () => {
         return;
       }
 
-      const buttons = container.querySelectorAll('.booqable-product[data-id]');
+      const buttons = container.querySelectorAll('.booqable-product-button[data-id]');
       console.log(`[Test] Found ${buttons.length} product buttons to enhance`);
       
       if (buttons.length > 0) {
@@ -567,31 +545,16 @@ const Test = () => {
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
           <div id="booqable-addon-products">
-            <div className="space-y-2">
-              <div
-                className="booqable-product"
-                data-id="headlamp"
-              />
-              {buttonTracking['headlamp'] && (
-                <div className="text-xs text-muted-foreground">
-                  {buttonTracking['headlamp'].enhanced ? (
-                    <span className="text-green-600">✅ Enhanced ({buttonTracking['headlamp'].childType})</span>
-                  ) : (
-                    <span className="text-yellow-600">⏳ Waiting...</span>
-                  )}
-                </div>
-              )}
-              {productsError && (
-                <div className="text-xs text-destructive">
-                  Product fetch error: {String(productsError)}
-                </div>
-              )}
-              {!isProductsLoading && booqableProducts && (
-                <div className="text-xs text-muted-foreground">
-                  Loaded {booqableProducts.length} products from database
-                </div>
-              )}
-            </div>
+            <div className="booqable-product-button" data-id="headlamp"></div>
+            {buttonTracking['headlamp'] && (
+              <div className="text-xs text-muted-foreground mt-2">
+                {buttonTracking['headlamp'].enhanced ? (
+                  <span className="text-green-600">✅ Enhanced ({buttonTracking['headlamp'].childType})</span>
+                ) : (
+                  <span className="text-yellow-600">⏳ Waiting...</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
