@@ -13,20 +13,6 @@ const Index = () => {
     aboutRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleTestClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('[Index] Test button clicked - attempting navigation');
-    try {
-      navigate('/test');
-      console.log('[Index] Navigation called');
-    } catch (error) {
-      console.error('[Index] Navigation error:', error);
-      // Fallback to direct navigation
-      window.location.href = '/test';
-    }
-  };
-
   return (
     <div className="min-h-screen">
       <HeroSection onLearnMoreClick={scrollToAbout} />
@@ -45,31 +31,13 @@ const Index = () => {
         Admin
       </Button>
 
-      {/* Test button - bottom right */}
-      <button
-        onClick={handleTestClick}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('[Index] Test button mousedown');
-        }}
-        onMouseUp={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('[Index] Test button mouseup');
-        }}
-        className="fixed bottom-4 right-4 z-[10000] pointer-events-auto bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 rounded-md text-sm font-medium transition-colors"
-        style={{ 
-          position: 'fixed', 
-          bottom: '1rem', 
-          right: '1rem', 
-          zIndex: 10000,
-          pointerEvents: 'auto',
-          cursor: 'pointer'
-        }}
+      {/* Test button */}
+      <Button
+        onClick={() => navigate('/test')}
+        className="fixed bottom-4 right-4"
       >
         Test
-      </button>
+      </Button>
     </div>
   );
 };
