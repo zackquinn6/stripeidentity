@@ -12,6 +12,225 @@ const Test = () => {
   // Initialize Booqable script
   useBooqable();
 
+  // Add comprehensive tracing/debugging for the Booqable button
+  useEffect(() => {
+    const addLog = (message: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      const logMessage = `[${timestamp}] ${message}`;
+      console.log(logMessage);
+      setDebugLog(prev => [...prev.slice(-49), logMessage]); // Keep last 50 logs
+    };
+
+    addLog('🔍 Starting Booqable button tracing...');
+
+    // Watch for button enhancement
+    const watchButtonEnhancement = () => {
+      const container = document.getElementById('booqable-addon-products');
+      if (!container) {
+        addLog('⚠️ Container not found, retrying...');
+        setTimeout(watchButtonEnhancement, 500);
+        return;
+      }
+
+      const placeholder = container.querySelector('.booqable-product-button[data-id="headlamp"]');
+      if (!placeholder) {
+        addLog('⚠️ Button placeholder not found, retrying...');
+        setTimeout(watchButtonEnhancement, 500);
+        return;
+      }
+
+      addLog('✅ Found button placeholder');
+
+      // Watch for when Booqable enhances the button
+      const observer = new MutationObserver((mutations) => {
+        const clickable = placeholder.querySelector('button, a, [role="button"], [data-action]');
+        if (clickable && !buttonRef.current) {
+          buttonRef.current = clickable as HTMLElement;
+          addLog(`✅ Button enhanced! Found clickable element: ${clickable.tagName}`);
+          addLog(`   Classes: ${clickable.className}`);
+          addLog(`   Text: ${clickable.textContent?.trim() || 'N/A'}`);
+          addLog(`   Attributes: ${Array.from(clickable.attributes).map(a => `${a.name}="${a.value}"`).join(', ')}`);
+
+          // Get cart state before click
+          const api = getBooqableApi();
+          const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+          addLog(`📊 Cart state before enhancement: ${cartBefore?.items?.length || 0} items`);
+
+          // Add click listener to track what happens
+          const clickHandler = (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            addLog('🖱️ ========================================');
+            addLog('🖱️ BOOQABLE BUTTON CLICKED!');
+            addLog(`🖱️ Event type: ${e.type}`);
+            addLog(`🖱️ Target: ${(e.target as HTMLElement)?.tagName} ${(e.target as HTMLElement)?.className}`);
+            addLog(`🖱️ Current target: ${(e.currentTarget as HTMLElement)?.tagName}`);
+
+            const api = getBooqableApi();
+            const cartBeforeClick = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+            addLog(`📊 Cart BEFORE click: ${cartBeforeClick?.items?.length || 0} items`);
+            if (cartBeforeClick?.items) {
+              addLog(`   Items: ${JSON.stringify(cartBeforeClick.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
+            }
+
+            // Let the click proceed
+            const originalClick = (clickable as any).onclick;
+            if (originalClick) {
+              addLog('🔄 Calling original onclick handler');
+              originalClick.call(clickable, e);
+            }
+
+            // Track cart state after click
+            setTimeout(() => {
+              const apiAfter = getBooqableApi();
+              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+              addLog(`📊 Cart AFTER click (500ms): ${cartAfter?.items?.length || 0} items`);
+              if (cartAfter?.items) {
+                addLog(`   Items: ${JSON.stringify(cartAfter.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
+              }
+              setCartDataState(cartAfter);
+            }, 500);
+
+            setTimeout(() => {
+              const apiAfter = getBooqableApi();
+              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+              addLog(`📊 Cart AFTER click (1000ms): ${cartAfter?.items?.length || 0} items`);
+              setCartDataState(cartAfter);
+            }, 1000);
+
+            setTimeout(() => {
+              const apiAfter = getBooqableApi();
+              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+              addLog(`📊 Cart AFTER click (2000ms): ${cartAfter?.items?.length || 0} items`);
+              setCartDataState(cartAfter);
+              addLog('🖱️ ========================================');
+            }, 2000);
+          };
+
+          clickHandlerRef.current = clickHandler;
+          clickable.addEventListener('click', clickHandler, true);
+          addLog('✅ Added click listener to button');
+        }
+      });
+
+      observer.observe(placeholder, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'data-id']
+      });
+
+      // Initial check
+      const clickable = placeholder.querySelector('button, a, [role="button"], [data-action]');
+      if (clickable) {
+        observer.disconnect();
+        watchButtonEnhancement(); // Re-run to set up listener
+      }
+
+      return () => observer.disconnect();
+    };
+
+    watchButtonEnhancement();
+  }, []);
+
+  // Function to replicate the button click programmatically
+  const handleTestAddToCart = () => {
+    const addLog = (message: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      const logMessage = `[${timestamp}] ${message}`;
+      console.log(logMessage);
+      setDebugLog(prev => [...prev.slice(-49), logMessage]);
+    };
+
+    addLog('🧪 ========================================');
+    addLog('🧪 TEST ADD TO CART BUTTON CLICKED');
+    addLog('🧪 Attempting to replicate Booqable button behavior...');
+
+    const api = getBooqableApi();
+    const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+    addLog(`📊 Cart BEFORE: ${cartBefore?.items?.length || 0} items`);
+
+    // Method 1: Try to click the enhanced button programmatically
+    if (buttonRef.current) {
+      addLog('✅ Found enhanced button, clicking programmatically...');
+      try {
+        buttonRef.current.click();
+        addLog('✅ Programmatic click executed');
+      } catch (e) {
+        addLog(`❌ Programmatic click failed: ${e}`);
+      }
+    } else {
+      addLog('⚠️ Enhanced button not found, trying to find it...');
+      const container = document.getElementById('booqable-addon-products');
+      const placeholder = container?.querySelector('.booqable-product-button[data-id="headlamp"]');
+      const clickable = placeholder?.querySelector('button, a, [role="button"], [data-action]');
+      
+      if (clickable) {
+        addLog('✅ Found clickable element, clicking...');
+        buttonRef.current = clickable as HTMLElement;
+        try {
+          (clickable as HTMLElement).click();
+          addLog('✅ Click executed');
+        } catch (e) {
+          addLog(`❌ Click failed: ${e}`);
+        }
+      } else {
+        addLog('❌ No clickable element found');
+      }
+    }
+
+    // Method 2: Try using Booqable API directly
+    if (api?.cart) {
+      addLog('🔄 Trying Booqable API methods...');
+      const cart = api.cart;
+      const productId = 'headlamp';
+
+      // Try various API methods
+      const methods = [
+        { name: 'cart.addItem', fn: cart.addItem },
+        { name: 'cart.addProductGroup', fn: cart.addProductGroup },
+        { name: 'cart.add', fn: cart.add },
+        { name: 'api.addItem', fn: api.addItem },
+        { name: 'api.addProductGroup', fn: api.addProductGroup },
+      ];
+
+      for (const method of methods) {
+        if (typeof method.fn === 'function') {
+          try {
+            method.fn(productId, 1);
+            addLog(`✅ Called ${method.name}(${productId}, 1)`);
+            break;
+          } catch (e) {
+            try {
+              method.fn({ product_group_id: productId, quantity: 1 });
+              addLog(`✅ Called ${method.name}({product_group_id: ${productId}, quantity: 1})`);
+              break;
+            } catch (e2) {
+              // continue
+            }
+          }
+        }
+      }
+    }
+
+    // Check cart state after
+    setTimeout(() => {
+      const apiAfter = getBooqableApi();
+      const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+      addLog(`📊 Cart AFTER (500ms): ${cartAfter?.items?.length || 0} items`);
+      setCartDataState(cartAfter);
+    }, 500);
+
+    setTimeout(() => {
+      const apiAfter = getBooqableApi();
+      const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+      addLog(`📊 Cart AFTER (2000ms): ${cartAfter?.items?.length || 0} items`);
+      setCartDataState(cartAfter);
+      addLog('🧪 ========================================');
+    }, 2000);
+  };
+
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
   const defaultEndDate = startOfDay(new Date(2026, 1, 25));
@@ -22,6 +241,9 @@ const Test = () => {
   const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [cartDataState, setCartDataState] = useState<any>(null);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const buttonRef = useRef<HTMLElement | null>(null);
+  const clickHandlerRef = useRef<((e: Event) => void) | null>(null);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -372,7 +594,30 @@ const Test = () => {
           <div id="booqable-addon-products">
             <div className="booqable-product-button" data-id="headlamp"></div>
           </div>
+          <div className="mt-3">
+            <Button
+              onClick={handleTestAddToCart}
+              variant="outline"
+              size="sm"
+            >
+              Test add to cart
+            </Button>
+          </div>
         </div>
+
+        {/* Debug Log */}
+        {debugLog.length > 0 && (
+          <div className="p-4 bg-secondary/50 rounded-lg border max-h-96 overflow-y-auto">
+            <p className="text-sm font-medium mb-2">Debug Log (Last 50 entries):</p>
+            <div className="text-xs font-mono space-y-1">
+              {debugLog.map((log, idx) => (
+                <div key={idx} className="text-muted-foreground">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm font-medium mb-2">Note:</p>
