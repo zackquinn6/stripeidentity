@@ -31,16 +31,15 @@ const Index = () => {
         Admin
       </Button>
 
-      {/* Test button - bottom left, next to Admin */}
+      {/* Test button - bottom right */}
       <Button
-        variant="ghost"
+        variant="default"
         size="sm"
         onClick={() => {
           console.log('[Index] Test button clicked');
           navigate('/test');
         }}
-        className="fixed bottom-4 left-24 z-[9998] text-muted-foreground/50 hover:text-muted-foreground text-xs"
-        style={{ pointerEvents: 'auto' }}
+        className="fixed bottom-4 right-4 z-[9998]"
       >
         Test
       </Button>
