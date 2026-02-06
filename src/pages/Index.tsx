@@ -20,6 +20,15 @@ const Index = () => {
         <FounderSection />
       </div>
       
+      {/* Test button - in main content */}
+      <div className="container mx-auto px-6 py-4">
+        <Button
+          onClick={() => navigate('/test')}
+        >
+          Test
+        </Button>
+      </div>
+      
       {/* Admin login button - bottom left */}
       <Button
         variant="ghost"
@@ -29,14 +38,6 @@ const Index = () => {
       >
         <LogIn className="w-3 h-3 mr-1" />
         Admin
-      </Button>
-
-      {/* Test button */}
-      <Button
-        onClick={() => navigate('/test')}
-        className="fixed bottom-4 right-4"
-      >
-        Test
       </Button>
     </div>
   );
