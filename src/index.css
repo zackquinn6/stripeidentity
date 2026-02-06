@@ -147,3 +147,14 @@
     text-wrap: balance;
   }
 }
+
+/* Ensure Booqable cart widget stays on the right side */
+[data-booqable-cart],
+.booqable-cart,
+.bq-cart,
+.booqable-widget[data-type="cart"] {
+  position: fixed !important;
+  right: 1rem !important;
+  left: auto !important;
+  z-index: 9999 !important;
+}
