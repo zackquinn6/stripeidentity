@@ -14,10 +14,25 @@ const Test = () => {
   useBooqable();
   
   // Fetch real Booqable products from database
-  const { data: booqableProducts, isLoading: isProductsLoading } = useBooqableProducts();
+  const { data: booqableProducts, isLoading: isProductsLoading, error: productsError } = useBooqableProducts();
   
   // Get only headlamp product
   const headlampProduct = booqableProducts?.find(p => p.slug === 'headlamp');
+  
+  // Debug logging
+  useEffect(() => {
+    if (booqableProducts) {
+      console.log('[Test] Products loaded:', {
+        total: booqableProducts.length,
+        slugs: booqableProducts.map(p => p.slug).slice(0, 10),
+        headlampFound: !!headlampProduct,
+        headlampSlug: headlampProduct?.slug
+      });
+    }
+    if (productsError) {
+      console.error('[Test] Error loading products:', productsError);
+    }
+  }, [booqableProducts, headlampProduct, productsError]);
 
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
@@ -34,8 +49,6 @@ const Test = () => {
 
   // Track button enhancements and clicks
   useEffect(() => {
-    if (!headlampProduct) return;
-    
     const productSlugs = ['headlamp'];
     
     // Track cart changes
@@ -166,22 +179,19 @@ const Test = () => {
         clearInterval(interval);
       };
     }
-  }, [headlampProduct]);
+  }, []);
 
   // Refresh Booqable after product button is rendered
   useEffect(() => {
-    if (isProductsLoading || !headlampProduct) return;
     const timer = setTimeout(() => {
       booqableRefresh();
-      console.log('[Test] Refreshed Booqable after product loaded');
+      console.log('[Test] Refreshed Booqable after component mounted');
     }, 500);
     return () => clearTimeout(timer);
-  }, [isProductsLoading, headlampProduct]);
+  }, []);
 
   // Explicitly enhance product button when it's rendered
   useEffect(() => {
-    if (isProductsLoading || !headlampProduct) return;
-    
     const enhanceButtons = () => {
       const api = getBooqableApi();
       if (!api) {
@@ -208,7 +218,7 @@ const Test = () => {
     };
     
     enhanceButtons();
-  }, [isProductsLoading, headlampProduct]);
+  }, []);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -556,29 +566,33 @@ const Test = () => {
         {/* Add-on product button */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
-          {isProductsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading product…</p>
-          ) : !headlampProduct ? (
-            <p className="text-sm text-muted-foreground">Headlamp product not found</p>
-          ) : (
-            <div id="booqable-addon-products">
-              <div className="space-y-2">
-                <div
-                  className="booqable-product"
-                  data-id="headlamp"
-                />
-                {buttonTracking['headlamp'] && (
-                  <div className="text-xs text-muted-foreground">
-                    {buttonTracking['headlamp'].enhanced ? (
-                      <span className="text-green-600">✅ Enhanced ({buttonTracking['headlamp'].childType})</span>
-                    ) : (
-                      <span className="text-yellow-600">⏳ Waiting...</span>
-                    )}
-                  </div>
-                )}
-              </div>
+          <div id="booqable-addon-products">
+            <div className="space-y-2">
+              <div
+                className="booqable-product"
+                data-id="headlamp"
+              />
+              {buttonTracking['headlamp'] && (
+                <div className="text-xs text-muted-foreground">
+                  {buttonTracking['headlamp'].enhanced ? (
+                    <span className="text-green-600">✅ Enhanced ({buttonTracking['headlamp'].childType})</span>
+                  ) : (
+                    <span className="text-yellow-600">⏳ Waiting...</span>
+                  )}
+                </div>
+              )}
+              {productsError && (
+                <div className="text-xs text-destructive">
+                  Product fetch error: {String(productsError)}
+                </div>
+              )}
+              {!isProductsLoading && booqableProducts && (
+                <div className="text-xs text-muted-foreground">
+                  Loaded {booqableProducts.length} products from database
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Button tracking info */}
