@@ -35,11 +35,14 @@ const Index = () => {
       <Button
         variant="default"
         size="sm"
-        onClick={() => {
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
           console.log('[Index] Test button clicked');
           navigate('/test');
         }}
-        className="fixed bottom-4 right-4 z-[9998]"
+        className="fixed bottom-4 right-4 z-[9999] pointer-events-auto"
+        style={{ position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 9999 }}
       >
         Test
       </Button>
