@@ -31,12 +31,12 @@ const Index = () => {
         Admin
       </Button>
 
-      {/* Test button - bottom left */}
+      {/* Test button - bottom left, next to Admin */}
       <Button
         variant="ghost"
         size="sm"
         onClick={() => navigate('/test')}
-        className="fixed bottom-4 left-20 z-50 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+        className="fixed bottom-4 left-24 z-[100] text-muted-foreground/50 hover:text-muted-foreground text-xs pointer-events-auto"
       >
         Test
       </Button>
