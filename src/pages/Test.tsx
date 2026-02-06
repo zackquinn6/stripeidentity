@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -7,10 +7,14 @@ import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyRentalPeriod, getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
 import { useBooqable } from '@/hooks/use-booqable';
+import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
 
 const Test = () => {
   // Initialize Booqable script
   useBooqable();
+  
+  // Get slug to UUID mapping
+  const { slugToUuid, isLoading: isIdMapLoading } = useBooqableIdMap();
 
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
@@ -22,14 +26,184 @@ const Test = () => {
   const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [cartDataState, setCartDataState] = useState<any>(null);
+  const [buttonTracking, setButtonTracking] = useState<Record<string, any>>({});
+  const trackingRef = useRef<Record<string, any>>({});
 
-  // Refresh Booqable after product button is rendered
+  // Track button enhancements and clicks
   useEffect(() => {
+    const products = ['channel-lock-pliers', 'headlamp', 'sander'];
+    
+    // Track cart changes
+    const trackCartChanges = () => {
+      const api = getBooqableApi();
+      if (api?.cartData) {
+        const itemCount = api.cartData.items?.length || 0;
+        const currentTracking = trackingRef.current;
+        const lastItemCount = currentTracking._lastItemCount || 0;
+        
+        if (itemCount !== lastItemCount) {
+          console.log(`[Test] 🛒 Cart changed: ${lastItemCount} → ${itemCount} items`, {
+            cartData: api.cartData,
+            items: api.cartData.items
+          });
+          trackingRef.current._lastItemCount = itemCount;
+          trackingRef.current._lastCartUpdate = new Date().toISOString();
+          setCartDataState(api.cartData);
+        }
+      }
+    };
+    
+    const trackButtonChanges = () => {
+      const updates: Record<string, any> = {};
+      
+      products.forEach(slug => {
+        const button = document.querySelector(`.booqable-product-button[data-id="${slug}"]`);
+        if (button) {
+          const clickable = button.querySelector('button, a, [role="button"], [data-action]');
+          const hasChild = !!clickable;
+          const childType = clickable?.tagName || 'none';
+          const childClasses = clickable?.className || '';
+          const childText = clickable?.textContent?.trim() || '';
+          
+          if (!trackingRef.current[slug] || trackingRef.current[slug].hasChild !== hasChild) {
+            console.log(`[Test] 🔘 Button ${slug} state changed:`, {
+              hasChild,
+              childType,
+              childClasses,
+              childText,
+              buttonHTML: button.innerHTML.substring(0, 200),
+              buttonAttributes: Array.from(button.attributes).map(a => `${a.name}="${a.value}"`).join(', ')
+            });
+            
+            updates[slug] = {
+              hasChild,
+              childType,
+              childClasses,
+              childText,
+              enhanced: hasChild,
+              timestamp: new Date().toISOString()
+            };
+            
+            // Add click listener if button is enhanced
+            if (hasChild && clickable && !trackingRef.current[slug]?.listenerAdded) {
+              const clickHandler = (e: Event) => {
+                const api = getBooqableApi();
+                const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+                
+                console.log(`[Test] 🔵 Button ${slug} clicked!`, {
+                  event: e,
+                  target: e.target,
+                  currentTarget: e.currentTarget,
+                  cartDataBefore: cartBefore,
+                  urlParams: new URLSearchParams(window.location.search).toString()
+                });
+                
+                // Track cart state after click
+                setTimeout(() => {
+                  const apiAfter = getBooqableApi();
+                  const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+                  
+                  console.log(`[Test] 🔵 Button ${slug} - Cart after click:`, {
+                    cartDataAfter: cartAfter,
+                    itemCountBefore: cartBefore?.items?.length || 0,
+                    itemCountAfter: cartAfter?.items?.length || 0,
+                    changed: (cartBefore?.items?.length || 0) !== (cartAfter?.items?.length || 0)
+                  });
+                  
+                  setCartDataState(cartAfter);
+                  trackCartChanges();
+                }, 500);
+                
+                setTimeout(() => trackCartChanges(), 1000);
+                setTimeout(() => trackCartChanges(), 2000);
+              };
+              
+              // Use capture phase to catch the event early
+              clickable.addEventListener('click', clickHandler, true);
+              updates[slug].listenerAdded = true;
+              console.log(`[Test] ✅ Added click listener to ${slug}`);
+            }
+          }
+        }
+      });
+      
+      if (Object.keys(updates).length > 0) {
+        trackingRef.current = { ...trackingRef.current, ...updates };
+        setButtonTracking({ ...trackingRef.current });
+      }
+    };
+    
+    // Use MutationObserver to watch for DOM changes
+    const container = document.getElementById('booqable-addon-products');
+    if (container) {
+      const observer = new MutationObserver((mutations) => {
+        console.log('[Test] 🔍 DOM mutation detected in product buttons container', mutations);
+        trackButtonChanges();
+      });
+      
+      observer.observe(container, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'data-id']
+      });
+      
+      // Also check periodically
+      const interval = setInterval(() => {
+        trackButtonChanges();
+        trackCartChanges();
+      }, 500);
+      
+      trackButtonChanges(); // Initial check
+      
+      return () => {
+        observer.disconnect();
+        clearInterval(interval);
+      };
+    }
+  }, [isIdMapLoading]);
+
+  // Refresh Booqable after product buttons are rendered
+  useEffect(() => {
+    if (isIdMapLoading) return;
     const timer = setTimeout(() => {
       booqableRefresh();
+      console.log('[Test] Refreshed Booqable after ID map loaded');
     }, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isIdMapLoading]);
+
+  // Explicitly enhance product buttons when they're rendered
+  useEffect(() => {
+    if (isIdMapLoading) return;
+    
+    const enhanceButtons = () => {
+      const api = getBooqableApi();
+      if (!api) {
+        console.log('[Test] Booqable API not available yet, retrying...');
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      const container = document.getElementById('booqable-addon-products');
+      if (!container) {
+        console.log('[Test] Container not found, retrying...');
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      const buttons = container.querySelectorAll('.booqable-product-button[data-id]');
+      console.log(`[Test] Found ${buttons.length} product buttons to enhance`);
+      
+      if (buttons.length > 0) {
+        // Trigger refresh to enhance buttons
+        booqableRefresh();
+        console.log('[Test] Triggered booqableRefresh to enhance buttons');
+      }
+    };
+    
+    enhanceButtons();
+  }, [isIdMapLoading]);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -400,20 +574,70 @@ const Test = () => {
           </div>
         )}
 
-        {/* Add-on product button */}
+        {/* Add-on product buttons */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
-          <div className="booqable-product-button" 
-            data-id="channel-lock-pliers"
-            data-product-slug="channel-lock-pliers"
-            style={{
-              minWidth: '200px',
-              minHeight: '40px',
-              display: 'block',
-              visibility: 'visible',
-            }}
-          />
+          {isIdMapLoading ? (
+            <p className="text-sm text-muted-foreground">Loading add-ons…</p>
+          ) : (
+            <div className="flex flex-wrap gap-3" id="booqable-addon-products">
+              {([
+                'channel-lock-pliers',
+                'headlamp',
+                'sander',
+              ] as const).map((slug) => {
+                const uuid = slugToUuid[slug];
+                const tracking = buttonTracking[slug];
+                return (
+                  <div key={slug} className="space-y-2">
+                    <div
+                      className="booqable-product-button"
+                      data-id={slug}
+                      data-product-slug={slug}
+                      style={{
+                        minWidth: '200px',
+                        minHeight: '40px',
+                        display: 'block',
+                        visibility: 'visible',
+                      }}
+                    />
+                    {tracking && (
+                      <div className="text-xs text-muted-foreground">
+                        {tracking.enhanced ? (
+                          <span className="text-green-600">✅ Enhanced ({tracking.childType})</span>
+                        ) : (
+                          <span className="text-yellow-600">⏳ Waiting...</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {/* Button tracking info */}
+        {Object.keys(buttonTracking).length > 0 && (
+          <div className="p-4 bg-secondary/50 rounded-lg border">
+            <p className="text-sm font-medium mb-2">Button Enhancement Tracking:</p>
+            <div className="text-xs font-mono space-y-1">
+              {Object.entries(buttonTracking).map(([slug, info]) => (
+                <div key={slug}>
+                  <span className="text-muted-foreground">{slug}:</span>{' '}
+                  <span className={info.enhanced ? 'text-green-600' : 'text-yellow-600'}>
+                    {info.enhanced ? `Enhanced (${info.childType})` : 'Not enhanced'}
+                  </span>
+                  {info.timestamp && (
+                    <span className="text-muted-foreground ml-2">
+                      @ {new Date(info.timestamp).toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm font-medium mb-2">Note:</p>
