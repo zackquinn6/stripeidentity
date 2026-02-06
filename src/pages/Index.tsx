@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LogIn } from 'lucide-react';
 import HeroSection from '@/components/HeroSection';
@@ -7,7 +7,6 @@ import FounderSection from '@/components/FounderSection';
 
 const Index = () => {
   const aboutRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
 
   const scrollToAbout = () => {
     aboutRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,31 +20,42 @@ const Index = () => {
       </div>
       
       {/* Admin login button - bottom left */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/auth')}
+      <Link
+        to="/auth"
         className="fixed bottom-4 left-4 text-muted-foreground/50 hover:text-muted-foreground text-xs"
       >
-        <LogIn className="w-3 h-3 mr-1" />
-        Admin
-      </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+        >
+          <LogIn className="w-3 h-3 mr-1" />
+          Admin
+        </Button>
+      </Link>
 
       {/* Test button - bottom right */}
-      <Button
-        variant="default"
-        size="sm"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('[Index] Test button clicked');
-          navigate('/test');
+      <Link
+        to="/test"
+        className="fixed bottom-4 right-4 z-[10000] pointer-events-auto"
+        style={{ 
+          position: 'fixed', 
+          bottom: '1rem', 
+          right: '1rem', 
+          zIndex: 10000,
+          display: 'inline-block'
         }}
-        className="fixed bottom-4 right-4 z-[9999] pointer-events-auto"
-        style={{ position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 9999 }}
+        onClick={(e) => {
+          console.log('[Index] Test link clicked');
+        }}
       >
-        Test
-      </Button>
+        <Button
+          variant="default"
+          size="sm"
+          className="pointer-events-auto"
+        >
+          Test
+        </Button>
+      </Link>
     </div>
   );
 };
