@@ -7,14 +7,17 @@ import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyRentalPeriod, getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
 import { useBooqable } from '@/hooks/use-booqable';
-import { useBooqableIdMap } from '@/hooks/useBooqableIdMap';
+import { useBooqableProducts } from '@/hooks/useBooqableProducts';
 
 const Test = () => {
   // Initialize Booqable script
   useBooqable();
   
-  // Get slug to UUID mapping
-  const { slugToUuid, isLoading: isIdMapLoading } = useBooqableIdMap();
+  // Fetch real Booqable products from database
+  const { data: booqableProducts, isLoading: isProductsLoading } = useBooqableProducts();
+  
+  // Get rental products (not sales items) for the "Need additional tools" section
+  const rentalProducts = booqableProducts?.filter(p => !p.isSalesItem && p.slug) || [];
 
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
@@ -31,7 +34,9 @@ const Test = () => {
 
   // Track button enhancements and clicks
   useEffect(() => {
-    const products = ['channel-lock-pliers', 'headlamp', 'sander'];
+    if (!rentalProducts.length) return;
+    
+    const productSlugs = rentalProducts.slice(0, 5).map(p => p.slug); // Track first 5 products
     
     // Track cart changes
     const trackCartChanges = () => {
@@ -56,8 +61,8 @@ const Test = () => {
     const trackButtonChanges = () => {
       const updates: Record<string, any> = {};
       
-      products.forEach(slug => {
-        const button = document.querySelector(`.booqable-product-button[data-id="${slug}"]`);
+      productSlugs.forEach(slug => {
+        const button = document.querySelector(`.booqable-product[data-id="${slug}"]`);
         if (button) {
           const clickable = button.querySelector('button, a, [role="button"], [data-action]');
           const hasChild = !!clickable;
@@ -161,21 +166,21 @@ const Test = () => {
         clearInterval(interval);
       };
     }
-  }, [isIdMapLoading]);
+  }, [rentalProducts]);
 
   // Refresh Booqable after product buttons are rendered
   useEffect(() => {
-    if (isIdMapLoading) return;
+    if (isProductsLoading || !rentalProducts.length) return;
     const timer = setTimeout(() => {
       booqableRefresh();
-      console.log('[Test] Refreshed Booqable after ID map loaded');
+      console.log('[Test] Refreshed Booqable after products loaded');
     }, 500);
     return () => clearTimeout(timer);
-  }, [isIdMapLoading]);
+  }, [isProductsLoading, rentalProducts]);
 
   // Explicitly enhance product buttons when they're rendered
   useEffect(() => {
-    if (isIdMapLoading) return;
+    if (isProductsLoading || !rentalProducts.length) return;
     
     const enhanceButtons = () => {
       const api = getBooqableApi();
@@ -192,7 +197,7 @@ const Test = () => {
         return;
       }
 
-      const buttons = container.querySelectorAll('.booqable-product-button[data-id]');
+      const buttons = container.querySelectorAll('.booqable-product[data-id]');
       console.log(`[Test] Found ${buttons.length} product buttons to enhance`);
       
       if (buttons.length > 0) {
@@ -203,7 +208,7 @@ const Test = () => {
     };
     
     enhanceButtons();
-  }, [isIdMapLoading]);
+  }, [isProductsLoading, rentalProducts]);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -407,32 +412,6 @@ const Test = () => {
       console.error('[Test] applyRentalPeriod error:', error);
     }
 
-    // After setting dates, wait a bit then try to click the product button to add to cart
-    setTimeout(() => {
-      const productButton = document.querySelector('.booqable-product-button[data-id="channel-lock-pliers"]');
-      if (productButton) {
-        console.log('[Test] Found product button, looking for clickable child...');
-        
-        // Wait for Booqable to enhance the button
-        const tryClick = (attempts = 0) => {
-          const clickable = productButton.querySelector('button, a, [role="button"], [data-action]');
-          if (clickable) {
-            console.log('[Test] Found clickable element, clicking...', clickable);
-            (clickable as HTMLElement).click();
-            setStatus(prev => prev + '\n✅ Clicked product button to add to cart');
-          } else if (attempts < 10) {
-            setTimeout(() => tryClick(attempts + 1), 500);
-          } else {
-            console.warn('[Test] Product button not enhanced after 5 seconds');
-            setStatus(prev => prev + '\n⚠️ Product button not ready - try clicking it manually');
-          }
-        };
-        
-        tryClick();
-      } else {
-        console.warn('[Test] Product button not found');
-      }
-    }, 1000);
   };
 
   return (
@@ -577,29 +556,19 @@ const Test = () => {
         {/* Add-on product buttons */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
-          {isIdMapLoading ? (
-            <p className="text-sm text-muted-foreground">Loading add-ons…</p>
+          {isProductsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading products…</p>
+          ) : rentalProducts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No rental products available</p>
           ) : (
             <div className="flex flex-wrap gap-3" id="booqable-addon-products">
-              {([
-                'channel-lock-pliers',
-                'headlamp',
-                'sander',
-              ] as const).map((slug) => {
-                const uuid = slugToUuid[slug];
-                const tracking = buttonTracking[slug];
+              {rentalProducts.slice(0, 5).map((product) => {
+                const tracking = buttonTracking[product.slug];
                 return (
-                  <div key={slug} className="space-y-2">
+                  <div key={product.slug} className="space-y-2">
                     <div
-                      className="booqable-product-button"
-                      data-id={slug}
-                      data-product-slug={slug}
-                      style={{
-                        minWidth: '200px',
-                        minHeight: '40px',
-                        display: 'block',
-                        visibility: 'visible',
-                      }}
+                      className="booqable-product"
+                      data-id={product.slug}
                     />
                     {tracking && (
                       <div className="text-xs text-muted-foreground">
@@ -610,6 +579,9 @@ const Test = () => {
                         )}
                       </div>
                     )}
+                    <div className="text-xs text-muted-foreground">
+                      {product.name}
+                    </div>
                   </div>
                 );
               })}
