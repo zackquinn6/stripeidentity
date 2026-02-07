@@ -5,14 +5,14 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { applyRentalPeriod, getBooqableApi } from '@/lib/booqable/client';
+import { applyRentalPeriod, getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
 import { useBooqable } from '@/hooks/use-booqable';
 
 const Test = () => {
   // Initialize Booqable script
   useBooqable();
 
-  // Verify Booqable script is loaded
+  // Verify Booqable script is loaded and refresh after product button is rendered
   useEffect(() => {
     const checkScript = () => {
       const script = document.querySelector('script[src*="booqable.js"]');
@@ -31,8 +31,16 @@ const Test = () => {
     };
     
     checkScript();
-    const timer = setTimeout(checkScript, 2000);
-    return () => clearTimeout(timer);
+    
+    // Refresh Booqable after a delay to ensure product button is enhanced
+    const refreshTimer = setTimeout(() => {
+      booqableRefresh();
+      console.log('[Test] Refreshed Booqable to enhance product button');
+    }, 1500);
+    
+    return () => {
+      clearTimeout(refreshTimer);
+    };
   }, []);
 
   // Set default dates: Feb 15-25, 2026 (start of day)
@@ -401,6 +409,7 @@ const Test = () => {
           <div 
             className="booqable-product-button" 
             data-id="sander"
+            data-product-slug="sander"
             style={{
               minWidth: '200px',
               minHeight: '40px',
