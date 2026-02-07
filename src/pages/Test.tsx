@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { format, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { applyRentalPeriod, getBooqableApi, booqableRefresh } from '@/lib/booqable/client';
+import { applyRentalPeriod, getBooqableApi } from '@/lib/booqable/client';
 import { useBooqable } from '@/hooks/use-booqable';
 
 const Test = () => {
@@ -22,205 +22,6 @@ const Test = () => {
   const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [cartDataState, setCartDataState] = useState<any>(null);
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const buttonRef = useRef<HTMLElement | null>(null);
-  const clickHandlerRef = useRef<((e: Event) => void) | null>(null);
-
-  // Refresh Booqable when product div is rendered
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      booqableRefresh();
-      console.log('[Test] Refreshed Booqable after product div rendered');
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Add comprehensive tracing/debugging for the Booqable product div
-  useEffect(() => {
-    const addLog = (message: string) => {
-      const timestamp = new Date().toLocaleTimeString();
-      const logMessage = `[${timestamp}] ${message}`;
-      console.log(logMessage);
-      setDebugLog(prev => [...prev.slice(-49), logMessage]); // Keep last 50 logs
-    };
-
-    addLog('🔍 Starting Booqable product div tracing...');
-
-    // Find the Booqable product div and watch for enhancement
-    const setupButtonTracing = () => {
-      const container = document.getElementById('booqable-addon-products');
-      if (!container) {
-        addLog('⚠️ Container not found, retrying...');
-        setTimeout(setupButtonTracing, 500);
-        return;
-      }
-
-      const productDiv = container.querySelector('.booqable-product[data-id="sander"]');
-      if (!productDiv) {
-        addLog('⚠️ Booqable product div not found, retrying...');
-        setTimeout(setupButtonTracing, 500);
-        return;
-      }
-
-      // Watch for when Booqable enhances the div into a button
-      const observer = new MutationObserver((mutations) => {
-        const clickable = productDiv.querySelector('button, a, [role="button"], [data-action]');
-        if (clickable && buttonRef.current !== clickable) {
-          buttonRef.current = clickable as HTMLElement;
-          addLog('✅ Booqable product enhanced! Found clickable element');
-          addLog(`   Element type: ${clickable.tagName}`);
-          addLog(`   Classes: ${clickable.className}`);
-          addLog(`   Text: ${clickable.textContent?.trim() || 'N/A'}`);
-
-          // Get cart state before click
-          const api = getBooqableApi();
-          const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
-          addLog(`📊 Cart state before enhancement: ${cartBefore?.items?.length || 0} items`);
-
-          // Add click listener to track what happens
-          const clickHandler = (e: Event) => {
-            addLog('🖱️ ========================================');
-            addLog('🖱️ BOOQABLE PRODUCT BUTTON CLICKED!');
-            addLog(`🖱️ Event type: ${e.type}`);
-            addLog(`🖱️ Target: ${(e.target as HTMLElement)?.tagName} ${(e.target as HTMLElement)?.className}`);
-
-            const api = getBooqableApi();
-            const cartBeforeClick = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
-            addLog(`📊 Cart BEFORE click: ${cartBeforeClick?.items?.length || 0} items`);
-            if (cartBeforeClick?.items) {
-              addLog(`   Items: ${JSON.stringify(cartBeforeClick.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
-            }
-
-            // Track cart state after click
-            setTimeout(() => {
-              const apiAfter = getBooqableApi();
-              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-              addLog(`📊 Cart AFTER click (500ms): ${cartAfter?.items?.length || 0} items`);
-              if (cartAfter?.items) {
-                addLog(`   Items: ${JSON.stringify(cartAfter.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
-              }
-              setCartDataState(cartAfter);
-            }, 500);
-
-            setTimeout(() => {
-              const apiAfter = getBooqableApi();
-              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-              addLog(`📊 Cart AFTER click (1000ms): ${cartAfter?.items?.length || 0} items`);
-              setCartDataState(cartAfter);
-            }, 1000);
-
-            setTimeout(() => {
-              const apiAfter = getBooqableApi();
-              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-              addLog(`📊 Cart AFTER click (2000ms): ${cartAfter?.items?.length || 0} items`);
-              setCartDataState(cartAfter);
-              addLog('🖱️ ========================================');
-            }, 2000);
-          };
-
-          clickHandlerRef.current = clickHandler;
-          clickable.addEventListener('click', clickHandler, true);
-          addLog('✅ Added click listener to Booqable product button');
-        }
-      });
-
-      observer.observe(productDiv, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'data-id']
-      });
-
-      // Initial check in case it's already enhanced
-      const clickable = productDiv.querySelector('button, a, [role="button"], [data-action]');
-      if (clickable) {
-        observer.disconnect();
-        setupButtonTracing(); // Re-run to set up listener
-      }
-
-      addLog('✅ Watching for Booqable product enhancement...');
-    };
-
-    setupButtonTracing();
-  }, []);
-
-  // Function to add headlamp to cart using Booqable API
-  const handleTestAddToCart = () => {
-    const addLog = (message: string) => {
-      const timestamp = new Date().toLocaleTimeString();
-      const logMessage = `[${timestamp}] ${message}`;
-      console.log(logMessage);
-      setDebugLog(prev => [...prev.slice(-49), logMessage]);
-    };
-
-    addLog('🧪 ========================================');
-    addLog('🧪 TEST ADD TO CART BUTTON CLICKED');
-    addLog('🧪 Attempting to add headlamp to cart...');
-
-    const api = getBooqableApi();
-    const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
-    addLog(`📊 Cart BEFORE: ${cartBefore?.items?.length || 0} items`);
-
-    // Try using Booqable API directly
-    if (api?.cart) {
-      addLog('🔄 Trying Booqable API methods...');
-      const cart = api.cart;
-      const productId = 'sander';
-
-      // Try various API methods
-      const methods = [
-        { name: 'cart.addItem', fn: cart.addItem },
-        { name: 'cart.addProductGroup', fn: cart.addProductGroup },
-        { name: 'cart.add', fn: cart.add },
-        { name: 'api.addItem', fn: api.addItem },
-        { name: 'api.addProductGroup', fn: api.addProductGroup },
-      ];
-
-      let methodWorked = false;
-      for (const method of methods) {
-        if (typeof method.fn === 'function') {
-          try {
-            method.fn(productId, 1);
-            addLog(`✅ Called ${method.name}(${productId}, 1)`);
-            methodWorked = true;
-            break;
-          } catch (e) {
-            try {
-              method.fn({ product_group_id: productId, quantity: 1 });
-              addLog(`✅ Called ${method.name}({product_group_id: ${productId}, quantity: 1})`);
-              methodWorked = true;
-              break;
-            } catch (e2) {
-              // continue
-            }
-          }
-        }
-      }
-
-      if (!methodWorked) {
-        addLog('⚠️ No API methods worked, trying refresh...');
-        booqableRefresh();
-      }
-    } else {
-      addLog('❌ Booqable API or cart not available');
-    }
-
-    // Check cart state after
-    setTimeout(() => {
-      const apiAfter = getBooqableApi();
-      const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-      addLog(`📊 Cart AFTER (500ms): ${cartAfter?.items?.length || 0} items`);
-      setCartDataState(cartAfter);
-    }, 500);
-
-    setTimeout(() => {
-      const apiAfter = getBooqableApi();
-      const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-      addLog(`📊 Cart AFTER (2000ms): ${cartAfter?.items?.length || 0} items`);
-      setCartDataState(cartAfter);
-      addLog('🧪 ========================================');
-    }, 2000);
-  };
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -568,24 +369,8 @@ const Test = () => {
         {/* Add-on product button */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
-          <div id="booqable-addon-products">
-            <div className="booqable-product" data-id="sander"></div>
-          </div>
+          <div className="booqable-product" data-id="sander"></div>
         </div>
-
-        {/* Debug Log */}
-        {debugLog.length > 0 && (
-          <div className="p-4 bg-secondary/50 rounded-lg border max-h-96 overflow-y-auto">
-            <p className="text-sm font-medium mb-2">Debug Log (Last 50 entries):</p>
-            <div className="text-xs font-mono space-y-1">
-              {debugLog.map((log, idx) => (
-                <div key={idx} className="text-muted-foreground">
-                  {log}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm font-medium mb-2">Note:</p>
