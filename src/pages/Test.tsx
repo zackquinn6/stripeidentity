@@ -12,34 +12,150 @@ const Test = () => {
   // Initialize Booqable script
   useBooqable();
 
-  // Verify Booqable script is loaded and refresh after product button is rendered
+  // Explicitly enhance product buttons when they're rendered - matching checkout page logic
   useEffect(() => {
-    const checkScript = () => {
-      const script = document.querySelector('script[src*="booqable.js"]');
-      if (script) {
-        console.log('[Test] Booqable script found in DOM');
-      } else {
-        console.warn('[Test] Booqable script not found in DOM');
+    // Wait for buttons to be in DOM, then enhance them
+    const enhanceButtons = () => {
+      const api = getBooqableApi();
+      if (!api) {
+        console.log('[Test] Booqable API not available yet, retrying...');
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      // Find all product buttons in the container
+      const container = document.getElementById('booqable-addon-products');
+      if (!container) {
+        console.log('[Test] Container not found, retrying...');
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      const buttons = container.querySelectorAll('.booqable-product-button[data-id]');
+      if (buttons.length === 0) {
+        console.log('[Test] No product buttons found in container, retrying...');
+        setTimeout(enhanceButtons, 200);
+        return;
+      }
+
+      console.log(`[Test] Found ${buttons.length} product buttons to enhance`);
+      
+      // Log button details
+      Array.from(buttons).forEach((btn, idx) => {
+        console.log(`[Test] Button ${idx + 1}:`, {
+          dataId: btn.getAttribute('data-id'),
+          dataSlug: btn.getAttribute('data-product-slug'),
+          className: btn.className,
+          hasChildren: btn.children.length > 0,
+          computedStyle: window.getComputedStyle(btn).display,
+        });
+      });
+
+      // Log API details
+      console.log('[Test] Booqable API:', {
+        hasApi: !!api,
+        apiKeys: Object.keys(api).filter(k => typeof api[k] === 'function').slice(0, 15),
+        hasScan: typeof api.scan === 'function',
+        hasRefresh: typeof api.refresh === 'function',
+        hasEnhance: typeof api.enhance === 'function',
+        hasTrigger: typeof api.trigger === 'function',
+        hasInit: typeof api.init === 'function',
+      });
+
+      // Try multiple enhancement methods with detailed logging
+      const methods = [];
+      
+      if (typeof api.scan === 'function') {
+        try {
+          api.scan();
+          methods.push('scan');
+          console.log('[Test] ✅ Called api.scan()');
+        } catch (e) {
+          console.error('[Test] ❌ api.scan() failed:', e);
+        }
       }
       
-      const api = getBooqableApi();
-      if (api) {
-        console.log('[Test] Booqable API available:', Object.keys(api).slice(0, 10));
-      } else {
-        console.warn('[Test] Booqable API not available yet');
+      if (typeof api.refresh === 'function') {
+        try {
+          api.refresh();
+          methods.push('refresh');
+          console.log('[Test] ✅ Called api.refresh()');
+        } catch (e) {
+          console.error('[Test] ❌ api.refresh() failed:', e);
+        }
       }
+      
+      if (typeof api.enhance === 'function') {
+        try {
+          api.enhance();
+          methods.push('enhance');
+          console.log('[Test] ✅ Called api.enhance()');
+        } catch (e) {
+          console.error('[Test] ❌ api.enhance() failed:', e);
+        }
+      }
+      
+      if (typeof api.init === 'function') {
+        try {
+          api.init();
+          methods.push('init');
+          console.log('[Test] ✅ Called api.init()');
+        } catch (e) {
+          console.error('[Test] ❌ api.init() failed:', e);
+        }
+      }
+      
+      if (typeof api.trigger === 'function') {
+        try {
+          api.trigger('refresh');
+          api.trigger('dom-change');
+          api.trigger('page-change');
+          methods.push('trigger');
+          console.log('[Test] ✅ Called api.trigger()');
+        } catch (e) {
+          console.error('[Test] ❌ api.trigger() failed:', e);
+        }
+      }
+      
+      // Also trigger refresh via our helper
+      try {
+        booqableRefresh();
+        methods.push('booqableRefresh');
+        console.log('[Test] ✅ Called booqableRefresh()');
+      } catch (e) {
+        console.error('[Test] ❌ booqableRefresh() failed:', e);
+      }
+      
+      // Dispatch custom events
+      try {
+        document.dispatchEvent(new CustomEvent('booqable:refresh'));
+        document.dispatchEvent(new CustomEvent('booqable:dom-change'));
+        window.dispatchEvent(new CustomEvent('booqable:refresh'));
+        methods.push('customEvents');
+        console.log('[Test] ✅ Dispatched custom events');
+      } catch (e) {
+        console.error('[Test] ❌ Custom events failed:', e);
+      }
+
+      console.log(`[Test] Enhancement complete. Methods called: ${methods.join(', ')}`);
+      
+      // Check if buttons were enhanced after a delay
+      setTimeout(() => {
+        const enhancedButtons = Array.from(buttons).filter(btn => btn.children.length > 0 || btn.innerHTML.trim().length > 0);
+        console.log(`[Test] After enhancement: ${enhancedButtons.length}/${buttons.length} buttons have content`);
+        if (enhancedButtons.length === 0) {
+          console.warn('[Test] ⚠️ No buttons were enhanced. Booqable may not recognize the product slugs.');
+        }
+      }, 2000);
     };
-    
-    checkScript();
-    
-    // Refresh Booqable after a delay to ensure product button is enhanced
-    const refreshTimer = setTimeout(() => {
-      booqableRefresh();
-      console.log('[Test] Refreshed Booqable to enhance product button');
-    }, 1500);
-    
+
+    // Start enhancement with multiple retries
+    const timeouts = [100, 300, 500, 1000, 2000, 3000, 5000].map(delay => 
+      setTimeout(enhanceButtons, delay)
+    );
+
     return () => {
-      clearTimeout(refreshTimer);
+      timeouts.forEach(clearTimeout);
     };
   }, []);
 
