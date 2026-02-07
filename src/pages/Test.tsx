@@ -26,7 +26,16 @@ const Test = () => {
   const buttonRef = useRef<HTMLElement | null>(null);
   const clickHandlerRef = useRef<((e: Event) => void) | null>(null);
 
-  // Add comprehensive tracing/debugging for the HTML button
+  // Refresh Booqable when product div is rendered
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      booqableRefresh();
+      console.log('[Test] Refreshed Booqable after product div rendered');
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Add comprehensive tracing/debugging for the Booqable product div
   useEffect(() => {
     const addLog = (message: string) => {
       const timestamp = new Date().toLocaleTimeString();
@@ -35,7 +44,7 @@ const Test = () => {
       setDebugLog(prev => [...prev.slice(-49), logMessage]); // Keep last 50 logs
     };
 
-    addLog('🔍 Starting HTML button tracing...');
+    addLog('🔍 Starting Booqable product div tracing...');
 
     // Find the Booqable product div and watch for enhancement
     const setupButtonTracing = () => {

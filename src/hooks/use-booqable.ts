@@ -57,7 +57,8 @@ export function useBooqable() {
 
     // Observe for dynamically rendered button placeholders.
     const observer = new MutationObserver(() => {
-      const hasButtons = document.querySelector(".booqable-product-button");
+      const hasButtons = document.querySelector(".booqable-product-button") || 
+                         document.querySelector(".booqable-product");
       if (!hasButtons) return;
 
       const api = getBooqableApi();
