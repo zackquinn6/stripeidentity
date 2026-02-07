@@ -403,20 +403,22 @@ const Test = () => {
           <div id="booqable-cart-widget"></div>
         </div>
 
-        {/* Add-on product button */}
+        {/* Add-on product button - matching checkout page structure */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
-          <div 
-            className="booqable-product-button" 
-            data-id="sander"
-            data-product-slug="sander"
-            style={{
-              minWidth: '200px',
-              minHeight: '40px',
-              display: 'block',
-              visibility: 'visible',
-            }}
-          ></div>
+          <div className="flex flex-wrap gap-3" id="booqable-addon-products">
+            <div
+              className="booqable-product-button"
+              data-id="sander"
+              data-product-slug="sander"
+              style={{
+                minWidth: '200px',
+                minHeight: '40px',
+                display: 'block',
+                visibility: 'visible',
+              }}
+            ></div>
+          </div>
         </div>
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
