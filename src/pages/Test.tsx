@@ -389,6 +389,12 @@ const Test = () => {
           </div>
         )}
 
+        {/* Booqable Cart Widget - same as checkout page */}
+        <div className="p-4 border rounded-lg bg-muted/50">
+          <p className="text-sm font-medium mb-3">Booqable Cart Widget</p>
+          <div id="booqable-cart-widget"></div>
+        </div>
+
         {/* Add-on product button */}
         <div className="booqable-product-button" data-id="sander"></div>
 
