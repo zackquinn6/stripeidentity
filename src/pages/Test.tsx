@@ -12,6 +12,29 @@ const Test = () => {
   // Initialize Booqable script
   useBooqable();
 
+  // Verify Booqable script is loaded
+  useEffect(() => {
+    const checkScript = () => {
+      const script = document.querySelector('script[src*="booqable.js"]');
+      if (script) {
+        console.log('[Test] Booqable script found in DOM');
+      } else {
+        console.warn('[Test] Booqable script not found in DOM');
+      }
+      
+      const api = getBooqableApi();
+      if (api) {
+        console.log('[Test] Booqable API available:', Object.keys(api).slice(0, 10));
+      } else {
+        console.warn('[Test] Booqable API not available yet');
+      }
+    };
+    
+    checkScript();
+    const timer = setTimeout(checkScript, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
   const defaultEndDate = startOfDay(new Date(2026, 1, 25));
@@ -367,7 +390,16 @@ const Test = () => {
         )}
 
         {/* Add-on product button */}
-        <div className="booqable-product" data-id="sander"></div>
+        <div 
+          className="booqable-product" 
+          data-id="sander"
+          style={{
+            minWidth: '200px',
+            minHeight: '40px',
+            display: 'block',
+            visibility: 'visible',
+          }}
+        ></div>
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm font-medium mb-2">Note:</p>
