@@ -390,16 +390,7 @@ const Test = () => {
         )}
 
         {/* Add-on product button */}
-        <div 
-          className="booqable-product" 
-          data-id="sander"
-          style={{
-            minWidth: '200px',
-            minHeight: '40px',
-            display: 'block',
-            visibility: 'visible',
-          }}
-        ></div>
+        <div className="booqable-product-button" data-id="sander"></div>
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm font-medium mb-2">Note:</p>
