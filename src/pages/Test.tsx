@@ -12,7 +12,21 @@ const Test = () => {
   // Initialize Booqable script
   useBooqable();
 
-  // Add comprehensive tracing/debugging for the Booqable button
+  // Set default dates: Feb 15-25, 2026 (start of day)
+  const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
+  const defaultEndDate = startOfDay(new Date(2026, 1, 25));
+
+  const [startDate, setStartDate] = useState<Date | undefined>(defaultStartDate);
+  const [endDate, setEndDate] = useState<Date | undefined>(defaultEndDate);
+  const [startCalendarOpen, setStartCalendarOpen] = useState(false);
+  const [endCalendarOpen, setEndCalendarOpen] = useState(false);
+  const [status, setStatus] = useState<string>('');
+  const [cartDataState, setCartDataState] = useState<any>(null);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const buttonRef = useRef<HTMLElement | null>(null);
+  const clickHandlerRef = useRef<((e: Event) => void) | null>(null);
+
+  // Add comprehensive tracing/debugging for the HTML button
   useEffect(() => {
     const addLog = (message: string) => {
       const timestamp = new Date().toLocaleTimeString();
@@ -21,120 +35,88 @@ const Test = () => {
       setDebugLog(prev => [...prev.slice(-49), logMessage]); // Keep last 50 logs
     };
 
-    addLog('🔍 Starting Booqable button tracing...');
+    addLog('🔍 Starting HTML button tracing...');
 
-    // Watch for button enhancement
-    const watchButtonEnhancement = () => {
+    // Find the HTML button and add click listener
+    const setupButtonTracing = () => {
       const container = document.getElementById('booqable-addon-products');
       if (!container) {
         addLog('⚠️ Container not found, retrying...');
-        setTimeout(watchButtonEnhancement, 500);
+        setTimeout(setupButtonTracing, 500);
         return;
       }
 
-      const placeholder = container.querySelector('.booqable-product-button[data-id="headlamp"]');
-      if (!placeholder) {
-        addLog('⚠️ Button placeholder not found, retrying...');
-        setTimeout(watchButtonEnhancement, 500);
+      const button = container.querySelector('button');
+      if (!button) {
+        addLog('⚠️ Button not found, retrying...');
+        setTimeout(setupButtonTracing, 500);
         return;
       }
 
-      addLog('✅ Found button placeholder');
+      if (buttonRef.current === button) {
+        return; // Already set up
+      }
 
-      // Watch for when Booqable enhances the button
-      const observer = new MutationObserver((mutations) => {
-        const clickable = placeholder.querySelector('button, a, [role="button"], [data-action]');
-        if (clickable && !buttonRef.current) {
-          buttonRef.current = clickable as HTMLElement;
-          addLog(`✅ Button enhanced! Found clickable element: ${clickable.tagName}`);
-          addLog(`   Classes: ${clickable.className}`);
-          addLog(`   Text: ${clickable.textContent?.trim() || 'N/A'}`);
-          addLog(`   Attributes: ${Array.from(clickable.attributes).map(a => `${a.name}="${a.value}"`).join(', ')}`);
+      buttonRef.current = button as HTMLElement;
+      addLog('✅ Found HTML button');
+      addLog(`   Classes: ${button.className}`);
+      addLog(`   Text: ${button.textContent?.trim() || 'N/A'}`);
 
-          // Get cart state before click
-          const api = getBooqableApi();
-          const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
-          addLog(`📊 Cart state before enhancement: ${cartBefore?.items?.length || 0} items`);
+      // Get cart state before click
+      const api = getBooqableApi();
+      const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+      addLog(`📊 Cart state before setup: ${cartBefore?.items?.length || 0} items`);
 
-          // Add click listener to track what happens
-          const clickHandler = (e: Event) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            addLog('🖱️ ========================================');
-            addLog('🖱️ BOOQABLE BUTTON CLICKED!');
-            addLog(`🖱️ Event type: ${e.type}`);
-            addLog(`🖱️ Target: ${(e.target as HTMLElement)?.tagName} ${(e.target as HTMLElement)?.className}`);
-            addLog(`🖱️ Current target: ${(e.currentTarget as HTMLElement)?.tagName}`);
+      // Add click listener to track what happens
+      const clickHandler = (e: Event) => {
+        addLog('🖱️ ========================================');
+        addLog('🖱️ HTML BUTTON CLICKED!');
+        addLog(`🖱️ Event type: ${e.type}`);
+        addLog(`🖱️ Target: ${(e.target as HTMLElement)?.tagName} ${(e.target as HTMLElement)?.className}`);
 
-            const api = getBooqableApi();
-            const cartBeforeClick = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
-            addLog(`📊 Cart BEFORE click: ${cartBeforeClick?.items?.length || 0} items`);
-            if (cartBeforeClick?.items) {
-              addLog(`   Items: ${JSON.stringify(cartBeforeClick.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
-            }
-
-            // Let the click proceed
-            const originalClick = (clickable as any).onclick;
-            if (originalClick) {
-              addLog('🔄 Calling original onclick handler');
-              originalClick.call(clickable, e);
-            }
-
-            // Track cart state after click
-            setTimeout(() => {
-              const apiAfter = getBooqableApi();
-              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-              addLog(`📊 Cart AFTER click (500ms): ${cartAfter?.items?.length || 0} items`);
-              if (cartAfter?.items) {
-                addLog(`   Items: ${JSON.stringify(cartAfter.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
-              }
-              setCartDataState(cartAfter);
-            }, 500);
-
-            setTimeout(() => {
-              const apiAfter = getBooqableApi();
-              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-              addLog(`📊 Cart AFTER click (1000ms): ${cartAfter?.items?.length || 0} items`);
-              setCartDataState(cartAfter);
-            }, 1000);
-
-            setTimeout(() => {
-              const apiAfter = getBooqableApi();
-              const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
-              addLog(`📊 Cart AFTER click (2000ms): ${cartAfter?.items?.length || 0} items`);
-              setCartDataState(cartAfter);
-              addLog('🖱️ ========================================');
-            }, 2000);
-          };
-
-          clickHandlerRef.current = clickHandler;
-          clickable.addEventListener('click', clickHandler, true);
-          addLog('✅ Added click listener to button');
+        const api = getBooqableApi();
+        const cartBeforeClick = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+        addLog(`📊 Cart BEFORE click: ${cartBeforeClick?.items?.length || 0} items`);
+        if (cartBeforeClick?.items) {
+          addLog(`   Items: ${JSON.stringify(cartBeforeClick.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
         }
-      });
 
-      observer.observe(placeholder, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'data-id']
-      });
+        // Track cart state after click
+        setTimeout(() => {
+          const apiAfter = getBooqableApi();
+          const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+          addLog(`📊 Cart AFTER click (500ms): ${cartAfter?.items?.length || 0} items`);
+          if (cartAfter?.items) {
+            addLog(`   Items: ${JSON.stringify(cartAfter.items.map((i: any) => ({ id: i.product_id || i.id, qty: i.quantity })))}`);
+          }
+          setCartDataState(cartAfter);
+        }, 500);
 
-      // Initial check
-      const clickable = placeholder.querySelector('button, a, [role="button"], [data-action]');
-      if (clickable) {
-        observer.disconnect();
-        watchButtonEnhancement(); // Re-run to set up listener
-      }
+        setTimeout(() => {
+          const apiAfter = getBooqableApi();
+          const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+          addLog(`📊 Cart AFTER click (1000ms): ${cartAfter?.items?.length || 0} items`);
+          setCartDataState(cartAfter);
+        }, 1000);
 
-      return () => observer.disconnect();
+        setTimeout(() => {
+          const apiAfter = getBooqableApi();
+          const cartAfter = apiAfter?.cartData ? JSON.parse(JSON.stringify(apiAfter.cartData)) : null;
+          addLog(`📊 Cart AFTER click (2000ms): ${cartAfter?.items?.length || 0} items`);
+          setCartDataState(cartAfter);
+          addLog('🖱️ ========================================');
+        }, 2000);
+      };
+
+      clickHandlerRef.current = clickHandler;
+      button.addEventListener('click', clickHandler, true);
+      addLog('✅ Added click listener to HTML button');
     };
 
-    watchButtonEnhancement();
+    setupButtonTracing();
   }, []);
 
-  // Function to replicate the button click programmatically
+  // Function to add headlamp to cart using Booqable API
   const handleTestAddToCart = () => {
     const addLog = (message: string) => {
       const timestamp = new Date().toLocaleTimeString();
@@ -145,42 +127,13 @@ const Test = () => {
 
     addLog('🧪 ========================================');
     addLog('🧪 TEST ADD TO CART BUTTON CLICKED');
-    addLog('🧪 Attempting to replicate Booqable button behavior...');
+    addLog('🧪 Attempting to add headlamp to cart...');
 
     const api = getBooqableApi();
     const cartBefore = api?.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
     addLog(`📊 Cart BEFORE: ${cartBefore?.items?.length || 0} items`);
 
-    // Method 1: Try to click the enhanced button programmatically
-    if (buttonRef.current) {
-      addLog('✅ Found enhanced button, clicking programmatically...');
-      try {
-        buttonRef.current.click();
-        addLog('✅ Programmatic click executed');
-      } catch (e) {
-        addLog(`❌ Programmatic click failed: ${e}`);
-      }
-    } else {
-      addLog('⚠️ Enhanced button not found, trying to find it...');
-      const container = document.getElementById('booqable-addon-products');
-      const placeholder = container?.querySelector('.booqable-product-button[data-id="headlamp"]');
-      const clickable = placeholder?.querySelector('button, a, [role="button"], [data-action]');
-      
-      if (clickable) {
-        addLog('✅ Found clickable element, clicking...');
-        buttonRef.current = clickable as HTMLElement;
-        try {
-          (clickable as HTMLElement).click();
-          addLog('✅ Click executed');
-        } catch (e) {
-          addLog(`❌ Click failed: ${e}`);
-        }
-      } else {
-        addLog('❌ No clickable element found');
-      }
-    }
-
-    // Method 2: Try using Booqable API directly
+    // Try using Booqable API directly
     if (api?.cart) {
       addLog('🔄 Trying Booqable API methods...');
       const cart = api.cart;
@@ -195,16 +148,19 @@ const Test = () => {
         { name: 'api.addProductGroup', fn: api.addProductGroup },
       ];
 
+      let methodWorked = false;
       for (const method of methods) {
         if (typeof method.fn === 'function') {
           try {
             method.fn(productId, 1);
             addLog(`✅ Called ${method.name}(${productId}, 1)`);
+            methodWorked = true;
             break;
           } catch (e) {
             try {
               method.fn({ product_group_id: productId, quantity: 1 });
               addLog(`✅ Called ${method.name}({product_group_id: ${productId}, quantity: 1})`);
+              methodWorked = true;
               break;
             } catch (e2) {
               // continue
@@ -212,6 +168,13 @@ const Test = () => {
           }
         }
       }
+
+      if (!methodWorked) {
+        addLog('⚠️ No API methods worked, trying refresh...');
+        booqableRefresh();
+      }
+    } else {
+      addLog('❌ Booqable API or cart not available');
     }
 
     // Check cart state after
@@ -230,20 +193,6 @@ const Test = () => {
       addLog('🧪 ========================================');
     }, 2000);
   };
-
-  // Set default dates: Feb 15-25, 2026 (start of day)
-  const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
-  const defaultEndDate = startOfDay(new Date(2026, 1, 25));
-
-  const [startDate, setStartDate] = useState<Date | undefined>(defaultStartDate);
-  const [endDate, setEndDate] = useState<Date | undefined>(defaultEndDate);
-  const [startCalendarOpen, setStartCalendarOpen] = useState(false);
-  const [endCalendarOpen, setEndCalendarOpen] = useState(false);
-  const [status, setStatus] = useState<string>('');
-  const [cartDataState, setCartDataState] = useState<any>(null);
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const buttonRef = useRef<HTMLElement | null>(null);
-  const clickHandlerRef = useRef<((e: Event) => void) | null>(null);
 
   const handleAddToCart = () => {
     if (!startDate || !endDate) {
@@ -536,7 +485,7 @@ const Test = () => {
             size="lg"
             disabled={!startDate || !endDate}
           >
-            Add to cart
+            Test add to cart
           </Button>
           <Button
             onClick={() => {
@@ -592,16 +541,12 @@ const Test = () => {
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
           <div id="booqable-addon-products">
-            <div className="booqable-product-button" data-id="headlamp"></div>
-          </div>
-          <div className="mt-3">
-            <Button
+            <button
               onClick={handleTestAddToCart}
-              variant="outline"
-              size="sm"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
-              Test add to cart
-            </Button>
+              Add to cart
+            </button>
           </div>
         </div>
 
