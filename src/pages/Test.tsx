@@ -145,6 +145,36 @@ const Test = () => {
         console.log(`[Test] After enhancement: ${enhancedButtons.length}/${buttons.length} buttons have content`);
         if (enhancedButtons.length === 0) {
           console.warn('[Test] ⚠️ No buttons were enhanced. Booqable may not recognize the product slugs.');
+        } else {
+          // Set up click tracking for enhanced buttons
+          Array.from(buttons).forEach((btn, idx) => {
+            // Track clicks on the button container
+            btn.addEventListener('click', (e) => {
+              console.log(`[Test] 🖱️ Button ${idx + 1} clicked!`, {
+                target: e.target,
+                currentTarget: e.currentTarget,
+                dataId: btn.getAttribute('data-id'),
+                dataSlug: btn.getAttribute('data-product-slug'),
+                buttonHTML: btn.innerHTML.substring(0, 200),
+                buttonClasses: btn.className,
+                eventType: e.type,
+                bubbles: e.bubbles,
+                cancelable: e.cancelable,
+              });
+            }, true); // Use capture phase to catch early
+
+            // Track clicks on any child elements
+            btn.addEventListener('click', (e) => {
+              console.log(`[Test] 🖱️ Child element clicked in button ${idx + 1}:`, {
+                childElement: e.target,
+                tagName: (e.target as HTMLElement)?.tagName,
+                className: (e.target as HTMLElement)?.className,
+                textContent: (e.target as HTMLElement)?.textContent?.substring(0, 100),
+              });
+            });
+
+            console.log(`[Test] ✅ Added click listeners to button ${idx + 1}`);
+          });
         }
       }, 2000);
     };
@@ -156,6 +186,153 @@ const Test = () => {
 
     return () => {
       timeouts.forEach(clearTimeout);
+    };
+  }, []);
+
+  // Track cart changes and Booqable API calls
+  useEffect(() => {
+    console.log('[Test] 🔍 Setting up cart tracking...');
+
+    const api = getBooqableApi();
+    if (!api) {
+      console.warn('[Test] ⚠️ Booqable API not available for tracking setup');
+      return;
+    }
+
+    // Track cartData changes
+    let lastCartData: any = null;
+    const cartDataCheckInterval = setInterval(() => {
+      const currentCartData = api.cartData;
+      if (currentCartData !== lastCartData) {
+        const itemsChanged = JSON.stringify(currentCartData?.items || []) !== JSON.stringify(lastCartData?.items || []);
+        const datesChanged = currentCartData?.starts_at !== lastCartData?.starts_at || 
+                            currentCartData?.stops_at !== lastCartData?.stops_at;
+        
+        if (itemsChanged || datesChanged || !lastCartData) {
+          console.log('[Test] 📦 Cart data changed!', {
+            before: lastCartData ? {
+              itemsCount: lastCartData.items?.length || 0,
+              starts_at: lastCartData.starts_at,
+              stops_at: lastCartData.stops_at,
+            } : null,
+            after: {
+              itemsCount: currentCartData?.items?.length || 0,
+              items: currentCartData?.items?.map((item: any) => ({
+                id: item.id || item.product_id,
+                quantity: item.quantity,
+                name: item.name || item.product_name,
+              })) || [],
+              starts_at: currentCartData?.starts_at,
+              stops_at: currentCartData?.stops_at,
+            },
+            itemsChanged,
+            datesChanged,
+            fullCartData: currentCartData,
+          });
+          lastCartData = currentCartData ? JSON.parse(JSON.stringify(currentCartData)) : null;
+        }
+      }
+    }, 500); // Check every 500ms
+
+    // Track Booqable events if available
+    if (typeof api.on === 'function') {
+      const eventsToTrack = ['cart:update', 'cart:change', 'cart:item:add', 'cart:item:remove', 'cart:refresh', 'dom-change'];
+      eventsToTrack.forEach(eventName => {
+        try {
+          api.on(eventName, (data: any) => {
+            console.log(`[Test] 📡 Booqable event fired: ${eventName}`, {
+              eventName,
+              data,
+              timestamp: new Date().toISOString(),
+            });
+          });
+          console.log(`[Test] ✅ Listening for Booqable event: ${eventName}`);
+        } catch (e) {
+          console.warn(`[Test] ⚠️ Could not listen for event ${eventName}:`, e);
+        }
+      });
+    }
+
+    // Track DOM mutations in the cart widget
+    const cartWidget = document.getElementById('booqable-cart-widget');
+    if (cartWidget) {
+      const cartObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+            console.log('[Test] 🔄 Cart widget DOM changed (items added)', {
+              addedNodes: Array.from(mutation.addedNodes).map(node => ({
+                nodeName: node.nodeName,
+                textContent: node.textContent?.substring(0, 100),
+                className: (node as HTMLElement)?.className,
+              })),
+              removedNodes: Array.from(mutation.removedNodes).map(node => ({
+                nodeName: node.nodeName,
+                textContent: node.textContent?.substring(0, 100),
+              })),
+            });
+          }
+        });
+      });
+
+      cartObserver.observe(cartWidget, {
+        childList: true,
+        subtree: true,
+        attributes: false,
+      });
+
+      console.log('[Test] ✅ Watching cart widget DOM for changes');
+
+      // Cleanup
+      return () => {
+        clearInterval(cartDataCheckInterval);
+        cartObserver.disconnect();
+        console.log('[Test] 🧹 Cleaned up cart tracking');
+      };
+    }
+
+    return () => {
+      clearInterval(cartDataCheckInterval);
+      console.log('[Test] 🧹 Cleaned up cart tracking');
+    };
+  }, []);
+
+  // Track all click events on the page (to catch Booqable button clicks)
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const button = target.closest('.booqable-product-button');
+      
+      if (button) {
+        console.log('[Test] 🖱️ Click detected on Booqable product button!', {
+          target: {
+            tagName: target.tagName,
+            className: target.className,
+            textContent: target.textContent?.substring(0, 100),
+            id: target.id,
+          },
+          button: {
+            dataId: button.getAttribute('data-id'),
+            dataSlug: button.getAttribute('data-product-slug'),
+            className: button.className,
+            innerHTML: button.innerHTML.substring(0, 200),
+          },
+          event: {
+            type: e.type,
+            bubbles: e.bubbles,
+            cancelable: e.cancelable,
+            timeStamp: e.timeStamp,
+          },
+        });
+      }
+    };
+
+    // Use capture phase to catch all clicks
+    document.addEventListener('click', handleClick, true);
+    console.log('[Test] ✅ Added global click listener for Booqable buttons');
+
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+      console.log('[Test] 🧹 Removed global click listener');
     };
   }, []);
 
