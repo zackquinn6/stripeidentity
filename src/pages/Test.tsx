@@ -1274,6 +1274,26 @@ const Test = () => {
           <div id="booqable-cart-widget"></div>
         </div>
 
+        {/* Hide rush order toggle in Booqable widget */}
+        <style>{`
+          #booqable-cart-widget [data-rush],
+          #booqable-cart-widget .rush-order,
+          #booqable-cart-widget input[type="checkbox"][name*="rush"],
+          #booqable-cart-widget input[type="checkbox"][id*="rush"],
+          #booqable-cart-widget label:has(input[type="checkbox"][name*="rush"]),
+          #booqable-cart-widget label:has(input[type="checkbox"][id*="rush"]),
+          #booqable-cart-widget *[class*="rush"],
+          #booqable-cart-widget *[class*="Rush"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            height: 0 !important;
+            width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        `}</style>
+
         {/* Add-on product button - matching checkout page structure */}
         <div className="p-4 border rounded-lg bg-muted/50">
           <p className="text-sm font-medium mb-3">Need additional tools?</p>
