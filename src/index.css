@@ -147,3 +147,21 @@
     text-wrap: balance;
   }
 }
+
+/* Hide rush order processing toggle in Booqable checkout widget */
+#booqable-cart-widget [data-rush],
+#booqable-cart-widget .rush-order,
+#booqable-cart-widget input[type="checkbox"][name*="rush"],
+#booqable-cart-widget input[type="checkbox"][id*="rush"],
+#booqable-cart-widget label:has(input[type="checkbox"][name*="rush"]),
+#booqable-cart-widget label:has(input[type="checkbox"][id*="rush"]),
+#booqable-cart-widget *[class*="rush"],
+#booqable-cart-widget *[class*="Rush"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}

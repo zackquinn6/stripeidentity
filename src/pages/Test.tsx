@@ -493,7 +493,7 @@ const Test = () => {
       });
     }
 
-    // Track DOM mutations in the cart widget
+    // Track DOM mutations in the cart widget and date inputs
     const cartWidget = document.getElementById('booqable-cart-widget');
     if (cartWidget) {
       const cartObserver = new MutationObserver((mutations) => {
@@ -510,6 +510,55 @@ const Test = () => {
                 textContent: node.textContent?.substring(0, 100),
               })),
             });
+            
+            // Check for date inputs in the widget
+            Array.from(mutation.addedNodes).forEach((node) => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node as HTMLElement;
+                // Look for date inputs
+                const dateInputs = element.querySelectorAll?.('input[type="date"], input[type="datetime-local"], input[name*="date"], input[name*="start"], input[name*="stop"], input[id*="date"], input[id*="start"], input[id*="stop"]');
+                if (dateInputs && dateInputs.length > 0) {
+                  console.log('[Test] 📅 Found date inputs in cart widget:', Array.from(dateInputs).map((input: any) => ({
+                    type: input.type,
+                    name: input.name,
+                    id: input.id,
+                    value: input.value,
+                    className: input.className,
+                  })));
+                  
+                  // Track changes to date inputs
+                  dateInputs.forEach((input: any) => {
+                    input.addEventListener('change', (e: Event) => {
+                      console.log('[Test] 📅 Date input changed:', {
+                        target: (e.target as HTMLInputElement).name || (e.target as HTMLInputElement).id,
+                        value: (e.target as HTMLInputElement).value,
+                        timestamp: new Date().toISOString(),
+                      });
+                    });
+                    input.addEventListener('input', (e: Event) => {
+                      console.log('[Test] 📅 Date input value changed:', {
+                        target: (e.target as HTMLInputElement).name || (e.target as HTMLInputElement).id,
+                        value: (e.target as HTMLInputElement).value,
+                        timestamp: new Date().toISOString(),
+                      });
+                    });
+                  });
+                }
+              }
+            });
+          }
+          
+          // Track attribute changes (like value changes on inputs)
+          if (mutation.type === 'attributes') {
+            const target = mutation.target as HTMLElement;
+            if (target.tagName === 'INPUT' && (target as HTMLInputElement).type?.includes('date')) {
+              console.log('[Test] 📅 Date input attribute changed:', {
+                attribute: mutation.attributeName,
+                value: (target as HTMLInputElement).value,
+                name: (target as HTMLInputElement).name,
+                id: target.id,
+              });
+            }
           }
         });
       });
@@ -517,14 +566,36 @@ const Test = () => {
       cartObserver.observe(cartWidget, {
         childList: true,
         subtree: true,
-        attributes: false,
+        attributes: true,
+        attributeFilter: ['value', 'data-value'],
       });
 
-      console.log('[Test] ✅ Watching cart widget DOM for changes');
+      console.log('[Test] ✅ Watching cart widget DOM for changes and date inputs');
+
+      // Also watch for date-related elements periodically
+      const dateCheckInterval = setInterval(() => {
+        const dateInputs = cartWidget.querySelectorAll('input[type="date"], input[type="datetime-local"], input[name*="date"], input[name*="start"], input[name*="stop"]');
+        if (dateInputs.length > 0) {
+          dateInputs.forEach((input: any) => {
+            const currentValue = input.value;
+            const storedValue = (input as any).__lastTrackedValue;
+            if (currentValue !== storedValue) {
+              console.log('[Test] 📅 Date input value detected:', {
+                name: input.name,
+                id: input.id,
+                value: currentValue,
+                previousValue: storedValue,
+              });
+              (input as any).__lastTrackedValue = currentValue;
+            }
+          });
+        }
+      }, 500);
 
       // Cleanup
       return () => {
         clearInterval(cartDataCheckInterval);
+        clearInterval(dateCheckInterval);
         cartObserver.disconnect();
         console.log('[Test] 🧹 Cleaned up cart tracking');
       };
@@ -616,18 +687,39 @@ const Test = () => {
       console.error('[Test] ❌ Failed to update URL:', e);
     }
 
-    // Method 2: Try Booqable API methods (with retries)
+    // Method 2: Try Booqable API methods (with retries) - Enhanced with comprehensive tracing
     const setDatesViaApi = () => {
       const api = getBooqableApi();
       if (!api) {
-        console.log('[Test] Booqable API not ready, will retry...');
+        console.log('[Test] 📅 Booqable API not ready, will retry...');
         return;
       }
       
-      console.log('[Test] Booqable API available, setting dates...');
-      console.log('[Test] API methods:', Object.keys(api).filter(k => typeof api[k] === 'function').slice(0, 20));
-      console.log('[Test] API has cart:', !!api.cart);
-      console.log('[Test] API has cartData:', !!api.cartData);
+      console.log('[Test] 📅 ========================================');
+      console.log('[Test] 📅 SETTING RENTAL DATES IN BOOQABLE CART');
+      console.log('[Test] 📅 ========================================');
+      console.log('[Test] 📅 Target dates:', {
+        startsAt,
+        stopsAt,
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
+      });
+      
+      // Get initial cart state
+      const initialCartData = api.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
+      console.log('[Test] 📅 Initial cart state:', {
+        starts_at: initialCartData?.starts_at,
+        stops_at: initialCartData?.stops_at,
+        itemsCount: initialCartData?.items?.length || 0,
+      });
+      
+      console.log('[Test] 📅 Booqable API available, setting dates...');
+      console.log('[Test] 📅 API methods:', Object.keys(api).filter(k => typeof api[k] === 'function').slice(0, 20));
+      console.log('[Test] 📅 API has cart:', !!api.cart);
+      console.log('[Test] 📅 API has cartData:', !!api.cartData);
+      if (api.cart) {
+        console.log('[Test] 📅 Cart methods:', Object.keys(api.cart).filter(k => typeof api.cart[k] === 'function'));
+      }
       
       const cart = api?.cart;
       const appliedMethods: string[] = [];
@@ -635,32 +727,58 @@ const Test = () => {
       // Method 2a: Try setCartData (available in the API)
       if (typeof api.setCartData === 'function') {
         try {
+          console.log('[Test] 📅 Attempting api.setCartData...');
+          const beforeData = api.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
           api.setCartData({
             starts_at: startsAt,
             stops_at: stopsAt,
           });
           appliedMethods.push('api.setCartData');
-          console.log('[Test] ✅ Called api.setCartData({starts_at, stops_at})');
+          console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at})');
+          
+          // Check if it worked
+          setTimeout(() => {
+            const afterData = api.cartData;
+            console.log('[Test] 📅 api.setCartData result:', {
+              before: {
+                starts_at: beforeData?.starts_at,
+                stops_at: beforeData?.stops_at,
+              },
+              after: {
+                starts_at: afterData?.starts_at,
+                stops_at: afterData?.stops_at,
+              },
+              changed: beforeData?.starts_at !== afterData?.starts_at || beforeData?.stops_at !== afterData?.stops_at,
+            });
+          }, 100);
         } catch (e) {
-          console.warn('[Test] ❌ api.setCartData failed:', e);
+          console.warn('[Test] 📅 ❌ api.setCartData failed:', e);
         }
       }
       
       // Method 2b: Try setting cartData directly
       if (api.cartData) {
         try {
+          console.log('[Test] 📅 Attempting direct cartData assignment...');
+          const beforeData = {
+            starts_at: api.cartData.starts_at,
+            stops_at: api.cartData.stops_at,
+          };
           api.cartData.starts_at = startsAt;
           api.cartData.stops_at = stopsAt;
           appliedMethods.push('cartData direct assignment');
-          console.log('[Test] ✅ Set cartData.starts_at and cartData.stops_at directly');
-          console.log('[Test] cartData after setting:', {
-            starts_at: api.cartData.starts_at,
-            stops_at: api.cartData.stops_at,
+          console.log('[Test] 📅 ✅ Set cartData.starts_at and cartData.stops_at directly');
+          console.log('[Test] 📅 cartData after setting:', {
+            before: beforeData,
+            after: {
+              starts_at: api.cartData.starts_at,
+              stops_at: api.cartData.stops_at,
+            },
             items: api.cartData.items?.length || 0,
             fullCartData: api.cartData
           });
         } catch (e) {
-          console.warn('[Test] ❌ Could not set cartData:', e);
+          console.warn('[Test] 📅 ❌ Could not set cartData:', e);
         }
       }
       
@@ -679,18 +797,54 @@ const Test = () => {
       for (const method of methods) {
         if (typeof method.fn === 'function') {
           try {
+            console.log(`[Test] 📅 Attempting ${method.name}...`);
+            const beforeData = api.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
             method.fn(startsAt, stopsAt);
             appliedMethods.push(method.name);
-            console.log(`[Test] ✅ Called ${method.name}(startsAt, stopsAt)`);
+            console.log(`[Test] 📅 ✅ Called ${method.name}(startsAt, stopsAt)`);
+            
+            // Check if it worked
+            setTimeout(() => {
+              const afterData = api.cartData;
+              console.log(`[Test] 📅 ${method.name} result:`, {
+                before: {
+                  starts_at: beforeData?.starts_at,
+                  stops_at: beforeData?.stops_at,
+                },
+                after: {
+                  starts_at: afterData?.starts_at,
+                  stops_at: afterData?.stops_at,
+                },
+                changed: beforeData?.starts_at !== afterData?.starts_at || beforeData?.stops_at !== afterData?.stops_at,
+              });
+            }, 100);
             break;
           } catch (e) {
             try {
+              console.log(`[Test] 📅 ${method.name} failed with string params, trying object...`);
+              const beforeData = api.cartData ? JSON.parse(JSON.stringify(api.cartData)) : null;
               method.fn({ starts_at: startsAt, stops_at: stopsAt });
               appliedMethods.push(`${method.name}:object`);
-              console.log(`[Test] ✅ Called ${method.name}({starts_at, stops_at})`);
+              console.log(`[Test] 📅 ✅ Called ${method.name}({starts_at, stops_at})`);
+              
+              // Check if it worked
+              setTimeout(() => {
+                const afterData = api.cartData;
+                console.log(`[Test] 📅 ${method.name} (object) result:`, {
+                  before: {
+                    starts_at: beforeData?.starts_at,
+                    stops_at: beforeData?.stops_at,
+                  },
+                  after: {
+                    starts_at: afterData?.starts_at,
+                    stops_at: afterData?.stops_at,
+                  },
+                  changed: beforeData?.starts_at !== afterData?.starts_at || beforeData?.stops_at !== afterData?.stops_at,
+                });
+              }, 100);
               break;
             } catch (e2) {
-              // continue
+              console.log(`[Test] 📅 ❌ ${method.name} failed with both formats:`, e2);
             }
           }
         }
@@ -702,9 +856,9 @@ const Test = () => {
         try {
           api.refresh();
           refreshMethods.push('api.refresh');
-          console.log('[Test] ✅ Called api.refresh()');
+          console.log('[Test] 📅 ✅ Called api.refresh()');
         } catch (e) {
-          console.warn('[Test] ❌ api.refresh() failed:', e);
+          console.warn('[Test] 📅 ❌ api.refresh() failed:', e);
         }
       }
       
@@ -715,9 +869,9 @@ const Test = () => {
           api.trigger('page-change');
           api.trigger('date-change');
           refreshMethods.push('api.trigger');
-          console.log('[Test] ✅ Called api.trigger(refresh, dom-change, page-change, date-change)');
+          console.log('[Test] 📅 ✅ Called api.trigger(refresh, dom-change, page-change, date-change)');
         } catch (e) {
-          console.warn('[Test] ❌ api.trigger() failed:', e);
+          console.warn('[Test] 📅 ❌ api.trigger() failed:', e);
         }
       }
       
@@ -725,9 +879,9 @@ const Test = () => {
       try {
         booqableRefresh();
         refreshMethods.push('booqableRefresh');
-        console.log('[Test] ✅ Called booqableRefresh()');
+        console.log('[Test] 📅 ✅ Called booqableRefresh()');
       } catch (e) {
-        console.warn('[Test] ❌ booqableRefresh() failed:', e);
+        console.warn('[Test] 📅 ❌ booqableRefresh() failed:', e);
       }
       
       // Dispatch custom events
@@ -735,44 +889,72 @@ const Test = () => {
         document.dispatchEvent(new CustomEvent('booqable:refresh'));
         window.dispatchEvent(new CustomEvent('booqable:refresh'));
         refreshMethods.push('custom events');
-        console.log('[Test] ✅ Dispatched custom events');
+        console.log('[Test] 📅 ✅ Dispatched custom events');
       } catch (e) {
-        console.warn('[Test] ❌ Custom events failed:', e);
+        console.warn('[Test] 📅 ❌ Custom events failed:', e);
       }
       
-      // Check final state
-      const finalCartData = api.cartData;
-      if (finalCartData) {
-        const cartState = {
-          starts_at: finalCartData.starts_at,
-          stops_at: finalCartData.stops_at,
-          hasItems: !!finalCartData.items,
-          itemCount: finalCartData.items?.length || 0
-        };
-        console.log('[Test] Final cartData state:', cartState);
-        setCartDataState(finalCartData);
-      } else {
-        setCartDataState(null);
-      }
+      // Check final state with multiple checks over time
+      const checkFinalState = (delay: number, label: string) => {
+        setTimeout(() => {
+          const finalCartData = api.cartData;
+          if (finalCartData) {
+            const cartState = {
+              starts_at: finalCartData.starts_at,
+              stops_at: finalCartData.stops_at,
+              hasItems: !!finalCartData.items,
+              itemCount: finalCartData.items?.length || 0,
+              matchesTarget: finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt,
+            };
+            console.log(`[Test] 📅 Final cartData state (${label}):`, cartState);
+            if (cartState.matchesTarget) {
+              console.log(`[Test] 📅 ✅ Dates successfully set in cart!`);
+            } else if (finalCartData.starts_at || finalCartData.stops_at) {
+              console.log(`[Test] 📅 ⚠️ Dates partially set or different:`, {
+                target: { starts_at: startsAt, stops_at: stopsAt },
+                actual: { starts_at: finalCartData.starts_at, stops_at: finalCartData.stops_at },
+              });
+            } else {
+              console.log(`[Test] 📅 ⚠️ Dates not set in cartData`);
+            }
+            setCartDataState(finalCartData);
+          } else {
+            setCartDataState(null);
+          }
+        }, delay);
+      };
+      
+      checkFinalState(100, '100ms');
+      checkFinalState(500, '500ms');
+      checkFinalState(1000, '1s');
+      checkFinalState(2000, '2s');
       
       // Update status
       const allMethods = ['url', ...appliedMethods, ...refreshMethods];
       let statusMsg = `Applied via: ${allMethods.join(', ')}`;
       
-      if (finalCartData) {
-        if (finalCartData.starts_at && finalCartData.stops_at) {
-          statusMsg += `\n✅ Dates set in cartData: ${finalCartData.starts_at} → ${finalCartData.stops_at}`;
-        } else {
-          statusMsg += `\n⚠️ Dates may not be in cartData (check console)`;
+      setTimeout(() => {
+        const finalCartData = api.cartData;
+        if (finalCartData) {
+          if (finalCartData.starts_at && finalCartData.stops_at) {
+            if (finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt) {
+              statusMsg += `\n✅ Dates set in cartData: ${finalCartData.starts_at} → ${finalCartData.stops_at}`;
+            } else {
+              statusMsg += `\n⚠️ Dates in cartData differ: ${finalCartData.starts_at} → ${finalCartData.stops_at}`;
+            }
+          } else {
+            statusMsg += `\n⚠️ Dates may not be in cartData (check console)`;
+          }
         }
-      }
-      
-      setStatus(statusMsg);
+        setStatus(statusMsg);
+      }, 1500);
       
       if (appliedMethods.length === 0 && !api.setCartData && !api.cartData) {
-        console.warn('[Test] ⚠️ No date-setting methods found on Booqable API');
+        console.warn('[Test] 📅 ⚠️ No date-setting methods found on Booqable API');
         setStatus('⚠️ No API methods found. Only URL params set. Check console for details.');
       }
+      
+      console.log('[Test] 📅 ========================================');
     };
     
     // Try immediately and with retries
