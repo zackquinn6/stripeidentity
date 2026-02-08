@@ -253,17 +253,19 @@ const Test = () => {
                   }
                   if (removed.length > 0) console.log(`[Test] 🖱️ ➖ Items removed:`, removed);
                   if (modified.length > 0) {
-                    console.log(`[Test] 🖱️ ✏️ Items modified:`, modified.map((i: any) => {
+                    console.log(`[Test] 🖱️ ✏️ Items modified (${modified.length}):`);
+                    modified.forEach((i: any, idx: number) => {
                       const beforeItem = beforeCart.items.find((bi: any) => bi.id === i.id);
-                      return {
+                      const fullItem = fullCartData?.items?.find((item: any) => 
+                        (item.id || item.product_id || item.product_group_id) === i.id
+                      );
+                      console.log(`[Test] 🖱️ ✏️ Modified Item ${idx + 1}:`, {
                         ...i,
                         quantityBefore: beforeItem?.quantity,
                         quantityChange: i.quantity - (beforeItem?.quantity || 0),
-                        fullItem: fullCartData?.items?.find((item: any) => 
-                          (item.id || item.product_id || item.product_group_id) === i.id
-                        ),
-                      };
-                    }));
+                      });
+                      console.log(`[Test] 🖱️ ✏️ Modified Item ${idx + 1} (FULL):`, JSON.stringify(fullItem, null, 2));
+                    });
                   }
                 } else {
                   // Check again after more time
@@ -392,7 +394,8 @@ const Test = () => {
           });
           
           if (addedItems.length > 0) {
-            console.log('[Test] 📦 ➕ ADDED ITEMS:', addedItems.map((item: any) => {
+            console.log(`[Test] 📦 ➕ ADDED ITEMS (${addedItems.length}):`);
+            addedItems.forEach((item: any, idx: number) => {
               const itemDetails = {
                 id: item.id || item.product_id || item.product_group_id,
                 slug: item.slug || item.product_slug,
@@ -400,12 +403,10 @@ const Test = () => {
                 name: item.name || item.product_name,
                 price: item.price || item.unit_price,
                 total: item.total || item.subtotal,
-                // Include all properties for inspection
-                fullItem: item,
               };
-              console.log('[Test] 📦 ➕ ADDED ITEM DETAILS:', itemDetails);
-              return itemDetails;
-            }));
+              console.log(`[Test] 📦 ➕ ADDED ITEM ${idx + 1}:`, itemDetails);
+              console.log(`[Test] 📦 ➕ ADDED ITEM ${idx + 1} (FULL):`, JSON.stringify(item, null, 2));
+            });
           }
           
           if (removedItems.length > 0) {
@@ -418,10 +419,11 @@ const Test = () => {
           }
           
           if (modifiedItems.length > 0) {
-            console.log('[Test] 📦 ✏️ MODIFIED ITEMS:', modifiedItems.map((item: any) => {
+            console.log(`[Test] 📦 ✏️ MODIFIED ITEMS (${modifiedItems.length}):`);
+            modifiedItems.forEach((item: any, idx: number) => {
               const id = item.id || item.product_id || item.product_group_id;
               const beforeItem = beforeItems.find((bi: any) => (bi.id || bi.product_id || bi.product_group_id) === id);
-              return {
+              const itemDetails = {
                 id,
                 slug: item.slug || item.product_slug,
                 quantityBefore: beforeItem?.quantity,
@@ -430,33 +432,40 @@ const Test = () => {
                 name: item.name || item.product_name,
                 priceBefore: beforeItem?.price || beforeItem?.unit_price,
                 priceAfter: item.price || item.unit_price,
-                beforeItem: beforeItem, // Full before item
-                afterItem: item, // Full after item
               };
-            }));
+              console.log(`[Test] 📦 ✏️ MODIFIED ITEM ${idx + 1}:`, itemDetails);
+              console.log(`[Test] 📦 ✏️ MODIFIED ITEM ${idx + 1} BEFORE:`, JSON.stringify(beforeItem, null, 2));
+              console.log(`[Test] 📦 ✏️ MODIFIED ITEM ${idx + 1} AFTER:`, JSON.stringify(item, null, 2));
+            });
           }
           
-          console.log('[Test] 📦 FULL CART DATA:', {
+          console.log('[Test] 📦 FULL CART DATA:');
+          console.log('[Test] 📦 Cart Summary:', {
             cartId: currentCartData?.cartId,
             orderId: currentCartData?.orderId,
-            items: currentCartData?.items?.map((item: any) => ({
-              id: item.id || item.product_id || item.product_group_id,
-              slug: item.slug || item.product_slug,
-              quantity: item.quantity,
-              name: item.name || item.product_name,
-              price: item.price || item.unit_price,
-              total: item.total || item.subtotal,
-              fullItem: item, // Full item for inspection
-            })),
+            itemsCount: currentCartData?.items?.length || 0,
             starts_at: currentCartData?.starts_at,
             stops_at: currentCartData?.stops_at,
             deposit: currentCartData?.deposit,
             couponDiscount: currentCartData?.couponDiscount,
             toBePaid: currentCartData?.toBePaid,
             total: currentCartData?.total || currentCartData?.total_price,
-            // Include all other properties
-            fullCartData: currentCartData,
           });
+          if (currentCartData?.items && currentCartData.items.length > 0) {
+            console.log(`[Test] 📦 Cart Items (${currentCartData.items.length}):`);
+            currentCartData.items.forEach((item: any, idx: number) => {
+              console.log(`[Test] 📦 Item ${idx + 1} Summary:`, {
+                id: item.id || item.product_id || item.product_group_id,
+                slug: item.slug || item.product_slug,
+                quantity: item.quantity,
+                name: item.name || item.product_name,
+                price: item.price || item.unit_price,
+                total: item.total || item.subtotal,
+              });
+              console.log(`[Test] 📦 Item ${idx + 1} (FULL JSON):`, JSON.stringify(item, null, 2));
+            });
+          }
+          console.log('[Test] 📦 Full Cart Data (JSON):', JSON.stringify(currentCartData, null, 2));
           console.log('[Test] 📦 ========================================');
           
           lastCartData = currentCartData ? JSON.parse(JSON.stringify(currentCartData)) : null;
