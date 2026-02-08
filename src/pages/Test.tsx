@@ -789,6 +789,162 @@ const Test = () => {
       console.error('[Test] applyRentalPeriod error:', error);
     }
 
+    // Add product to cart (replicating the Booqable button click functionality)
+    const addProductToCart = () => {
+      const api = getBooqableApi();
+      if (!api) {
+        console.log('[Test] ⚠️ Booqable API not ready for adding product, will retry...');
+        return false;
+      }
+
+      const cart = api?.cart;
+      const productSlug = 'sander'; // The product we want to add
+      
+      console.log('[Test] ========================================');
+      console.log('[Test] Adding product to cart:', productSlug);
+      console.log('[Test] ========================================');
+
+      // Get cart state before adding
+      const beforeCart = api.cartData;
+      console.log('[Test] Cart BEFORE adding product:', {
+        itemsCount: beforeCart?.items?.length || 0,
+        items: beforeCart?.items || [],
+      });
+
+      // Method 1: Try to find and click the Booqable button programmatically
+      const button = document.querySelector(`.booqable-product-button[data-id="${productSlug}"], .booqable-product-button[data-product-slug="${productSlug}"]`) as HTMLElement;
+      if (button) {
+        // Find the clickable child (usually a button or span with "Add to cart" text)
+        const clickableElement = button.querySelector('button, [role="button"], .bq-button, button.Button') as HTMLElement;
+        const elementToClick = clickableElement || button;
+        
+        console.log('[Test] Found Booqable button, clicking programmatically...');
+        console.log('[Test] Button element:', {
+          tagName: elementToClick.tagName,
+          className: elementToClick.className,
+          dataId: button.getAttribute('data-id'),
+          dataSlug: button.getAttribute('data-product-slug'),
+        });
+
+        // Create and dispatch a click event
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        });
+        elementToClick.dispatchEvent(clickEvent);
+        
+        console.log('[Test] ✅ Dispatched click event on Booqable button');
+        
+        // Check if cart was updated after a delay
+        setTimeout(() => {
+          const afterCart = api.cartData;
+          const itemsChanged = JSON.stringify(beforeCart?.items || []) !== JSON.stringify(afterCart?.items || []);
+          if (itemsChanged) {
+            console.log('[Test] ✅ Cart was updated after button click!');
+            console.log('[Test] Cart AFTER adding product:', {
+              itemsCount: afterCart?.items?.length || 0,
+              items: afterCart?.items || [],
+            });
+            setStatus('✅ Product added to cart!');
+            setCartDataState(afterCart);
+          } else {
+            console.log('[Test] ⚠️ Cart not yet updated, may take longer...');
+          }
+        }, 500);
+
+        return true;
+      }
+
+      // Method 2: Try using Booqable API methods to add product
+      if (cart) {
+        console.log('[Test] Trying Booqable API methods to add product...');
+        
+        const apiMethods = [
+          { name: 'cart.addItem', fn: cart.addItem },
+          { name: 'cart.addProductGroup', fn: cart.addProductGroup },
+          { name: 'cart.addProduct', fn: cart.addProduct },
+          { name: 'cart.add', fn: cart.add },
+        ];
+
+        for (const method of apiMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              // Try with slug as string
+              (method.fn as any)(productSlug, 1);
+              console.log(`[Test] ✅ Called ${method.name}(${productSlug}, 1)`);
+              
+              setTimeout(() => {
+                const afterCart = api.cartData;
+                const itemsChanged = JSON.stringify(beforeCart?.items || []) !== JSON.stringify(afterCart?.items || []);
+                if (itemsChanged) {
+                  console.log('[Test] ✅ Cart was updated via API!');
+                  setStatus(`✅ Product added via ${method.name}!`);
+                  setCartDataState(afterCart);
+                }
+              }, 500);
+              
+              return true;
+            } catch (e) {
+              try {
+                // Try with object format
+                (method.fn as any)({ product_group_id: productSlug, quantity: 1 });
+                console.log(`[Test] ✅ Called ${method.name}({product_group_id: ${productSlug}, quantity: 1})`);
+                
+                setTimeout(() => {
+                  const afterCart = api.cartData;
+                  const itemsChanged = JSON.stringify(beforeCart?.items || []) !== JSON.stringify(afterCart?.items || []);
+                  if (itemsChanged) {
+                    console.log('[Test] ✅ Cart was updated via API!');
+                    setStatus(`✅ Product added via ${method.name}!`);
+                    setCartDataState(afterCart);
+                  }
+                }, 500);
+                
+                return true;
+              } catch (e2) {
+                console.log(`[Test] ❌ ${method.name} failed:`, e2);
+              }
+            }
+          }
+        }
+      }
+
+      // Method 3: Try direct API methods
+      const directMethods = ['addItem', 'addProduct', 'addProductGroup', 'addToCart'];
+      for (const methodName of directMethods) {
+        if (typeof api[methodName] === 'function') {
+          try {
+            (api[methodName] as any)(productSlug, 1);
+            console.log(`[Test] ✅ Called api.${methodName}(${productSlug}, 1)`);
+            
+            setTimeout(() => {
+              const afterCart = api.cartData;
+              const itemsChanged = JSON.stringify(beforeCart?.items || []) !== JSON.stringify(afterCart?.items || []);
+              if (itemsChanged) {
+                console.log('[Test] ✅ Cart was updated via direct API!');
+                setStatus(`✅ Product added via api.${methodName}!`);
+                setCartDataState(afterCart);
+              }
+            }, 500);
+            
+            return true;
+          } catch (e) {
+            console.log(`[Test] ❌ api.${methodName} failed:`, e);
+          }
+        }
+      }
+
+      console.log('[Test] ⚠️ Could not add product to cart - no working method found');
+      setStatus('⚠️ Could not add product. Check console for details.');
+      return false;
+    };
+
+    // Try to add product after setting dates (with delays to ensure dates are set first)
+    setTimeout(() => addProductToCart(), 1000);
+    setTimeout(() => addProductToCart(), 2000);
+    setTimeout(() => addProductToCart(), 3000);
+
   };
 
   return (
