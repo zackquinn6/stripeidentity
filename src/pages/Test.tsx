@@ -590,6 +590,26 @@ const Test = () => {
             }
           });
         }
+        
+        // Hide rush order toggles dynamically as they appear
+        const rushElements = cartWidget.querySelectorAll('[data-rush], .rush-order, input[type="checkbox"][name*="rush"], input[type="checkbox"][id*="rush"], *[class*="rush"], *[class*="Rush"]');
+        rushElements.forEach((el: any) => {
+          if (el.style.display !== 'none') {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.opacity = '0';
+            el.style.height = '0';
+            el.style.width = '0';
+            el.style.margin = '0';
+            el.style.padding = '0';
+            console.log('[Test] 🚫 Hidden rush order element:', {
+              tagName: el.tagName,
+              className: el.className,
+              name: el.name,
+              id: el.id,
+            });
+          }
+        });
       }, 500);
 
       // Cleanup
