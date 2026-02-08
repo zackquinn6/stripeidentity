@@ -214,9 +214,23 @@ const Test = () => {
                 const api = getBooqableApi();
                 const afterCart = getCartSnapshot();
                 const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
+                const fullCartData = api?.cartData;
                 console.log(`[Test] 🖱️ Cart AFTER click (500ms delay):`, {
                   ...afterCart,
-                  fullCartData: api?.cartData,
+                  fullCartData: fullCartData ? {
+                    cartId: fullCartData.cartId,
+                    orderId: fullCartData.orderId,
+                    items: fullCartData.items?.map((item: any) => ({
+                      id: item.id || item.product_id || item.product_group_id,
+                      slug: item.slug || item.product_slug,
+                      quantity: item.quantity,
+                      name: item.name || item.product_name,
+                      price: item.price || item.unit_price,
+                      fullItem: item,
+                    })),
+                    toBePaid: fullCartData.toBePaid,
+                    total: fullCartData.total || fullCartData.total_price,
+                  } : null,
                 });
                 if (changed) {
                   console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
@@ -229,7 +243,14 @@ const Test = () => {
                     const beforeItem = beforeCart.items.find((bi: any) => bi.id === i.id);
                     return beforeItem && beforeItem.quantity !== i.quantity;
                   });
-                  if (added.length > 0) console.log(`[Test] 🖱️ ➕ Items added:`, added);
+                  if (added.length > 0) {
+                    console.log(`[Test] 🖱️ ➕ Items added:`, added.map((i: any) => ({
+                      ...i,
+                      fullItem: fullCartData?.items?.find((item: any) => 
+                        (item.id || item.product_id || item.product_group_id) === i.id
+                      ),
+                    })));
+                  }
                   if (removed.length > 0) console.log(`[Test] 🖱️ ➖ Items removed:`, removed);
                   if (modified.length > 0) {
                     console.log(`[Test] 🖱️ ✏️ Items modified:`, modified.map((i: any) => {
@@ -238,9 +259,33 @@ const Test = () => {
                         ...i,
                         quantityBefore: beforeItem?.quantity,
                         quantityChange: i.quantity - (beforeItem?.quantity || 0),
+                        fullItem: fullCartData?.items?.find((item: any) => 
+                          (item.id || item.product_id || item.product_group_id) === i.id
+                        ),
                       };
                     }));
                   }
+                } else {
+                  // Check again after more time
+                  setTimeout(() => {
+                    const api2 = getBooqableApi();
+                    const afterCart2 = getCartSnapshot();
+                    const changed2 = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart2.items);
+                    if (changed2) {
+                      console.log(`[Test] 🖱️ ✅ Cart was updated by this click (delayed - 2000ms)!`);
+                      const fullCartData2 = api2?.cartData;
+                      const beforeIds = new Set(beforeCart.items.map((i: any) => i.id));
+                      const added = afterCart2.items.filter((i: any) => !beforeIds.has(i.id));
+                      if (added.length > 0) {
+                        console.log(`[Test] 🖱️ ➕ Items added (delayed):`, added.map((i: any) => ({
+                          ...i,
+                          fullItem: fullCartData2?.items?.find((item: any) => 
+                            (item.id || item.product_id || item.product_group_id) === i.id
+                          ),
+                        })));
+                      }
+                    }
+                  }, 1500); // Check again at 2000ms total
                 }
               }, 500);
             }, true); // Use capture phase to catch early
@@ -347,12 +392,20 @@ const Test = () => {
           });
           
           if (addedItems.length > 0) {
-            console.log('[Test] 📦 ➕ ADDED ITEMS:', addedItems.map((item: any) => ({
-              id: item.id || item.product_id || item.product_group_id,
-              slug: item.slug || item.product_slug,
-              quantity: item.quantity,
-              name: item.name || item.product_name,
-            })));
+            console.log('[Test] 📦 ➕ ADDED ITEMS:', addedItems.map((item: any) => {
+              const itemDetails = {
+                id: item.id || item.product_id || item.product_group_id,
+                slug: item.slug || item.product_slug,
+                quantity: item.quantity,
+                name: item.name || item.product_name,
+                price: item.price || item.unit_price,
+                total: item.total || item.subtotal,
+                // Include all properties for inspection
+                fullItem: item,
+              };
+              console.log('[Test] 📦 ➕ ADDED ITEM DETAILS:', itemDetails);
+              return itemDetails;
+            }));
           }
           
           if (removedItems.length > 0) {
@@ -383,7 +436,27 @@ const Test = () => {
             }));
           }
           
-          console.log('[Test] 📦 FULL CART DATA:', currentCartData);
+          console.log('[Test] 📦 FULL CART DATA:', {
+            cartId: currentCartData?.cartId,
+            orderId: currentCartData?.orderId,
+            items: currentCartData?.items?.map((item: any) => ({
+              id: item.id || item.product_id || item.product_group_id,
+              slug: item.slug || item.product_slug,
+              quantity: item.quantity,
+              name: item.name || item.product_name,
+              price: item.price || item.unit_price,
+              total: item.total || item.subtotal,
+              fullItem: item, // Full item for inspection
+            })),
+            starts_at: currentCartData?.starts_at,
+            stops_at: currentCartData?.stops_at,
+            deposit: currentCartData?.deposit,
+            couponDiscount: currentCartData?.couponDiscount,
+            toBePaid: currentCartData?.toBePaid,
+            total: currentCartData?.total || currentCartData?.total_price,
+            // Include all other properties
+            fullCartData: currentCartData,
+          });
           console.log('[Test] 📦 ========================================');
           
           lastCartData = currentCartData ? JSON.parse(JSON.stringify(currentCartData)) : null;
