@@ -189,22 +189,58 @@ const Test = () => {
               
               // Check cart after a short delay
               setTimeout(() => {
+                const api = getBooqableApi();
                 const afterCart = getCartSnapshot();
                 const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
-                console.log(`[Test] 🖱️ Cart AFTER click (100ms delay):`, afterCart);
+                console.log(`[Test] 🖱️ Cart AFTER click (100ms delay):`, {
+                  ...afterCart,
+                  fullCartData: api?.cartData,
+                });
                 if (changed) {
                   console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
+                  // Show what changed
+                  const beforeIds = new Set(beforeCart.items.map((i: any) => i.id));
+                  const afterIds = new Set(afterCart.items.map((i: any) => i.id));
+                  const added = afterCart.items.filter((i: any) => !beforeIds.has(i.id));
+                  const removed = beforeCart.items.filter((i: any) => !afterIds.has(i.id));
+                  if (added.length > 0) console.log(`[Test] 🖱️ ➕ Items added:`, added);
+                  if (removed.length > 0) console.log(`[Test] 🖱️ ➖ Items removed:`, removed);
                 } else {
                   console.log(`[Test] 🖱️ ⚠️ Cart not yet updated (may take longer)`);
                 }
               }, 100);
               
               setTimeout(() => {
+                const api = getBooqableApi();
                 const afterCart = getCartSnapshot();
                 const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
-                console.log(`[Test] 🖱️ Cart AFTER click (500ms delay):`, afterCart);
+                console.log(`[Test] 🖱️ Cart AFTER click (500ms delay):`, {
+                  ...afterCart,
+                  fullCartData: api?.cartData,
+                });
                 if (changed) {
                   console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
+                  // Show what changed
+                  const beforeIds = new Set(beforeCart.items.map((i: any) => i.id));
+                  const afterIds = new Set(afterCart.items.map((i: any) => i.id));
+                  const added = afterCart.items.filter((i: any) => !beforeIds.has(i.id));
+                  const removed = beforeCart.items.filter((i: any) => !beforeIds.has(i.id));
+                  const modified = afterCart.items.filter((i: any) => {
+                    const beforeItem = beforeCart.items.find((bi: any) => bi.id === i.id);
+                    return beforeItem && beforeItem.quantity !== i.quantity;
+                  });
+                  if (added.length > 0) console.log(`[Test] 🖱️ ➕ Items added:`, added);
+                  if (removed.length > 0) console.log(`[Test] 🖱️ ➖ Items removed:`, removed);
+                  if (modified.length > 0) {
+                    console.log(`[Test] 🖱️ ✏️ Items modified:`, modified.map((i: any) => {
+                      const beforeItem = beforeCart.items.find((bi: any) => bi.id === i.id);
+                      return {
+                        ...i,
+                        quantityBefore: beforeItem?.quantity,
+                        quantityChange: i.quantity - (beforeItem?.quantity || 0),
+                      };
+                    }));
+                  }
                 }
               }, 500);
             }, true); // Use capture phase to catch early
@@ -275,31 +311,39 @@ const Test = () => {
           console.log('[Test] 📦 ========================================');
           console.log('[Test] 📦 CART DATA CHANGED!');
           console.log('[Test] 📦 ========================================');
+          const beforeItemsDetails = beforeItems.map((item: any) => ({
+            id: item.id || item.product_id || item.product_group_id,
+            slug: item.slug || item.product_slug,
+            quantity: item.quantity,
+            name: item.name || item.product_name,
+            price: item.price || item.unit_price,
+            fullItem: item, // Include full item for inspection
+          }));
+          
+          const afterItemsDetails = afterItems.map((item: any) => ({
+            id: item.id || item.product_id || item.product_group_id,
+            slug: item.slug || item.product_slug,
+            quantity: item.quantity,
+            name: item.name || item.product_name,
+            price: item.price || item.unit_price,
+            fullItem: item, // Include full item for inspection
+          }));
+          
           console.log('[Test] 📦 BEFORE:', {
             itemsCount: beforeItems.length,
-            items: beforeItems.map((item: any) => ({
-              id: item.id || item.product_id || item.product_group_id,
-              slug: item.slug || item.product_slug,
-              quantity: item.quantity,
-              name: item.name || item.product_name,
-              price: item.price || item.unit_price,
-            })),
+            items: beforeItemsDetails,
             starts_at: lastCartData?.starts_at,
             stops_at: lastCartData?.stops_at,
             total: lastCartData?.total || lastCartData?.total_price,
+            fullCartData: lastCartData,
           });
           console.log('[Test] 📦 AFTER:', {
             itemsCount: afterItems.length,
-            items: afterItems.map((item: any) => ({
-              id: item.id || item.product_id || item.product_group_id,
-              slug: item.slug || item.product_slug,
-              quantity: item.quantity,
-              name: item.name || item.product_name,
-              price: item.price || item.unit_price,
-            })),
+            items: afterItemsDetails,
             starts_at: currentCartData?.starts_at,
             stops_at: currentCartData?.stops_at,
             total: currentCartData?.total || currentCartData?.total_price,
+            fullCartData: currentCartData,
           });
           
           if (addedItems.length > 0) {
@@ -329,7 +373,12 @@ const Test = () => {
                 slug: item.slug || item.product_slug,
                 quantityBefore: beforeItem?.quantity,
                 quantityAfter: item.quantity,
+                quantityChange: item.quantity - (beforeItem?.quantity || 0),
                 name: item.name || item.product_name,
+                priceBefore: beforeItem?.price || beforeItem?.unit_price,
+                priceAfter: item.price || item.unit_price,
+                beforeItem: beforeItem, // Full before item
+                afterItem: item, // Full after item
               };
             }));
           }
