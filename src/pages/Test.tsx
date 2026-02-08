@@ -146,32 +146,68 @@ const Test = () => {
         if (enhancedButtons.length === 0) {
           console.warn('[Test] ⚠️ No buttons were enhanced. Booqable may not recognize the product slugs.');
         } else {
-          // Set up click tracking for enhanced buttons
+          // Set up click tracking for enhanced buttons (only once per button)
           Array.from(buttons).forEach((btn, idx) => {
-            // Track clicks on the button container
+            // Check if we already added listeners (avoid duplicates)
+            if ((btn as any).__testClickTracked) {
+              return;
+            }
+            (btn as any).__testClickTracked = true;
+            
+            // Get cart state before click
+            const getCartSnapshot = () => {
+              const api = getBooqableApi();
+              const cartData = api?.cartData;
+              return {
+                itemsCount: cartData?.items?.length || 0,
+                items: cartData?.items?.map((item: any) => ({
+                  id: item.id || item.product_id || item.product_group_id,
+                  quantity: item.quantity,
+                })) || [],
+                timestamp: new Date().toISOString(),
+              };
+            };
+            
+            // Track clicks on the button container (capture phase - fires first)
             btn.addEventListener('click', (e) => {
-              console.log(`[Test] 🖱️ Button ${idx + 1} clicked!`, {
-                target: e.target,
-                currentTarget: e.currentTarget,
+              const beforeCart = getCartSnapshot();
+              console.log(`[Test] 🖱️ ========================================`);
+              console.log(`[Test] 🖱️ BUTTON ${idx + 1} CLICKED (CAPTURE PHASE)`);
+              console.log(`[Test] 🖱️ ========================================`);
+              console.log(`[Test] 🖱️ Button details:`, {
                 dataId: btn.getAttribute('data-id'),
                 dataSlug: btn.getAttribute('data-product-slug'),
-                buttonHTML: btn.innerHTML.substring(0, 200),
                 buttonClasses: btn.className,
-                eventType: e.type,
-                bubbles: e.bubbles,
-                cancelable: e.cancelable,
               });
-            }, true); // Use capture phase to catch early
-
-            // Track clicks on any child elements
-            btn.addEventListener('click', (e) => {
-              console.log(`[Test] 🖱️ Child element clicked in button ${idx + 1}:`, {
-                childElement: e.target,
+              console.log(`[Test] 🖱️ Click target:`, {
                 tagName: (e.target as HTMLElement)?.tagName,
                 className: (e.target as HTMLElement)?.className,
                 textContent: (e.target as HTMLElement)?.textContent?.substring(0, 100),
+                id: (e.target as HTMLElement)?.id,
               });
-            });
+              console.log(`[Test] 🖱️ Cart BEFORE click:`, beforeCart);
+              
+              // Check cart after a short delay
+              setTimeout(() => {
+                const afterCart = getCartSnapshot();
+                const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
+                console.log(`[Test] 🖱️ Cart AFTER click (100ms delay):`, afterCart);
+                if (changed) {
+                  console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
+                } else {
+                  console.log(`[Test] 🖱️ ⚠️ Cart not yet updated (may take longer)`);
+                }
+              }, 100);
+              
+              setTimeout(() => {
+                const afterCart = getCartSnapshot();
+                const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
+                console.log(`[Test] 🖱️ Cart AFTER click (500ms delay):`, afterCart);
+                if (changed) {
+                  console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
+                }
+              }, 500);
+            }, true); // Use capture phase to catch early
 
             console.log(`[Test] ✅ Added click listeners to button ${idx + 1}`);
           });
@@ -199,40 +235,113 @@ const Test = () => {
       return;
     }
 
-    // Track cartData changes
+    // Track cartData changes with detailed diff
     let lastCartData: any = null;
+    let lastCartDataString = '';
     const cartDataCheckInterval = setInterval(() => {
       const currentCartData = api.cartData;
-      if (currentCartData !== lastCartData) {
-        const itemsChanged = JSON.stringify(currentCartData?.items || []) !== JSON.stringify(lastCartData?.items || []);
+      const currentCartDataString = JSON.stringify(currentCartData);
+      
+      if (currentCartDataString !== lastCartDataString) {
+        const beforeItems = lastCartData?.items || [];
+        const afterItems = currentCartData?.items || [];
+        
+        const itemsChanged = JSON.stringify(beforeItems) !== JSON.stringify(afterItems);
         const datesChanged = currentCartData?.starts_at !== lastCartData?.starts_at || 
                             currentCartData?.stops_at !== lastCartData?.stops_at;
         
         if (itemsChanged || datesChanged || !lastCartData) {
-          console.log('[Test] 📦 Cart data changed!', {
-            before: lastCartData ? {
-              itemsCount: lastCartData.items?.length || 0,
-              starts_at: lastCartData.starts_at,
-              stops_at: lastCartData.stops_at,
-            } : null,
-            after: {
-              itemsCount: currentCartData?.items?.length || 0,
-              items: currentCartData?.items?.map((item: any) => ({
-                id: item.id || item.product_id,
-                quantity: item.quantity,
-                name: item.name || item.product_name,
-              })) || [],
-              starts_at: currentCartData?.starts_at,
-              stops_at: currentCartData?.stops_at,
-            },
-            itemsChanged,
-            datesChanged,
-            fullCartData: currentCartData,
+          // Calculate what was added
+          const beforeItemIds = new Set(beforeItems.map((item: any) => item.id || item.product_id || item.product_group_id));
+          const afterItemIds = new Set(afterItems.map((item: any) => item.id || item.product_id || item.product_group_id));
+          
+          const addedItems = afterItems.filter((item: any) => {
+            const id = item.id || item.product_id || item.product_group_id;
+            return !beforeItemIds.has(id);
           });
+          
+          const removedItems = beforeItems.filter((item: any) => {
+            const id = item.id || item.product_id || item.product_group_id;
+            return !afterItemIds.has(id);
+          });
+          
+          const modifiedItems = afterItems.filter((item: any) => {
+            const id = item.id || item.product_id || item.product_group_id;
+            if (!beforeItemIds.has(id)) return false;
+            const beforeItem = beforeItems.find((bi: any) => (bi.id || bi.product_id || bi.product_group_id) === id);
+            return beforeItem && beforeItem.quantity !== item.quantity;
+          });
+          
+          console.log('[Test] 📦 ========================================');
+          console.log('[Test] 📦 CART DATA CHANGED!');
+          console.log('[Test] 📦 ========================================');
+          console.log('[Test] 📦 BEFORE:', {
+            itemsCount: beforeItems.length,
+            items: beforeItems.map((item: any) => ({
+              id: item.id || item.product_id || item.product_group_id,
+              slug: item.slug || item.product_slug,
+              quantity: item.quantity,
+              name: item.name || item.product_name,
+              price: item.price || item.unit_price,
+            })),
+            starts_at: lastCartData?.starts_at,
+            stops_at: lastCartData?.stops_at,
+            total: lastCartData?.total || lastCartData?.total_price,
+          });
+          console.log('[Test] 📦 AFTER:', {
+            itemsCount: afterItems.length,
+            items: afterItems.map((item: any) => ({
+              id: item.id || item.product_id || item.product_group_id,
+              slug: item.slug || item.product_slug,
+              quantity: item.quantity,
+              name: item.name || item.product_name,
+              price: item.price || item.unit_price,
+            })),
+            starts_at: currentCartData?.starts_at,
+            stops_at: currentCartData?.stops_at,
+            total: currentCartData?.total || currentCartData?.total_price,
+          });
+          
+          if (addedItems.length > 0) {
+            console.log('[Test] 📦 ➕ ADDED ITEMS:', addedItems.map((item: any) => ({
+              id: item.id || item.product_id || item.product_group_id,
+              slug: item.slug || item.product_slug,
+              quantity: item.quantity,
+              name: item.name || item.product_name,
+            })));
+          }
+          
+          if (removedItems.length > 0) {
+            console.log('[Test] 📦 ➖ REMOVED ITEMS:', removedItems.map((item: any) => ({
+              id: item.id || item.product_id || item.product_group_id,
+              slug: item.slug || item.product_slug,
+              quantity: item.quantity,
+              name: item.name || item.product_name,
+            })));
+          }
+          
+          if (modifiedItems.length > 0) {
+            console.log('[Test] 📦 ✏️ MODIFIED ITEMS:', modifiedItems.map((item: any) => {
+              const id = item.id || item.product_id || item.product_group_id;
+              const beforeItem = beforeItems.find((bi: any) => (bi.id || bi.product_id || bi.product_group_id) === id);
+              return {
+                id,
+                slug: item.slug || item.product_slug,
+                quantityBefore: beforeItem?.quantity,
+                quantityAfter: item.quantity,
+                name: item.name || item.product_name,
+              };
+            }));
+          }
+          
+          console.log('[Test] 📦 FULL CART DATA:', currentCartData);
+          console.log('[Test] 📦 ========================================');
+          
           lastCartData = currentCartData ? JSON.parse(JSON.stringify(currentCartData)) : null;
+          lastCartDataString = currentCartDataString;
         }
       }
-    }, 500); // Check every 500ms
+    }, 300); // Check every 300ms for faster detection
 
     // Track Booqable events if available
     if (typeof api.on === 'function') {
