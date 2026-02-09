@@ -187,28 +187,71 @@ const Test = () => {
               });
               console.log(`[Test] 🖱️ Cart BEFORE click:`, beforeCart);
               
-              // Check cart after a short delay
-              setTimeout(() => {
-                const api = getBooqableApi();
-                const afterCart = getCartSnapshot();
-                const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
-                console.log(`[Test] 🖱️ Cart AFTER click (100ms delay):`, {
-                  ...afterCart,
-                  fullCartData: api?.cartData,
-                });
-                if (changed) {
-                  console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
-                  // Show what changed
-                  const beforeIds = new Set(beforeCart.items.map((i: any) => i.id));
-                  const afterIds = new Set(afterCart.items.map((i: any) => i.id));
-                  const added = afterCart.items.filter((i: any) => !beforeIds.has(i.id));
-                  const removed = beforeCart.items.filter((i: any) => !afterIds.has(i.id));
-                  if (added.length > 0) console.log(`[Test] 🖱️ ➕ Items added:`, added);
-                  if (removed.length > 0) console.log(`[Test] 🖱️ ➖ Items removed:`, removed);
-                } else {
-                  console.log(`[Test] 🖱️ ⚠️ Cart not yet updated (may take longer)`);
+        // Check cart after a short delay and remove rush order items
+        setTimeout(() => {
+          const api = getBooqableApi();
+          const afterCart = getCartSnapshot();
+          const changed = JSON.stringify(beforeCart.items) !== JSON.stringify(afterCart.items);
+          
+          // Remove rush order items if any were added
+          if (api?.cartData?.items) {
+            const rushItems = api.cartData.items.filter((item: any) => {
+              const name = (item.item_name || item.name || '').toLowerCase();
+              const id = (item.item_id || item.id || '').toLowerCase();
+              return name.includes('rush') || id.includes('rush');
+            });
+            
+            if (rushItems.length > 0) {
+              console.log(`[Test] 🚫 Rush order items detected, removing:`, rushItems);
+              const cart = api.cart;
+              rushItems.forEach((item: any) => {
+                const itemId = item.item_id || item.id;
+                if (itemId && cart) {
+                  const removeMethods = [
+                    { name: 'cart.removeItem', fn: cart.removeItem },
+                    { name: 'cart.remove', fn: cart.remove },
+                    { name: 'cart.removeLine', fn: cart.removeLine },
+                  ];
+                  for (const method of removeMethods) {
+                    if (typeof method.fn === 'function') {
+                      try {
+                        method.fn(itemId);
+                        console.log(`[Test] 🚫 Removed rush order via ${method.name}`);
+                        break;
+                      } catch (e) {
+                        // continue
+                      }
+                    }
+                  }
                 }
-              }, 100);
+              });
+              
+              // Also filter from cartData directly
+              api.cartData.items = api.cartData.items.filter((item: any) => {
+                const name = (item.item_name || item.name || '').toLowerCase();
+                const id = (item.item_id || item.id || '').toLowerCase();
+                return !name.includes('rush') && !id.includes('rush');
+              });
+            }
+          }
+          
+          console.log(`[Test] 🖱️ Cart AFTER click (100ms delay):`, {
+            ...afterCart,
+            fullCartData: api?.cartData,
+          });
+          if (changed) {
+            console.log(`[Test] 🖱️ ✅ Cart was updated by this click!`);
+            // Show what changed
+            const beforeIds = new Set(beforeCart.items.map((i: any) => i.id));
+            const afterIds = new Set(afterCart.items.map((i: any) => i.id));
+            const added = afterCart.items.filter((i: any) => !beforeIds.has(i.id));
+            const removed = beforeCart.items.filter((i: any) => !afterIds.has(i.id));
+            if (added.length > 0) console.log(`[Test] 🖱️ ➕ Items added:`, added);
+            if (removed.length > 0) console.log(`[Test] 🖱️ ➖ Items removed:`, removed);
+          } else {
+            console.log(`[Test] 🖱️ ⚠️ Cart not yet updated (may take longer)`);
+          }
+        }, 100);
               
               setTimeout(() => {
                 const api = getBooqableApi();
@@ -318,10 +361,91 @@ const Test = () => {
       return;
     }
 
+    // Remove rush order items from cart programmatically
+    const removeRushOrderItems = () => {
+      if (!api.cartData || !api.cartData.items) return;
+      
+      const rushOrderItems = api.cartData.items.filter((item: any) => {
+        const itemName = (item.item_name || item.name || '').toLowerCase();
+        const itemId = (item.item_id || item.id || '').toLowerCase();
+        const slug = (item.slug || '').toLowerCase();
+        return itemName.includes('rush') || 
+               itemId.includes('rush') || 
+               slug.includes('rush-order') ||
+               slug.includes('rush-order-processing');
+      });
+      
+      if (rushOrderItems.length > 0) {
+        console.log('[Test] 🚫 Found rush order items in cart, removing:', rushOrderItems);
+        
+        // Try to remove via cart API
+        const cart = api.cart;
+        if (cart) {
+          rushOrderItems.forEach((item: any) => {
+            const itemId = item.item_id || item.id;
+            if (itemId) {
+              // Try remove methods
+              const removeMethods = [
+                { name: 'cart.removeItem', fn: cart.removeItem },
+                { name: 'cart.remove', fn: cart.remove },
+                { name: 'cart.removeLine', fn: cart.removeLine },
+                { name: 'cart.removeLineItem', fn: cart.removeLineItem },
+              ];
+              
+              for (const method of removeMethods) {
+                if (typeof method.fn === 'function') {
+                  try {
+                    method.fn(itemId);
+                    console.log(`[Test] 🚫 Removed rush order item via ${method.name}`);
+                    break;
+                  } catch (e) {
+                    try {
+                      method.fn({ item_id: itemId });
+                      console.log(`[Test] 🚫 Removed rush order item via ${method.name} (object)`);
+                      break;
+                    } catch (e2) {
+                      // continue
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+        
+        // Also try to filter items directly from cartData
+        if (api.cartData.items) {
+          const filteredItems = api.cartData.items.filter((item: any) => {
+            const itemName = (item.item_name || item.name || '').toLowerCase();
+            const itemId = (item.item_id || item.id || '').toLowerCase();
+            const slug = (item.slug || '').toLowerCase();
+            return !itemName.includes('rush') && 
+                   !itemId.includes('rush') && 
+                   !slug.includes('rush-order') &&
+                   !slug.includes('rush-order-processing');
+          });
+          
+          if (filteredItems.length !== api.cartData.items.length) {
+            api.cartData.items = filteredItems;
+            console.log('[Test] 🚫 Filtered rush order items from cartData');
+            
+            // Trigger refresh
+            if (typeof api.refresh === 'function') {
+              api.refresh();
+            }
+            booqableRefresh();
+          }
+        }
+      }
+    };
+    
     // Track cartData changes with detailed diff
     let lastCartData: any = null;
     let lastCartDataString = '';
     const cartDataCheckInterval = setInterval(() => {
+      // Remove rush order items first
+      removeRushOrderItems();
+      
       const currentCartData = api.cartData;
       const currentCartDataString = JSON.stringify(currentCartData);
       
@@ -591,20 +715,18 @@ const Test = () => {
           });
         }
         
-        // Hide rush order toggles dynamically as they appear
+        // Remove rush order toggles/checkboxes from DOM
         const rushElements = cartWidget.querySelectorAll('[data-rush], .rush-order, input[type="checkbox"][name*="rush"], input[type="checkbox"][id*="rush"], *[class*="rush"], *[class*="Rush"]');
         rushElements.forEach((el: any) => {
-          if (el.style.display !== 'none') {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.style.opacity = '0';
-            el.style.height = '0';
-            el.style.width = '0';
-            el.style.margin = '0';
-            el.style.padding = '0';
-            console.log('[Test] 🚫 Hidden rush order element:', {
-              tagName: el.tagName,
-              className: el.className,
+          // Find parent container (label, div, etc.) and remove it entirely
+          const parent = el.closest('label, div, li, tr, .form-group, .checkbox, .form-check');
+          const elementToRemove = parent && parent !== cartWidget ? parent : el;
+          
+          if (elementToRemove && elementToRemove.parentNode) {
+            elementToRemove.parentNode.removeChild(elementToRemove);
+            console.log('[Test] 🚫 Removed rush order element from DOM:', {
+              tagName: elementToRemove.tagName,
+              className: elementToRemove.className,
               name: el.name,
               id: el.id,
             });
@@ -1294,25 +1416,6 @@ const Test = () => {
           <div id="booqable-cart-widget"></div>
         </div>
 
-        {/* Hide rush order toggle in Booqable widget */}
-        <style>{`
-          #booqable-cart-widget [data-rush],
-          #booqable-cart-widget .rush-order,
-          #booqable-cart-widget input[type="checkbox"][name*="rush"],
-          #booqable-cart-widget input[type="checkbox"][id*="rush"],
-          #booqable-cart-widget label:has(input[type="checkbox"][name*="rush"]),
-          #booqable-cart-widget label:has(input[type="checkbox"][id*="rush"]),
-          #booqable-cart-widget *[class*="rush"],
-          #booqable-cart-widget *[class*="Rush"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            height: 0 !important;
-            width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-        `}</style>
 
         {/* Add-on product button - matching checkout page structure */}
         <div className="p-4 border rounded-lg bg-muted/50">
