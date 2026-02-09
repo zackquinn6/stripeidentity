@@ -687,6 +687,62 @@ const Test = () => {
         });
       });
 
+      // Remove rush order elements as soon as they appear
+      const rushOrderObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach((node) => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node as HTMLElement;
+                
+                // Check if this element or its children are rush order related
+                const rushSelectors = [
+                  '[data-rush]',
+                  '.rush-order',
+                  'input[type="checkbox"][name*="rush"]',
+                  'input[type="checkbox"][id*="rush"]',
+                  '*[class*="rush"]',
+                  '*[class*="Rush"]',
+                ];
+                
+                let rushElement: HTMLElement | null = null;
+                for (const selector of rushSelectors) {
+                  if (element.matches?.(selector)) {
+                    rushElement = element;
+                    break;
+                  }
+                  const found = element.querySelector?.(selector);
+                  if (found) {
+                    rushElement = found as HTMLElement;
+                    break;
+                  }
+                }
+                
+                if (rushElement) {
+                  // Find parent container and remove it
+                  const parent = rushElement.closest('label, div, li, tr, .form-group, .checkbox, .form-check');
+                  const elementToRemove = parent && parent !== cartWidget ? parent : rushElement;
+                  
+                  if (elementToRemove && elementToRemove.parentNode) {
+                    elementToRemove.parentNode.removeChild(elementToRemove);
+                    console.log('[Test] 🚫 Removed rush order element from DOM (MutationObserver):', {
+                      tagName: elementToRemove.tagName,
+                      className: elementToRemove.className,
+                      textContent: elementToRemove.textContent?.substring(0, 100),
+                    });
+                  }
+                }
+              }
+            });
+          }
+        });
+      });
+
+      rushOrderObserver.observe(cartWidget, {
+        childList: true,
+        subtree: true,
+      });
+
       cartObserver.observe(cartWidget, {
         childList: true,
         subtree: true,
@@ -694,7 +750,7 @@ const Test = () => {
         attributeFilter: ['value', 'data-value'],
       });
 
-      console.log('[Test] ✅ Watching cart widget DOM for changes and date inputs');
+      console.log('[Test] ✅ Watching cart widget DOM for changes, date inputs, and rush order elements');
 
       // Also watch for date-related elements periodically
       const dateCheckInterval = setInterval(() => {
@@ -739,6 +795,7 @@ const Test = () => {
         clearInterval(cartDataCheckInterval);
         clearInterval(dateCheckInterval);
         cartObserver.disconnect();
+        rushOrderObserver.disconnect();
         console.log('[Test] 🧹 Cleaned up cart tracking');
       };
     }
