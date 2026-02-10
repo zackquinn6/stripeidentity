@@ -26,23 +26,28 @@ const Test = () => {
   // Store target dates globally so they can be re-applied if cleared
   const targetDatesRef = useRef<{ startsAt?: string; stopsAt?: string }>({});
 
-  // Set dates on page load and whenever Booqable initializes
+  // Set dates whenever user-selected dates change or Booqable initializes
   useEffect(() => {
-    const setInitialDates = () => {
+    // Only set dates if user has selected both dates
+    if (!startDate || !endDate) {
+      return;
+    }
+
+    const setDates = () => {
       const api = getBooqableApi();
       if (!api) {
         // Retry if API not ready
-        setTimeout(setInitialDates, 200);
+        setTimeout(setDates, 200);
         return;
       }
 
-      const startsAt = format(defaultStartDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
-      const stopsAt = format(defaultEndDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
       
       // Store target dates
       targetDatesRef.current = { startsAt, stopsAt };
 
-      console.log('[Test] 📅 Setting initial rental dates on page load:', { startsAt, stopsAt });
+      console.log('[Test] 📅 Setting rental dates from user selection:', { startsAt, stopsAt, startDate, endDate });
 
       // Set URL parameters first (most reliable)
       try {
@@ -50,9 +55,9 @@ const Test = () => {
         url.searchParams.set('starts_at', startsAt);
         url.searchParams.set('stops_at', stopsAt);
         window.history.replaceState({}, '', url.toString());
-        console.log('[Test] 📅 ✅ Set initial URL parameters');
+        console.log('[Test] 📅 ✅ Set URL parameters from user dates');
       } catch (e) {
-        console.error('[Test] 📅 ❌ Failed to set initial URL params:', e);
+        console.error('[Test] 📅 ❌ Failed to set URL params:', e);
       }
 
       // Set via API
@@ -62,9 +67,9 @@ const Test = () => {
             starts_at: startsAt,
             stops_at: stopsAt,
           });
-          console.log('[Test] 📅 ✅ Set initial dates via api.setCartData');
+          console.log('[Test] 📅 ✅ Set dates via api.setCartData from user selection');
         } catch (e) {
-          console.warn('[Test] 📅 ❌ Failed to set initial dates via setCartData:', e);
+          console.warn('[Test] 📅 ❌ Failed to set dates via setCartData:', e);
         }
       }
 
@@ -73,9 +78,9 @@ const Test = () => {
         try {
           api.cartData.starts_at = startsAt;
           api.cartData.stops_at = stopsAt;
-          console.log('[Test] 📅 ✅ Set initial dates directly on cartData');
+          console.log('[Test] 📅 ✅ Set dates directly on cartData from user selection');
         } catch (e) {
-          console.warn('[Test] 📅 ❌ Failed to set initial dates on cartData:', e);
+          console.warn('[Test] 📅 ❌ Failed to set dates on cartData:', e);
         }
       }
 
@@ -84,15 +89,15 @@ const Test = () => {
     };
 
     // Set dates immediately and with retries (Booqable may initialize later)
-    setInitialDates();
+    setDates();
     const timeouts = [500, 1000, 2000, 3000, 5000].map(delay => 
-      setTimeout(setInitialDates, delay)
+      setTimeout(setDates, delay)
     );
 
     return () => {
       timeouts.forEach(clearTimeout);
     };
-  }, []); // Only run on mount
+  }, [startDate, endDate]); // Run whenever user changes dates
 
   // Explicitly enhance product buttons when they're rendered - matching checkout page logic
   useEffect(() => {
