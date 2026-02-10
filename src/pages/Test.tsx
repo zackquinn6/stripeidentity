@@ -1494,25 +1494,88 @@ const Test = () => {
       console.log('[Test] 🛒 Cart AFTER aggressive date re-application:', afterCartSnapshot);
     }
 
-    // Check if product was added
-    const productAdded = afterCartSnapshot.items.some((item: any) => 
-      item.slug === productSlug || item.id === productSlug
-    );
+    // Check if product was added - check both snapshot and cartData directly
+    const api = getBooqableApi();
+    const finalCartData = api?.cartData;
+    const cartItems = finalCartData?.items || [];
+    
+    // Check if product was added by looking for the item in cartData
+    // The item might be identified by slug, id, item_id, or product_id
+    const productAdded = cartItems.some((item: any) => {
+      const itemSlug = item.slug || item.product_slug || item.item_slug;
+      const itemId = item.id || item.item_id || item.product_id || item.product_group_id;
+      return itemSlug === productSlug || 
+             itemId === productSlug ||
+             item.item_name?.toLowerCase().includes('sander') ||
+             item.name?.toLowerCase().includes('sander');
+    });
 
     if (productAdded) {
       // Verify dates are set
-      const finalCartData = api.cartData;
       const datesStillSet = finalCartData?.starts_at === startsAt && finalCartData?.stops_at === stopsAt;
       
       if (datesStillSet) {
         setStatus(`✅ Product added and rental dates set!\nDates: ${startsAt} → ${stopsAt}\nMethods: ${dateResult.methodsUsed.join(', ')}`);
       } else if (finalCartData?.starts_at || finalCartData?.stops_at) {
-        setStatus(`✅ Product added. Dates partially set.\nActual: ${finalCartData?.starts_at || 'N/A'} → ${finalCartData?.stops_at || 'N/A'}\nTarget: ${startsAt} → ${stopsAt}`);
+        setStatus(`✅ Product added. Dates partially set.\nActual: ${finalCartData?.starts_at || 'N/A'} → ${finalCartData?.stops_at || 'N/A'}\nTarget: ${startsAt} → ${stopsAt}\nContinuing to apply dates...`);
+        
+        // Continue trying to set dates even after status is set
+        setTimeout(() => {
+          passRentalDatesToCart(startsAt, stopsAt);
+          
+          // Try DOM manipulation one more time
+          try {
+            const dateInputs = document.querySelectorAll('#booqable-cart-widget input[type="date"], #booqable-cart-widget input[name*="start"], #booqable-cart-widget input[name*="stop"], .booqable-cart input[type="date"], input[type="date"][name*="start"], input[type="date"][name*="stop"]');
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0] as HTMLInputElement;
+              const stopInput = dateInputs[1] as HTMLInputElement;
+              const startDateStr = startsAt.split('T')[0];
+              const stopDateStr = stopsAt.split('T')[0];
+              
+              startInput.value = startDateStr;
+              stopInput.value = stopDateStr;
+              startInput.dispatchEvent(new Event('change', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('change', { bubbles: true }));
+              startInput.dispatchEvent(new Event('input', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('input', { bubbles: true }));
+              console.log('[Test] 📅 ✅ Final DOM date setting attempt');
+            }
+          } catch (e) {
+            // ignore
+          }
+          
+          booqableRefresh();
+        }, 1000);
       } else {
-        setStatus(`✅ Product added, but dates not set. Attempted methods: ${dateResult.methodsUsed.join(', ')}`);
+        setStatus(`✅ Product added, but dates not set. Attempted methods: ${dateResult.methodsUsed.join(', ')}\nContinuing to apply dates...`);
+        
+        // Continue trying to set dates
+        setTimeout(() => {
+          passRentalDatesToCart(startsAt, stopsAt);
+          booqableRefresh();
+        }, 1000);
       }
     } else {
-      setStatus(`⚠️ Product may not have been added. Check console for details.`);
+      // Check one more time after a delay - sometimes cart takes time to update
+      setTimeout(async () => {
+        const delayedApi = getBooqableApi();
+        const delayedCartData = delayedApi?.cartData;
+        const delayedItems = delayedCartData?.items || [];
+        const delayedProductAdded = delayedItems.some((item: any) => {
+          const itemSlug = item.slug || item.product_slug || item.item_slug;
+          const itemId = item.id || item.item_id || item.product_id || item.product_group_id;
+          return itemSlug === productSlug || 
+                 itemId === productSlug ||
+                 item.item_name?.toLowerCase().includes('sander') ||
+                 item.name?.toLowerCase().includes('sander');
+        });
+        
+        if (delayedProductAdded) {
+          setStatus(`✅ Product added (delayed detection)!\nDates: ${delayedCartData?.starts_at || 'Not set'} → ${delayedCartData?.stops_at || 'Not set'}`);
+        } else {
+          setStatus(`⚠️ Product may not have been added. Check console for details.\nCart items: ${delayedItems.length}`);
+        }
+      }, 2000);
     }
 
     console.log('[Test] ========================================');
