@@ -879,6 +879,9 @@ const Test = () => {
   const [status, setStatus] = useState<string>('');
   const [cartDataState, setCartDataState] = useState<any>(null);
 
+  // Store target dates globally so they can be re-applied if cleared
+  const targetDatesRef = useRef<{ startsAt?: string; stopsAt?: string }>({});
+
   // Core function to pass rental dates to Booqable cart
   const passRentalDatesToCart = useCallback((startsAt: string, stopsAt: string): { success: boolean; methodsUsed: string[] } => {
     const api = getBooqableApi();
@@ -886,6 +889,9 @@ const Test = () => {
       console.log('[Test] 📅 ⚠️ Booqable API not available');
       return { success: false, methodsUsed: [] };
     }
+
+    // Store target dates for re-application if they get cleared
+    targetDatesRef.current = { startsAt, stopsAt };
 
     console.log('[Test] 📅 ========================================');
     console.log('[Test] 📅 PASSING RENTAL DATES TO CART');
@@ -1065,10 +1071,24 @@ const Test = () => {
       }
     }
 
-    // Verify cart was updated
+    // Verify cart was updated and re-apply dates if they were cleared
     await new Promise(resolve => setTimeout(resolve, 1000));
-    const afterCartSnapshot = getCartSnapshot();
+    let afterCartSnapshot = getCartSnapshot();
     console.log('[Test] 🛒 Cart AFTER adding product:', afterCartSnapshot);
+
+    // Check if dates were cleared (Booqable often resets cart when adding items)
+    const datesCleared = !afterCartSnapshot.starts_at || !afterCartSnapshot.stops_at;
+    if (datesCleared) {
+      console.log('[Test] 📅 ⚠️ Dates were cleared when item was added. Re-applying dates...');
+      // Re-apply dates after item was added
+      const reapplyResult = passRentalDatesToCart(startsAt, stopsAt);
+      console.log('[Test] 📅 Re-applied dates:', reapplyResult);
+      
+      // Wait a bit for dates to be set again
+      await new Promise(resolve => setTimeout(resolve, 500));
+      afterCartSnapshot = getCartSnapshot();
+      console.log('[Test] 🛒 Cart AFTER re-applying dates:', afterCartSnapshot);
+    }
 
     // Check if product was added
     const productAdded = afterCartSnapshot.items.some((item: any) => 
@@ -1076,14 +1096,16 @@ const Test = () => {
     );
 
     if (productAdded) {
-      // Verify dates are still set
+      // Verify dates are set
       const finalCartData = api.cartData;
       const datesStillSet = finalCartData?.starts_at === startsAt && finalCartData?.stops_at === stopsAt;
       
       if (datesStillSet) {
         setStatus(`✅ Product added and rental dates set!\nDates: ${startsAt} → ${stopsAt}\nMethods: ${dateResult.methodsUsed.join(', ')}`);
+      } else if (finalCartData?.starts_at || finalCartData?.stops_at) {
+        setStatus(`✅ Product added. Dates partially set.\nActual: ${finalCartData?.starts_at || 'N/A'} → ${finalCartData?.stops_at || 'N/A'}\nTarget: ${startsAt} → ${stopsAt}`);
       } else {
-        setStatus(`✅ Product added, but dates may need verification.\nMethods used: ${dateResult.methodsUsed.join(', ')}`);
+        setStatus(`✅ Product added, but dates not set. Attempted methods: ${dateResult.methodsUsed.join(', ')}`);
       }
     } else {
       setStatus(`⚠️ Product may not have been added. Check console for details.`);
