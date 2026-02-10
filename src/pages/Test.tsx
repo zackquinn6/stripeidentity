@@ -1092,10 +1092,6 @@ const Test = () => {
     console.log('[Test] ========================================');
   }, [startDate, endDate, passRentalDatesToCart]);
 
-    // Try to add product after setting dates (with delays to ensure dates are set first)
-
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="max-w-2xl w-full space-y-6">
