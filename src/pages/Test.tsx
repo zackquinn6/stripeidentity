@@ -1295,19 +1295,99 @@ const Test = () => {
     const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
     const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
 
+    // Update target dates ref immediately so monitoring system knows to maintain these dates
+    targetDatesRef.current = { startsAt, stopsAt };
+
     setStatus('Setting rental period and adding product...');
     console.log('[Test] ========================================');
     console.log('[Test] 🛒 ADD TO CART PROCESS');
     console.log('[Test] ========================================');
-    console.log('[Test] Dates:', { startDate, endDate, startsAt, stopsAt });
+    console.log('[Test] Dates from date pickers:', { startDate, endDate, startsAt, stopsAt });
 
-    // STEP 1: Pass rental dates to cart FIRST (before adding product)
-    console.log('[Test] 📅 STEP 1: Setting rental dates...');
+    // STEP 1: Pass rental dates to cart FIRST (before adding product) - with multiple retries
+    console.log('[Test] 📅 STEP 1: Setting rental dates (with retries)...');
     const dateResult = passRentalDatesToCart(startsAt, stopsAt);
     console.log('[Test] 📅 Date setting result:', dateResult);
     
+    // Apply dates multiple times with delays to catch cart creation
+    const applyDatesWithRetries = async () => {
+      const api = getBooqableApi();
+      if (!api) return;
+
+      // Retry dates at multiple intervals to catch cart creation
+      const retryDelays = [100, 300, 500, 1000, 2000];
+      for (const delay of retryDelays) {
+        setTimeout(() => {
+          console.log(`[Test] 📅 Retrying date application after ${delay}ms...`);
+          
+          // Method 1: URL params
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('starts_at', startsAt);
+            url.searchParams.set('stops_at', stopsAt);
+            window.history.replaceState({}, '', url.toString());
+          } catch (e) {
+            // ignore
+          }
+          
+          // Method 2: api.setCartData
+          if (typeof api.setCartData === 'function') {
+            try {
+              api.setCartData({
+                starts_at: startsAt,
+                stops_at: stopsAt,
+              });
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Method 3: Direct cartData
+          if (api.cartData) {
+            try {
+              api.cartData.starts_at = startsAt;
+              api.cartData.stops_at = stopsAt;
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Method 4: DOM manipulation - set dates directly in widget inputs
+          try {
+            const dateInputs = document.querySelectorAll('#booqable-cart-widget input[type="date"], #booqable-cart-widget input[name*="start"], #booqable-cart-widget input[name*="stop"], .booqable-cart input[type="date"], input[type="date"][name*="start"], input[type="date"][name*="stop"]');
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0] as HTMLInputElement;
+              const stopInput = dateInputs[1] as HTMLInputElement;
+              
+              // Extract date from ISO string (YYYY-MM-DD format)
+              const startDateStr = startsAt.split('T')[0];
+              const stopDateStr = stopsAt.split('T')[0];
+              
+              startInput.value = startDateStr;
+              stopInput.value = stopDateStr;
+              
+              // Trigger change events
+              startInput.dispatchEvent(new Event('change', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('change', { bubbles: true }));
+              startInput.dispatchEvent(new Event('input', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('input', { bubbles: true }));
+              
+              console.log(`[Test] 📅 ✅ Set dates in DOM inputs (retry ${delay}ms):`, { startDateStr, stopDateStr });
+            }
+          } catch (e) {
+            // ignore
+          }
+          
+          // Refresh widget
+          booqableRefresh();
+        }, delay);
+      }
+    };
+    
+    applyDatesWithRetries();
+    
     // Wait a moment for dates to be processed
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // STEP 2: Add product to cart
     console.log('[Test] 🛒 STEP 2: Adding product to cart...');
