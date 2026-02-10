@@ -857,7 +857,113 @@ const Test = () => {
   const [status, setStatus] = useState<string>('');
   const [cartDataState, setCartDataState] = useState<any>(null);
 
-  const handleAddToCart = () => {
+  // Core function to pass rental dates to Booqable cart
+  const passRentalDatesToCart = useCallback((startsAt: string, stopsAt: string): { success: boolean; methodsUsed: string[] } => {
+    const api = getBooqableApi();
+    if (!api) {
+      console.log('[Test] 📅 ⚠️ Booqable API not available');
+      return { success: false, methodsUsed: [] };
+    }
+
+    console.log('[Test] 📅 ========================================');
+    console.log('[Test] 📅 PASSING RENTAL DATES TO CART');
+    console.log('[Test] 📅 ========================================');
+    console.log('[Test] 📅 Target dates:', { startsAt, stopsAt });
+
+    const cart = api?.cart;
+    const methodsUsed: string[] = [];
+
+    // Method 1: URL parameters (most reliable - widget reads from URL)
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('starts_at', startsAt);
+      url.searchParams.set('stops_at', stopsAt);
+      window.history.replaceState({}, '', url.toString());
+      methodsUsed.push('url-params');
+      console.log('[Test] 📅 ✅ Set URL parameters');
+    } catch (e) {
+      console.error('[Test] 📅 ❌ Failed to set URL params:', e);
+    }
+
+    // Method 2: api.setCartData (primary API method)
+    if (typeof api.setCartData === 'function') {
+      try {
+        api.setCartData({
+          starts_at: startsAt,
+          stops_at: stopsAt,
+        });
+        methodsUsed.push('api.setCartData');
+        console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at})');
+      } catch (e) {
+        console.warn('[Test] 📅 ❌ api.setCartData failed:', e);
+      }
+    }
+
+    // Method 3: Direct cartData assignment (fallback)
+    if (api.cartData) {
+      try {
+        api.cartData.starts_at = startsAt;
+        api.cartData.stops_at = stopsAt;
+        methodsUsed.push('cartData-direct');
+        console.log('[Test] 📅 ✅ Set cartData directly');
+      } catch (e) {
+        console.warn('[Test] 📅 ❌ Could not set cartData directly:', e);
+      }
+    }
+
+    // Method 4: Cart API methods (try known methods)
+    const cartMethods = [
+      { name: 'cart.setTimespan', fn: cart?.setTimespan },
+      { name: 'cart.setTimeSpan', fn: cart?.setTimeSpan },
+      { name: 'cart.setPeriod', fn: cart?.setPeriod },
+      { name: 'cart.setDates', fn: cart?.setDates },
+    ];
+
+    for (const method of cartMethods) {
+      if (typeof method.fn === 'function') {
+        try {
+          method.fn(startsAt, stopsAt);
+          methodsUsed.push(method.name);
+          console.log(`[Test] 📅 ✅ Called ${method.name}`);
+          break;
+        } catch (e) {
+          try {
+            method.fn({ starts_at: startsAt, stops_at: stopsAt });
+            methodsUsed.push(`${method.name}:object`);
+            console.log(`[Test] 📅 ✅ Called ${method.name} (object)`);
+            break;
+          } catch (e2) {
+            // continue
+          }
+        }
+      }
+    }
+
+    // Refresh widget to pick up changes
+    booqableRefresh();
+    methodsUsed.push('refresh');
+
+    // Verify dates were set
+    setTimeout(() => {
+      const finalCartData = api.cartData;
+      if (finalCartData) {
+        const datesMatch = finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt;
+        console.log('[Test] 📅 Verification:', {
+          methodsUsed,
+          datesMatch,
+          cartDataDates: {
+            starts_at: finalCartData.starts_at,
+            stops_at: finalCartData.stops_at,
+          },
+        });
+      }
+    }, 500);
+
+    console.log('[Test] 📅 ========================================');
+    return { success: methodsUsed.length > 0, methodsUsed };
+  }, []);
+
+  const handleAddToCart = useCallback(async () => {
     if (!startDate || !endDate) {
       setStatus('Please select both start and end dates');
       return;
@@ -867,27 +973,102 @@ const Test = () => {
     const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
     const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
 
-    setStatus('Applying rental period...');
+    setStatus('Setting rental period and adding product...');
     console.log('[Test] ========================================');
-    console.log('[Test] Setting rental period');
-    console.log('[Test] Start Date:', startDate);
-    console.log('[Test] End Date:', endDate);
-    console.log('[Test] Formatted startsAt:', startsAt);
-    console.log('[Test] Formatted stopsAt:', stopsAt);
+    console.log('[Test] 🛒 ADD TO CART PROCESS');
+    console.log('[Test] ========================================');
+    console.log('[Test] Dates:', { startDate, endDate, startsAt, stopsAt });
 
-    // Method 1: Update URL parameters (most reliable for widget)
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set('starts_at', startsAt);
-      url.searchParams.set('stops_at', stopsAt);
-      window.history.replaceState({}, '', url.toString());
-      console.log('[Test] ✅ Updated URL params:', url.toString());
-    } catch (e) {
-      console.error('[Test] ❌ Failed to update URL:', e);
+    // STEP 1: Pass rental dates to cart FIRST (before adding product)
+    console.log('[Test] 📅 STEP 1: Setting rental dates...');
+    const dateResult = passRentalDatesToCart(startsAt, stopsAt);
+    console.log('[Test] 📅 Date setting result:', dateResult);
+    
+    // Wait a moment for dates to be processed
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // STEP 2: Add product to cart
+    console.log('[Test] 🛒 STEP 2: Adding product to cart...');
+    const api = getBooqableApi();
+    if (!api) {
+      setStatus('Booqable API not available. Please refresh and try again.');
+      return;
     }
 
-    // Method 2: Try Booqable API methods (with retries) - Enhanced with comprehensive tracing
-    const setDatesViaApi = () => {
+    const productSlug = 'sander';
+    const beforeCartSnapshot = getCartSnapshot();
+    console.log('[Test] 🛒 Cart BEFORE adding product:', beforeCartSnapshot);
+
+    // Method 1: Try to click the Booqable button programmatically
+    const button = document.querySelector(`.booqable-product-button[data-id="${productSlug}"], .booqable-product-button[data-product-slug="${productSlug}"]`) as HTMLElement;
+    if (button) {
+      const clickableElement = button.querySelector('button, [role="button"], .bq-button') as HTMLElement;
+      const elementToClick = clickableElement || button;
+      
+      console.log('[Test] 🛒 Found Booqable button, clicking...');
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+      });
+      elementToClick.dispatchEvent(clickEvent);
+      console.log('[Test] 🛒 ✅ Dispatched click event');
+    } else {
+      // Method 2: Try API methods
+      const cart = api?.cart;
+      if (cart) {
+        const apiMethods = [
+          { name: 'cart.addItem', fn: cart.addItem },
+          { name: 'cart.addProductGroup', fn: cart.addProductGroup },
+          { name: 'cart.add', fn: cart.add },
+        ];
+        
+        for (const method of apiMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              method.fn(productSlug, 1);
+              console.log(`[Test] 🛒 ✅ Added via ${method.name}`);
+              break;
+            } catch (e) {
+              try {
+                method.fn({ product_group_id: productSlug, quantity: 1 });
+                console.log(`[Test] 🛒 ✅ Added via ${method.name} (object)`);
+                break;
+              } catch (e2) {
+                // continue
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Verify cart was updated
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const afterCartSnapshot = getCartSnapshot();
+    console.log('[Test] 🛒 Cart AFTER adding product:', afterCartSnapshot);
+
+    // Check if product was added
+    const productAdded = afterCartSnapshot.items.some((item: any) => 
+      item.slug === productSlug || item.id === productSlug
+    );
+
+    if (productAdded) {
+      // Verify dates are still set
+      const finalCartData = api.cartData;
+      const datesStillSet = finalCartData?.starts_at === startsAt && finalCartData?.stops_at === stopsAt;
+      
+      if (datesStillSet) {
+        setStatus(`✅ Product added and rental dates set!\nDates: ${startsAt} → ${stopsAt}\nMethods: ${dateResult.methodsUsed.join(', ')}`);
+      } else {
+        setStatus(`✅ Product added, but dates may need verification.\nMethods used: ${dateResult.methodsUsed.join(', ')}`);
+      }
+    } else {
+      setStatus(`⚠️ Product may not have been added. Check console for details.`);
+    }
+
+    console.log('[Test] ========================================');
+  }, [startDate, endDate, passRentalDatesToCart]);
       const api = getBooqableApi();
       if (!api) {
         console.log('[Test] 📅 Booqable API not ready, will retry...');
@@ -1154,43 +1335,25 @@ const Test = () => {
       }
       
       console.log('[Test] 📅 ========================================');
-    };
-    
-    // Try immediately and with retries
-    setDatesViaApi();
-    setTimeout(setDatesViaApi, 500);
-    setTimeout(setDatesViaApi, 1000);
-    setTimeout(setDatesViaApi, 2000);
-    
-    // Also use the standard applyRentalPeriod for completeness
-    try {
-      const result = applyRentalPeriod(startsAt, stopsAt);
-      console.log('[Test] applyRentalPeriod result:', result);
-    } catch (error) {
-      console.error('[Test] applyRentalPeriod error:', error);
-    }
+    }, [startDate, endDate, passRentalDatesToCart]);
 
-    // Add product to cart (replicating the Booqable button click functionality)
-    const addProductToCart = () => {
-      const api = getBooqableApi();
-      if (!api) {
-        console.log('[Test] ⚠️ Booqable API not ready for adding product, will retry...');
-        return false;
-      }
+      // Wait a moment for dates to be processed
+      setTimeout(() => {
+        const cart = api?.cart;
+        const productSlug = 'sander'; // The product we want to add
+        
+        console.log('[Test] ========================================');
+        console.log('[Test] Adding product to cart:', productSlug);
+        console.log('[Test] ========================================');
 
-      const cart = api?.cart;
-      const productSlug = 'sander'; // The product we want to add
-      
-      console.log('[Test] ========================================');
-      console.log('[Test] Adding product to cart:', productSlug);
-      console.log('[Test] ========================================');
-
-      // Get cart state before adding
-      const beforeCart = api.cartData;
-      console.log('[Test] Cart BEFORE adding product:', {
-        itemsCount: beforeCart?.items?.length || 0,
-        items: beforeCart?.items || [],
-      });
+        // Get cart state before adding
+        const beforeCart = api.cartData;
+        console.log('[Test] Cart BEFORE adding product:', {
+          itemsCount: beforeCart?.items?.length || 0,
+          items: beforeCart?.items || [],
+          starts_at: beforeCart?.starts_at,
+          stops_at: beforeCart?.stops_at,
+        });
 
       // Method 1: Try to find and click the Booqable button programmatically
       const button = document.querySelector(`.booqable-product-button[data-id="${productSlug}"], .booqable-product-button[data-product-slug="${productSlug}"]`) as HTMLElement;
@@ -1322,9 +1485,6 @@ const Test = () => {
     };
 
     // Try to add product after setting dates (with delays to ensure dates are set first)
-    setTimeout(() => addProductToCart(), 1000);
-    setTimeout(() => addProductToCart(), 2000);
-    setTimeout(() => addProductToCart(), 3000);
 
   };
 
