@@ -1044,20 +1044,6 @@ const Test = () => {
     };
   };
 
-  // Set default dates: Feb 15-25, 2026 (start of day)
-  const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
-  const defaultEndDate = startOfDay(new Date(2026, 1, 25));
-
-  const [startDate, setStartDate] = useState<Date | undefined>(defaultStartDate);
-  const [endDate, setEndDate] = useState<Date | undefined>(defaultEndDate);
-  const [startCalendarOpen, setStartCalendarOpen] = useState(false);
-  const [endCalendarOpen, setEndCalendarOpen] = useState(false);
-  const [status, setStatus] = useState<string>('');
-  const [cartDataState, setCartDataState] = useState<any>(null);
-
-  // Store target dates globally so they can be re-applied if cleared
-  const targetDatesRef = useRef<{ startsAt?: string; stopsAt?: string }>({});
-
   // Core function to pass rental dates to Booqable cart
   const passRentalDatesToCart = useCallback((startsAt: string, stopsAt: string): { success: boolean; methodsUsed: string[] } => {
     // Store target dates for re-application if they get cleared
