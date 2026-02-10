@@ -12,6 +12,88 @@ const Test = () => {
   // Initialize Booqable script
   useBooqable();
 
+  // Set default dates: Feb 15-25, 2026 (start of day)
+  const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
+  const defaultEndDate = startOfDay(new Date(2026, 1, 25));
+
+  const [startDate, setStartDate] = useState<Date | undefined>(defaultStartDate);
+  const [endDate, setEndDate] = useState<Date | undefined>(defaultEndDate);
+  const [startCalendarOpen, setStartCalendarOpen] = useState(false);
+  const [endCalendarOpen, setEndCalendarOpen] = useState(false);
+  const [status, setStatus] = useState<string>('');
+  const [cartDataState, setCartDataState] = useState<any>(null);
+
+  // Store target dates globally so they can be re-applied if cleared
+  const targetDatesRef = useRef<{ startsAt?: string; stopsAt?: string }>({});
+
+  // Set dates on page load and whenever Booqable initializes
+  useEffect(() => {
+    const setInitialDates = () => {
+      const api = getBooqableApi();
+      if (!api) {
+        // Retry if API not ready
+        setTimeout(setInitialDates, 200);
+        return;
+      }
+
+      const startsAt = format(defaultStartDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      const stopsAt = format(defaultEndDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      
+      // Store target dates
+      targetDatesRef.current = { startsAt, stopsAt };
+
+      console.log('[Test] 📅 Setting initial rental dates on page load:', { startsAt, stopsAt });
+
+      // Set URL parameters first (most reliable)
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('starts_at', startsAt);
+        url.searchParams.set('stops_at', stopsAt);
+        window.history.replaceState({}, '', url.toString());
+        console.log('[Test] 📅 ✅ Set initial URL parameters');
+      } catch (e) {
+        console.error('[Test] 📅 ❌ Failed to set initial URL params:', e);
+      }
+
+      // Set via API
+      if (typeof api.setCartData === 'function') {
+        try {
+          api.setCartData({
+            starts_at: startsAt,
+            stops_at: stopsAt,
+          });
+          console.log('[Test] 📅 ✅ Set initial dates via api.setCartData');
+        } catch (e) {
+          console.warn('[Test] 📅 ❌ Failed to set initial dates via setCartData:', e);
+        }
+      }
+
+      // Set directly on cartData
+      if (api.cartData) {
+        try {
+          api.cartData.starts_at = startsAt;
+          api.cartData.stops_at = stopsAt;
+          console.log('[Test] 📅 ✅ Set initial dates directly on cartData');
+        } catch (e) {
+          console.warn('[Test] 📅 ❌ Failed to set initial dates on cartData:', e);
+        }
+      }
+
+      // Refresh to ensure widget picks up dates
+      booqableRefresh();
+    };
+
+    // Set dates immediately and with retries (Booqable may initialize later)
+    setInitialDates();
+    const timeouts = [500, 1000, 2000, 3000, 5000].map(delay => 
+      setTimeout(setInitialDates, delay)
+    );
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, []); // Only run on mount
+
   // Explicitly enhance product buttons when they're rendered - matching checkout page logic
   useEffect(() => {
     // Wait for buttons to be in DOM, then enhance them
