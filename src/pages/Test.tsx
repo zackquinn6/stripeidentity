@@ -1152,7 +1152,7 @@ const Test = () => {
   }, []);
 
   // Helper to get a snapshot of the cart for logging
-  const getCartSnapshot = () => {
+  const getCartSnapshot = useCallback(() => {
     const api = getBooqableApi();
     const items = api?.cartData?.items || [];
     return {
@@ -1171,7 +1171,7 @@ const Test = () => {
       timestamp: new Date().toISOString(),
       fullCartData: api?.cartData,
     };
-  };
+  }, []);
 
   // Core function to pass rental dates to Booqable cart
   const passRentalDatesToCart = useCallback((startsAt: string, stopsAt: string): { success: boolean; methodsUsed: string[] } => {
@@ -1450,49 +1450,144 @@ const Test = () => {
     let afterCartSnapshot = getCartSnapshot();
     console.log('[Test] 🛒 Cart AFTER adding product:', afterCartSnapshot);
 
-    // Check if dates were cleared (Booqable often resets cart when adding items)
-    const datesCleared = !afterCartSnapshot.starts_at || !afterCartSnapshot.stops_at;
-    const datesDontMatch = afterCartSnapshot.starts_at !== startsAt || afterCartSnapshot.stops_at !== stopsAt;
+    // ALWAYS re-apply dates after product is added (Booqable often clears them)
+    console.log('[Test] 📅 ⚠️ Re-applying dates after product added (Booqable may have cleared them)...');
     
-    if (datesCleared || datesDontMatch) {
-      console.log('[Test] 📅 ⚠️ Dates were cleared or don\'t match when item was added. Re-applying dates aggressively...');
+    // Aggressive date re-application with multiple methods and retries
+    const applyDatesAggressively = (attempt: number, maxAttempts: number) => {
+      if (attempt > maxAttempts) return;
       
-      // Re-apply dates multiple times with delays
-      for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-          console.log(`[Test] 📅 Re-applying dates (attempt ${i + 1}/5)...`);
-          passRentalDatesToCart(startsAt, stopsAt);
-          
-          // Also try DOM manipulation
-          try {
-            const dateInputs = document.querySelectorAll('#booqable-cart-widget input[type="date"], #booqable-cart-widget input[name*="start"], #booqable-cart-widget input[name*="stop"], .booqable-cart input[type="date"], input[type="date"][name*="start"], input[type="date"][name*="stop"]');
-            if (dateInputs.length >= 2) {
-              const startInput = dateInputs[0] as HTMLInputElement;
-              const stopInput = dateInputs[1] as HTMLInputElement;
-              const startDateStr = startsAt.split('T')[0];
-              const stopDateStr = stopsAt.split('T')[0];
-              
-              startInput.value = startDateStr;
-              stopInput.value = stopDateStr;
-              startInput.dispatchEvent(new Event('change', { bubbles: true }));
-              stopInput.dispatchEvent(new Event('change', { bubbles: true }));
-              startInput.dispatchEvent(new Event('input', { bubbles: true }));
-              stopInput.dispatchEvent(new Event('input', { bubbles: true }));
-              console.log(`[Test] 📅 ✅ Set dates in DOM (attempt ${i + 1}/5)`);
-            }
-          } catch (e) {
-            // ignore
-          }
-          
-          booqableRefresh();
-        }, i * 300);
+      console.log(`[Test] 📅 Re-applying dates (attempt ${attempt}/${maxAttempts})...`);
+      
+      // Method 1: URL params
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('starts_at', startsAt);
+        url.searchParams.set('stops_at', stopsAt);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        // ignore
       }
       
-      // Wait for final retry to complete
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      afterCartSnapshot = getCartSnapshot();
-      console.log('[Test] 🛒 Cart AFTER aggressive date re-application:', afterCartSnapshot);
-    }
+      // Method 2: api.setCartData
+      if (typeof api.setCartData === 'function') {
+        try {
+          api.setCartData({
+            starts_at: startsAt,
+            stops_at: stopsAt,
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+      
+      // Method 3: Direct cartData
+      if (api.cartData) {
+        try {
+          api.cartData.starts_at = startsAt;
+          api.cartData.stops_at = stopsAt;
+        } catch (e) {
+          // ignore
+        }
+      }
+      
+      // Method 4: Cart API methods
+      const cart = api?.cart;
+      if (cart) {
+        const cartMethods = [
+          { name: 'cart.setTimespan', fn: cart.setTimespan },
+          { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
+          { name: 'cart.setPeriod', fn: cart.setPeriod },
+          { name: 'cart.setDates', fn: cart.setDates },
+          { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
+        ];
+        
+        for (const method of cartMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              method.fn(startsAt, stopsAt);
+              console.log(`[Test] 📅 ✅ Called ${method.name} (attempt ${attempt})`);
+              break;
+            } catch (e) {
+              try {
+                method.fn({ starts_at: startsAt, stops_at: stopsAt });
+                console.log(`[Test] 📅 ✅ Called ${method.name} (object, attempt ${attempt})`);
+                break;
+              } catch (e2) {
+                // continue
+              }
+            }
+          }
+        }
+      }
+      
+      // Method 5: DOM manipulation - find and set date inputs
+      try {
+        // Try multiple selectors to find date inputs
+        const selectors = [
+          '#booqable-cart-widget input[type="date"]',
+          '#booqable-cart-widget input[name*="start"]',
+          '#booqable-cart-widget input[name*="stop"]',
+          '.booqable-cart input[type="date"]',
+          'input[type="date"][name*="start"]',
+          'input[type="date"][name*="stop"]',
+          '[data-booqable-date-start]',
+          '[data-booqable-date-stop]',
+        ];
+        
+        let dateInputs: NodeListOf<HTMLInputElement> | null = null;
+        for (const selector of selectors) {
+          const inputs = document.querySelectorAll<HTMLInputElement>(selector);
+          if (inputs.length >= 2) {
+            dateInputs = inputs;
+            break;
+          }
+        }
+        
+        if (dateInputs && dateInputs.length >= 2) {
+          const startInput = dateInputs[0];
+          const stopInput = dateInputs[1];
+          const startDateStr = startsAt.split('T')[0];
+          const stopDateStr = stopsAt.split('T')[0];
+          
+          startInput.value = startDateStr;
+          stopInput.value = stopDateStr;
+          
+          // Trigger multiple event types
+          ['change', 'input', 'blur'].forEach(eventType => {
+            startInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+            stopInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+          });
+          
+          console.log(`[Test] 📅 ✅ Set dates in DOM inputs (attempt ${attempt}):`, { startDateStr, stopDateStr });
+        }
+      } catch (e) {
+        console.warn(`[Test] 📅 DOM manipulation failed (attempt ${attempt}):`, e);
+      }
+      
+      // Refresh widget
+      booqableRefresh();
+      
+      // Schedule next attempt if dates still don't match
+      setTimeout(() => {
+        const currentCartData = api.cartData;
+        const datesMatch = currentCartData?.starts_at === startsAt && currentCartData?.stops_at === stopsAt;
+        
+        if (!datesMatch && attempt < maxAttempts) {
+          applyDatesAggressively(attempt + 1, maxAttempts);
+        } else if (datesMatch) {
+          console.log(`[Test] 📅 ✅ Dates successfully set after ${attempt} attempts!`);
+        }
+      }, 500);
+    };
+    
+    // Start aggressive date application (10 attempts over 5 seconds)
+    applyDatesAggressively(1, 10);
+    
+    // Wait for some attempts to complete
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    afterCartSnapshot = getCartSnapshot();
+    console.log('[Test] 🛒 Cart AFTER aggressive date re-application:', afterCartSnapshot);
 
     // Check if product was added - check both snapshot and cartData directly
     const finalCartData = api?.cartData;
@@ -1578,7 +1673,7 @@ const Test = () => {
     }
 
     console.log('[Test] ========================================');
-  }, [startDate, endDate, passRentalDatesToCart]);
+  }, [startDate, endDate, passRentalDatesToCart, getCartSnapshot]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
