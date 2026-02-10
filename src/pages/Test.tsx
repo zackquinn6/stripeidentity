@@ -531,52 +531,97 @@ const Test = () => {
       const currentCartData = api.cartData;
       const currentCartDataString = JSON.stringify(currentCartData);
       
-      // If dates were cleared but we have target dates, re-apply them
+      // If dates were cleared or don't match target, re-apply them aggressively
       const targetDates = targetDatesRef.current;
       if (targetDates.startsAt && targetDates.stopsAt) {
-        const datesCleared = !currentCartData?.starts_at || !currentCartData?.stops_at;
-        const datesDontMatch = currentCartData?.starts_at !== targetDates.startsAt || 
-                               currentCartData?.stops_at !== targetDates.stopsAt;
+        const currentStartsAt = currentCartData?.starts_at;
+        const currentStopsAt = currentCartData?.stops_at;
+        const datesCleared = !currentStartsAt || !currentStopsAt;
+        const datesDontMatch = currentStartsAt !== targetDates.startsAt || 
+                               currentStopsAt !== targetDates.stopsAt;
         
-        if (datesCleared || datesDontMatch) {
-          console.log('[Test] 📅 Dates were cleared or changed. Re-applying target dates...', {
+        // Also check if dates look like Booqable defaults (2/26-2/28 or similar)
+        const looksLikeDefault = currentStartsAt && currentStopsAt && 
+                                 (currentStartsAt.includes('2026-02-26') || 
+                                  currentStartsAt.includes('2026-02-27') ||
+                                  currentStopsAt.includes('2026-02-28'));
+        
+        if (datesCleared || datesDontMatch || looksLikeDefault) {
+          console.log('[Test] 📅 Dates need to be set/updated. Re-applying target dates...', {
             target: targetDates,
             current: {
-              starts_at: currentCartData?.starts_at,
-              stops_at: currentCartData?.stops_at,
+              starts_at: currentStartsAt,
+              stops_at: currentStopsAt,
             },
+            reason: datesCleared ? 'cleared' : datesDontMatch ? 'mismatch' : 'default detected',
           });
           
-          // Re-apply dates
+          // Re-apply dates aggressively using all methods
+          // Method 1: URL parameters (most reliable)
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('starts_at', targetDates.startsAt);
+            url.searchParams.set('stops_at', targetDates.stopsAt);
+            window.history.replaceState({}, '', url.toString());
+            console.log('[Test] 📅 ✅ Re-applied dates via URL params');
+          } catch (e) {
+            console.warn('[Test] 📅 ❌ Failed to re-apply dates via URL:', e);
+          }
+          
+          // Method 2: api.setCartData
           if (typeof api.setCartData === 'function') {
             try {
               api.setCartData({
                 starts_at: targetDates.startsAt,
                 stops_at: targetDates.stopsAt,
               });
+              console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData');
             } catch (e) {
-              console.warn('[Test] 📅 Failed to re-apply dates via setCartData:', e);
+              console.warn('[Test] 📅 ❌ Failed to re-apply dates via setCartData:', e);
             }
           }
           
+          // Method 3: Direct cartData assignment
           if (api.cartData) {
             try {
               api.cartData.starts_at = targetDates.startsAt;
               api.cartData.stops_at = targetDates.stopsAt;
+              console.log('[Test] 📅 ✅ Re-applied dates directly on cartData');
             } catch (e) {
-              // ignore
+              console.warn('[Test] 📅 ❌ Failed to re-apply dates on cartData:', e);
             }
           }
           
-          // Update URL params
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.set('starts_at', targetDates.startsAt);
-            url.searchParams.set('stops_at', targetDates.stopsAt);
-            window.history.replaceState({}, '', url.toString());
-          } catch (e) {
-            // ignore
+          // Method 4: Try cart API methods
+          const cart = api?.cart;
+          if (cart) {
+            const cartMethods = [
+              { name: 'cart.setTimespan', fn: cart.setTimespan },
+              { name: 'cart.setPeriod', fn: cart.setPeriod },
+              { name: 'cart.setDates', fn: cart.setDates },
+            ];
+            
+            for (const method of cartMethods) {
+              if (typeof method.fn === 'function') {
+                try {
+                  method.fn(targetDates.startsAt, targetDates.stopsAt);
+                  console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name}`);
+                  break;
+                } catch (e) {
+                  try {
+                    method.fn({ starts_at: targetDates.startsAt, stops_at: targetDates.stopsAt });
+                    console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name} (object)`);
+                    break;
+                  } catch (e2) {
+                    // continue
+                  }
+                }
+              }
+            }
           }
+          
+          // Refresh widget
+          booqableRefresh();
         }
       }
       
