@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { format, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -448,6 +448,55 @@ const Test = () => {
       
       const currentCartData = api.cartData;
       const currentCartDataString = JSON.stringify(currentCartData);
+      
+      // If dates were cleared but we have target dates, re-apply them
+      const targetDates = targetDatesRef.current;
+      if (targetDates.startsAt && targetDates.stopsAt) {
+        const datesCleared = !currentCartData?.starts_at || !currentCartData?.stops_at;
+        const datesDontMatch = currentCartData?.starts_at !== targetDates.startsAt || 
+                               currentCartData?.stops_at !== targetDates.stopsAt;
+        
+        if (datesCleared || datesDontMatch) {
+          console.log('[Test] 📅 Dates were cleared or changed. Re-applying target dates...', {
+            target: targetDates,
+            current: {
+              starts_at: currentCartData?.starts_at,
+              stops_at: currentCartData?.stops_at,
+            },
+          });
+          
+          // Re-apply dates
+          if (typeof api.setCartData === 'function') {
+            try {
+              api.setCartData({
+                starts_at: targetDates.startsAt,
+                stops_at: targetDates.stopsAt,
+              });
+            } catch (e) {
+              console.warn('[Test] 📅 Failed to re-apply dates via setCartData:', e);
+            }
+          }
+          
+          if (api.cartData) {
+            try {
+              api.cartData.starts_at = targetDates.startsAt;
+              api.cartData.stops_at = targetDates.stopsAt;
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Update URL params
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('starts_at', targetDates.startsAt);
+            url.searchParams.set('stops_at', targetDates.stopsAt);
+            window.history.replaceState({}, '', url.toString());
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
       
       if (currentCartDataString !== lastCartDataString) {
         const beforeItems = lastCartData?.items || [];
