@@ -846,6 +846,28 @@ const Test = () => {
     };
   }, []);
 
+  // Helper to get a snapshot of the cart for logging
+  const getCartSnapshot = () => {
+    const api = getBooqableApi();
+    const items = api?.cartData?.items || [];
+    return {
+      itemsCount: items.length,
+      items: items.map((item: any) => ({
+        id: item.id || item.product_id || item.product_group_id,
+        slug: item.slug || item.product_slug,
+        quantity: item.quantity,
+        name: item.name || item.product_name,
+        price: item.price || item.unit_price,
+        fullItem: item,
+      })),
+      starts_at: api?.cartData?.starts_at,
+      stops_at: api?.cartData?.stops_at,
+      total: api?.cartData?.total || api?.cartData?.total_price,
+      timestamp: new Date().toISOString(),
+      fullCartData: api?.cartData,
+    };
+  };
+
   // Set default dates: Feb 15-25, 2026 (start of day)
   const defaultStartDate = startOfDay(new Date(2026, 1, 15)); // Month is 0-indexed, so 1 = February
   const defaultEndDate = startOfDay(new Date(2026, 1, 25));
