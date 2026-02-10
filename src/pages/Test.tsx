@@ -33,64 +33,111 @@ const Test = () => {
       return;
     }
 
+    const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+    const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+    
+    // Store target dates immediately
+    targetDatesRef.current = { startsAt, stopsAt };
+
+    console.log('[Test] 📅 ========================================');
+    console.log('[Test] 📅 USER DATES CHANGED - Setting rental dates');
+    console.log('[Test] 📅 ========================================');
+    console.log('[Test] 📅 User selected dates:', { startDate, endDate, startsAt, stopsAt });
+
     const setDates = () => {
       const api = getBooqableApi();
       if (!api) {
+        console.log('[Test] 📅 Booqable API not ready, will retry...');
         // Retry if API not ready
         setTimeout(setDates, 200);
         return;
       }
 
-      const startsAt = format(startDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
-      const stopsAt = format(endDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+      console.log('[Test] 📅 Booqable API available, applying dates...');
+
+      // Use the proven applyRentalPeriod helper function
+      const result = applyRentalPeriod(startsAt, stopsAt);
+      console.log('[Test] 📅 applyRentalPeriod result:', result);
+
+      // Also try additional methods for maximum compatibility
+      const cart = api?.cart;
       
-      // Store target dates
-      targetDatesRef.current = { startsAt, stopsAt };
-
-      console.log('[Test] 📅 Setting rental dates from user selection:', { startsAt, stopsAt, startDate, endDate });
-
-      // Set URL parameters first (most reliable)
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('starts_at', startsAt);
-        url.searchParams.set('stops_at', stopsAt);
-        window.history.replaceState({}, '', url.toString());
-        console.log('[Test] 📅 ✅ Set URL parameters from user dates');
-      } catch (e) {
-        console.error('[Test] 📅 ❌ Failed to set URL params:', e);
-      }
-
-      // Set via API
+      // Method 1: api.setCartData (if available)
       if (typeof api.setCartData === 'function') {
         try {
           api.setCartData({
             starts_at: startsAt,
             stops_at: stopsAt,
           });
-          console.log('[Test] 📅 ✅ Set dates via api.setCartData from user selection');
+          console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at})');
         } catch (e) {
-          console.warn('[Test] 📅 ❌ Failed to set dates via setCartData:', e);
+          console.warn('[Test] 📅 ❌ api.setCartData failed:', e);
         }
       }
 
-      // Set directly on cartData
+      // Method 2: Direct cartData assignment
       if (api.cartData) {
         try {
           api.cartData.starts_at = startsAt;
           api.cartData.stops_at = stopsAt;
-          console.log('[Test] 📅 ✅ Set dates directly on cartData from user selection');
+          console.log('[Test] 📅 ✅ Set cartData.starts_at and cartData.stops_at directly');
         } catch (e) {
-          console.warn('[Test] 📅 ❌ Failed to set dates on cartData:', e);
+          console.warn('[Test] 📅 ❌ Could not set cartData:', e);
         }
       }
 
-      // Refresh to ensure widget picks up dates
-      booqableRefresh();
+      // Method 3: Try cart API methods
+      if (cart) {
+        const cartMethods = [
+          { name: 'cart.setTimespan', fn: cart.setTimespan },
+          { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
+          { name: 'cart.setPeriod', fn: cart.setPeriod },
+          { name: 'cart.setDates', fn: cart.setDates },
+          { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
+        ];
+
+        for (const method of cartMethods) {
+          if (typeof method.fn === 'function') {
+            try {
+              method.fn(startsAt, stopsAt);
+              console.log(`[Test] 📅 ✅ Called ${method.name}(startsAt, stopsAt)`);
+              break;
+            } catch (e) {
+              try {
+                method.fn({ starts_at: startsAt, stops_at: stopsAt });
+                console.log(`[Test] 📅 ✅ Called ${method.name}({starts_at, stops_at})`);
+                break;
+              } catch (e2) {
+                // continue
+              }
+            }
+          }
+        }
+      }
+
+      // Verify dates were set after a delay
+      setTimeout(() => {
+        const finalCartData = api.cartData;
+        if (finalCartData) {
+          const datesMatch = finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt;
+          console.log('[Test] 📅 Verification after setting dates:', {
+            target: { starts_at: startsAt, stops_at: stopsAt },
+            actual: { starts_at: finalCartData.starts_at, stops_at: finalCartData.stops_at },
+            datesMatch,
+          });
+          
+          if (datesMatch) {
+            console.log('[Test] 📅 ✅ SUCCESS: Dates are set in cart!');
+          } else {
+            console.log('[Test] 📅 ⚠️ Dates may not match. Will continue monitoring...');
+          }
+        }
+      }, 500);
     };
 
     // Set dates immediately and with retries (Booqable may initialize later)
     setDates();
-    const timeouts = [500, 1000, 2000, 3000, 5000].map(delay => 
+    const timeouts = [500, 1000, 2000, 3000, 5000, 7000, 10000].map(delay => 
       setTimeout(setDates, delay)
     );
 
