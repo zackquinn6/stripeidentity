@@ -1495,7 +1495,6 @@ const Test = () => {
     }
 
     // Check if product was added - check both snapshot and cartData directly
-    const api = getBooqableApi();
     const finalCartData = api?.cartData;
     const cartItems = finalCartData?.items || [];
     
