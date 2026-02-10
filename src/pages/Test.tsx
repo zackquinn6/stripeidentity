@@ -576,16 +576,23 @@ const Test = () => {
     // Track cartData changes with detailed diff
     let lastCartData: any = null;
     let lastCartDataString = '';
+    let lastCartId: string | undefined = undefined;
+    let dateApplicationInProgress = false; // Prevent infinite loops
     const cartDataCheckInterval = setInterval(() => {
       // Remove rush order items first
       removeRushOrderItems();
       
       const currentCartData = api.cartData;
       const currentCartDataString = JSON.stringify(currentCartData);
+      const currentCartId = currentCartData?.cartId;
+      
+      // Detect when a new cart is created (cartId changed or appeared)
+      const cartIdChanged = currentCartId !== lastCartId;
+      const newCartCreated = !lastCartId && currentCartId;
       
       // If dates were cleared or don't match target, re-apply them aggressively
       const targetDates = targetDatesRef.current;
-      if (targetDates.startsAt && targetDates.stopsAt) {
+      if (targetDates.startsAt && targetDates.stopsAt && !dateApplicationInProgress) {
         const currentStartsAt = currentCartData?.starts_at;
         const currentStopsAt = currentCartData?.stops_at;
         const datesCleared = !currentStartsAt || !currentStopsAt;
@@ -598,18 +605,22 @@ const Test = () => {
                                   currentStartsAt.includes('2026-02-27') ||
                                   currentStopsAt.includes('2026-02-28'));
         
-        if (datesCleared || datesDontMatch || looksLikeDefault) {
+        // If new cart created or dates are wrong, apply dates immediately
+        if (newCartCreated || cartIdChanged || datesCleared || datesDontMatch || looksLikeDefault) {
+          dateApplicationInProgress = true;
+          
           console.log('[Test] 📅 Dates need to be set/updated. Re-applying target dates...', {
             target: targetDates,
             current: {
               starts_at: currentStartsAt,
               stops_at: currentStopsAt,
             },
-            reason: datesCleared ? 'cleared' : datesDontMatch ? 'mismatch' : 'default detected',
+            reason: newCartCreated ? 'new cart created' : cartIdChanged ? 'cartId changed' : datesCleared ? 'cleared' : datesDontMatch ? 'mismatch' : 'default detected',
+            cartId: currentCartId,
+            lastCartId,
           });
           
-          // Re-apply dates aggressively using all methods
-          // Method 1: URL parameters (most reliable)
+          // Method 1: URL parameters (most reliable - widget reads from URL)
           try {
             const url = new URL(window.location.href);
             url.searchParams.set('starts_at', targetDates.startsAt);
@@ -620,7 +631,7 @@ const Test = () => {
             console.warn('[Test] 📅 ❌ Failed to re-apply dates via URL:', e);
           }
           
-          // Method 2: api.setCartData
+          // Method 2: api.setCartData (with retry after cart creation)
           if (typeof api.setCartData === 'function') {
             try {
               api.setCartData({
@@ -628,17 +639,47 @@ const Test = () => {
                 stops_at: targetDates.stopsAt,
               });
               console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData');
+              
+              // If new cart was created, retry after a delay
+              if (newCartCreated || cartIdChanged) {
+                setTimeout(() => {
+                  try {
+                    api.setCartData({
+                      starts_at: targetDates.startsAt,
+                      stops_at: targetDates.stopsAt,
+                    });
+                    console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData (retry after cart creation)');
+                  } catch (e) {
+                    // ignore
+                  }
+                }, 200);
+              }
             } catch (e) {
               console.warn('[Test] 📅 ❌ Failed to re-apply dates via setCartData:', e);
             }
           }
           
-          // Method 3: Direct cartData assignment
+          // Method 3: Direct cartData assignment (with retry)
           if (api.cartData) {
             try {
               api.cartData.starts_at = targetDates.startsAt;
               api.cartData.stops_at = targetDates.stopsAt;
               console.log('[Test] 📅 ✅ Re-applied dates directly on cartData');
+              
+              // If new cart was created, retry after a delay
+              if (newCartCreated || cartIdChanged) {
+                setTimeout(() => {
+                  if (api.cartData) {
+                    try {
+                      api.cartData.starts_at = targetDates.startsAt;
+                      api.cartData.stops_at = targetDates.stopsAt;
+                      console.log('[Test] 📅 ✅ Re-applied dates directly on cartData (retry after cart creation)');
+                    } catch (e) {
+                      // ignore
+                    }
+                  }
+                }, 200);
+              }
             } catch (e) {
               console.warn('[Test] 📅 ❌ Failed to re-apply dates on cartData:', e);
             }
@@ -649,8 +690,10 @@ const Test = () => {
           if (cart) {
             const cartMethods = [
               { name: 'cart.setTimespan', fn: cart.setTimespan },
+              { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
               { name: 'cart.setPeriod', fn: cart.setPeriod },
               { name: 'cart.setDates', fn: cart.setDates },
+              { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
             ];
             
             for (const method of cartMethods) {
@@ -672,10 +715,44 @@ const Test = () => {
             }
           }
           
+          // Method 5: Try to set dates directly in DOM (if widget has date inputs)
+          try {
+            const dateInputs = document.querySelectorAll('#booqable-cart-widget input[type="date"], #booqable-cart-widget input[name*="start"], #booqable-cart-widget input[name*="stop"], .booqable-cart input[type="date"]');
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0] as HTMLInputElement;
+              const stopInput = dateInputs[1] as HTMLInputElement;
+              
+              // Extract date from ISO string (YYYY-MM-DD format)
+              const startDateStr = targetDates.startsAt.split('T')[0];
+              const stopDateStr = targetDates.stopsAt.split('T')[0];
+              
+              startInput.value = startDateStr;
+              stopInput.value = stopDateStr;
+              
+              // Trigger change events
+              startInput.dispatchEvent(new Event('change', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('change', { bubbles: true }));
+              startInput.dispatchEvent(new Event('input', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('input', { bubbles: true }));
+              
+              console.log('[Test] 📅 ✅ Set dates directly in DOM inputs:', { startDateStr, stopDateStr });
+            }
+          } catch (e) {
+            // DOM method failed, continue
+          }
+          
           // Refresh widget
           booqableRefresh();
+          
+          // Reset flag after a delay
+          setTimeout(() => {
+            dateApplicationInProgress = false;
+          }, 1000);
         }
       }
+      
+      // Update tracking variables
+      lastCartId = currentCartId;
       
       if (currentCartDataString !== lastCartDataString) {
         const beforeItems = lastCartData?.items || [];
