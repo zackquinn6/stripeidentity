@@ -933,6 +933,9 @@ const Test = () => {
 
   // Core function to pass rental dates to Booqable cart
   const passRentalDatesToCart = useCallback((startsAt: string, stopsAt: string): { success: boolean; methodsUsed: string[] } => {
+    // Store target dates for re-application if they get cleared
+    targetDatesRef.current = { startsAt, stopsAt };
+    
     const api = getBooqableApi();
     if (!api) {
       console.log('[Test] 📅 ⚠️ Booqable API not available');
