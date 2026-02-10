@@ -1445,23 +1445,53 @@ const Test = () => {
       }
     }
 
-    // Verify cart was updated and re-apply dates if they were cleared
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Verify cart was updated and aggressively re-apply dates if they were cleared
+    await new Promise(resolve => setTimeout(resolve, 1500));
     let afterCartSnapshot = getCartSnapshot();
     console.log('[Test] 🛒 Cart AFTER adding product:', afterCartSnapshot);
 
     // Check if dates were cleared (Booqable often resets cart when adding items)
     const datesCleared = !afterCartSnapshot.starts_at || !afterCartSnapshot.stops_at;
-    if (datesCleared) {
-      console.log('[Test] 📅 ⚠️ Dates were cleared when item was added. Re-applying dates...');
-      // Re-apply dates after item was added
-      const reapplyResult = passRentalDatesToCart(startsAt, stopsAt);
-      console.log('[Test] 📅 Re-applied dates:', reapplyResult);
+    const datesDontMatch = afterCartSnapshot.starts_at !== startsAt || afterCartSnapshot.stops_at !== stopsAt;
+    
+    if (datesCleared || datesDontMatch) {
+      console.log('[Test] 📅 ⚠️ Dates were cleared or don\'t match when item was added. Re-applying dates aggressively...');
       
-      // Wait a bit for dates to be set again
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Re-apply dates multiple times with delays
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          console.log(`[Test] 📅 Re-applying dates (attempt ${i + 1}/5)...`);
+          passRentalDatesToCart(startsAt, stopsAt);
+          
+          // Also try DOM manipulation
+          try {
+            const dateInputs = document.querySelectorAll('#booqable-cart-widget input[type="date"], #booqable-cart-widget input[name*="start"], #booqable-cart-widget input[name*="stop"], .booqable-cart input[type="date"], input[type="date"][name*="start"], input[type="date"][name*="stop"]');
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0] as HTMLInputElement;
+              const stopInput = dateInputs[1] as HTMLInputElement;
+              const startDateStr = startsAt.split('T')[0];
+              const stopDateStr = stopsAt.split('T')[0];
+              
+              startInput.value = startDateStr;
+              stopInput.value = stopDateStr;
+              startInput.dispatchEvent(new Event('change', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('change', { bubbles: true }));
+              startInput.dispatchEvent(new Event('input', { bubbles: true }));
+              stopInput.dispatchEvent(new Event('input', { bubbles: true }));
+              console.log(`[Test] 📅 ✅ Set dates in DOM (attempt ${i + 1}/5)`);
+            }
+          } catch (e) {
+            // ignore
+          }
+          
+          booqableRefresh();
+        }, i * 300);
+      }
+      
+      // Wait for final retry to complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
       afterCartSnapshot = getCartSnapshot();
-      console.log('[Test] 🛒 Cart AFTER re-applying dates:', afterCartSnapshot);
+      console.log('[Test] 🛒 Cart AFTER aggressive date re-application:', afterCartSnapshot);
     }
 
     // Check if product was added
