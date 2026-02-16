@@ -1645,6 +1645,12 @@ const Test = () => {
       
       console.log(`[Test] 📅 Re-applying dates (attempt ${attempt}/${maxAttempts})...`);
       
+      const api = getBooqableApi();
+      if (!api) {
+        console.log(`[Test] 📅 ⚠️ Booqable API not available (attempt ${attempt})`);
+        return;
+      }
+      
       // Method 1: URL params
       try {
         const url = new URL(window.location.href);
@@ -1812,6 +1818,63 @@ const Test = () => {
         } else {
           console.log(`[Test] 📅 ⚠️ No date inputs found in DOM (attempt ${attempt})`);
           console.log(`[Test] 📅 🔍 Searched ${selectors.length} selectors, found 0-1 inputs`);
+          
+          // Inspect the widget container structure
+          const widgetContainer = document.getElementById('booqable-cart-widget');
+          if (widgetContainer) {
+            console.log(`[Test] 📅 🔍 Widget container found:`, {
+              id: widgetContainer.id,
+              className: widgetContainer.className,
+              innerHTML: widgetContainer.innerHTML.substring(0, 500), // First 500 chars
+              children: Array.from(widgetContainer.children).map(child => ({
+                tagName: child.tagName,
+                id: child.id,
+                className: child.className,
+                hasShadowRoot: !!child.shadowRoot,
+                isIframe: child.tagName === 'IFRAME'
+              })),
+              allInputs: Array.from(widgetContainer.querySelectorAll('input')).map(inp => ({
+                tagName: inp.tagName,
+                type: inp.type,
+                name: inp.name,
+                id: inp.id,
+                value: inp.value,
+                className: inp.className
+              }))
+            });
+            
+            // Check for iframes
+            const iframes = widgetContainer.querySelectorAll('iframe');
+            if (iframes.length > 0) {
+              console.log(`[Test] 📅 🔍 Found ${iframes.length} iframe(s) in widget - dates may be in iframe (not accessible)`);
+            }
+            
+            // Check for shadow DOM
+            const shadowRoots: ShadowRoot[] = [];
+            widgetContainer.querySelectorAll('*').forEach(el => {
+              if (el.shadowRoot) {
+                shadowRoots.push(el.shadowRoot);
+              }
+            });
+            if (shadowRoots.length > 0) {
+              console.log(`[Test] 📅 🔍 Found ${shadowRoots.length} shadow root(s) in widget - dates may be in shadow DOM`);
+              shadowRoots.forEach((shadow, idx) => {
+                const shadowInputs = shadow.querySelectorAll('input');
+                console.log(`[Test] 📅 🔍 Shadow root ${idx} has ${shadowInputs.length} input(s):`, 
+                  Array.from(shadowInputs).map(inp => ({
+                    tagName: inp.tagName,
+                    type: inp.type,
+                    name: inp.name,
+                    id: inp.id,
+                    value: inp.value
+                  }))
+                );
+              });
+            }
+          } else {
+            console.log(`[Test] 📅 ⚠️ Widget container #booqable-cart-widget not found in DOM`);
+          }
+          
           // Log all inputs found with each selector for debugging
           selectors.forEach(selector => {
             const inputs = document.querySelectorAll<HTMLInputElement>(selector);
@@ -1833,8 +1896,45 @@ const Test = () => {
         console.error(`[Test] 📅 ❌ DOM manipulation failed (attempt ${attempt}):`, e);
       }
       
-      // Refresh widget
-      booqableRefresh();
+      // Refresh widget - try multiple refresh methods
+      if (api) {
+        // Method 1: Standard refresh
+        booqableRefresh();
+        
+        // Method 2: Direct API refresh
+        if (typeof api.refresh === 'function') {
+          try {
+            api.refresh();
+            console.log(`[Test] 📅 ✅ Called api.refresh() (attempt ${attempt})`);
+          } catch (e) {
+            // ignore
+          }
+        }
+        
+        // Method 3: Trigger multiple events
+        if (typeof api.trigger === 'function') {
+          try {
+            api.trigger('page-change');
+            api.trigger('refresh');
+            api.trigger('dom-change');
+            api.trigger('cart:update');
+            api.trigger('cart:change');
+            api.trigger('date-change');
+            console.log(`[Test] 📅 ✅ Triggered multiple events (attempt ${attempt})`);
+          } catch (e) {
+            // ignore
+          }
+        }
+        
+        // Method 4: Force URL change event (widget might listen to this)
+        try {
+          window.dispatchEvent(new PopStateEvent('popstate'));
+          window.dispatchEvent(new Event('hashchange'));
+          console.log(`[Test] 📅 ✅ Dispatched URL change events (attempt ${attempt})`);
+        } catch (e) {
+          // ignore
+        }
+      }
       
       // Schedule next attempt if dates still don't match
       setTimeout(() => {
