@@ -62,17 +62,20 @@ const Test = () => {
       // Also try additional methods for maximum compatibility
       const cart = api?.cart;
       
-      // Method 1: api.setCartData (if available)
-      if (typeof api.setCartData === 'function') {
+      // Method 1: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+      const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+      if (typeof api.setCartData === 'function' && !hasItems) {
         try {
           api.setCartData({
             starts_at: startsAt,
             stops_at: stopsAt,
           });
-          console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at})');
+          console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at}) - cart is empty');
         } catch (e) {
           console.warn('[Test] 📅 ❌ api.setCartData failed:', e);
         }
+      } else if (hasItems) {
+        console.log('[Test] 📅 ⚠️ Skipped api.setCartData - cart has items, would clear them');
       }
 
       // Method 2: Direct cartData assignment
@@ -631,32 +634,38 @@ const Test = () => {
             console.warn('[Test] 📅 ❌ Failed to re-apply dates via URL:', e);
           }
           
-          // Method 2: api.setCartData (with retry after cart creation)
-          if (typeof api.setCartData === 'function') {
+          // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+          const hasItems = currentCartData?.items && Array.isArray(currentCartData.items) && currentCartData.items.length > 0;
+          if (typeof api.setCartData === 'function' && !hasItems) {
             try {
               api.setCartData({
                 starts_at: targetDates.startsAt,
                 stops_at: targetDates.stopsAt,
               });
-              console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData');
+              console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData - cart is empty');
               
-              // If new cart was created, retry after a delay
+              // If new cart was created, retry after a delay (only if still empty)
               if (newCartCreated || cartIdChanged) {
                 setTimeout(() => {
-                  try {
-                    api.setCartData({
-                      starts_at: targetDates.startsAt,
-                      stops_at: targetDates.stopsAt,
-                    });
-                    console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData (retry after cart creation)');
-                  } catch (e) {
-                    // ignore
+                  const stillEmpty = !api.cartData?.items || api.cartData.items.length === 0;
+                  if (stillEmpty) {
+                    try {
+                      api.setCartData({
+                        starts_at: targetDates.startsAt,
+                        stops_at: targetDates.stopsAt,
+                      });
+                      console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData (retry after cart creation)');
+                    } catch (e) {
+                      // ignore
+                    }
                   }
                 }, 200);
               }
             } catch (e) {
               console.warn('[Test] 📅 ❌ Failed to re-apply dates via setCartData:', e);
             }
+          } else if (hasItems) {
+            console.log('[Test] 📅 ⚠️ Skipped api.setCartData - cart has items, would clear them');
           }
           
           // Method 3: Direct cartData assignment (with retry)
@@ -1207,18 +1216,21 @@ const Test = () => {
       console.error('[Test] 📅 ❌ Failed to set URL params:', e);
     }
 
-    // Method 2: api.setCartData (primary API method)
-    if (typeof api.setCartData === 'function') {
+    // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+    const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+    if (typeof api.setCartData === 'function' && !hasItems) {
       try {
         api.setCartData({
           starts_at: startsAt,
           stops_at: stopsAt,
         });
         methodsUsed.push('api.setCartData');
-        console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at})');
+        console.log('[Test] 📅 ✅ Called api.setCartData({starts_at, stops_at}) - cart is empty');
       } catch (e) {
         console.warn('[Test] 📅 ❌ api.setCartData failed:', e);
       }
+    } else if (hasItems) {
+      console.log('[Test] 📅 ⚠️ Skipped api.setCartData - cart has items, would clear them');
     }
 
     // Method 3: Direct cartData assignment (fallback)
@@ -1330,8 +1342,9 @@ const Test = () => {
             // ignore
           }
           
-          // Method 2: api.setCartData
-          if (typeof api.setCartData === 'function') {
+          // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+          const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+          if (typeof api.setCartData === 'function' && !hasItems) {
             try {
               api.setCartData({
                 starts_at: startsAt,
@@ -1469,8 +1482,9 @@ const Test = () => {
         // ignore
       }
       
-      // Method 2: api.setCartData
-      if (typeof api.setCartData === 'function') {
+      // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+      const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+      if (typeof api.setCartData === 'function' && !hasItems) {
         try {
           api.setCartData({
             starts_at: startsAt,

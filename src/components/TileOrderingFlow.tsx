@@ -386,17 +386,20 @@ const TileOrderingFlow = ({
           console.log('[TileOrderingFlow] Cart object available, keys:', Object.keys(cart).slice(0, 20));
         }
         
-        // Method 1: Try setCartData (available in the API)
-        if (typeof api.setCartData === 'function') {
+        // Method 1: Try setCartData (ONLY when cart is empty - it clears items otherwise)
+        const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+        if (typeof api.setCartData === 'function' && !hasItems) {
           try {
             api.setCartData({
               starts_at: startsAt,
               stops_at: stopsAt,
             });
-            console.log('[TileOrderingFlow] ✅ Called api.setCartData({starts_at, stops_at})');
+            console.log('[TileOrderingFlow] ✅ Called api.setCartData({starts_at, stops_at}) - cart is empty');
           } catch (e) {
             console.warn('[TileOrderingFlow] ❌ api.setCartData failed:', e);
           }
+        } else if (hasItems) {
+          console.log('[TileOrderingFlow] ⚠️ Skipped api.setCartData - cart has items, would clear them');
         }
         
         // Method 2: Try setting cartData directly
@@ -508,17 +511,20 @@ const TileOrderingFlow = ({
     const dateResult = applyRentalPeriod(startsAt, stopsAt);
     console.log('[TileOrderingFlow] 📅 Date setting result:', dateResult);
 
-    // Also try additional date methods
-    if (typeof api.setCartData === 'function') {
+    // Also try additional date methods (ONLY when cart is empty - it clears items otherwise)
+    const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+    if (typeof api.setCartData === 'function' && !hasItems) {
       try {
         api.setCartData({
           starts_at: startsAt,
           stops_at: stopsAt,
         });
-        console.log('[TileOrderingFlow] 📅 ✅ Called api.setCartData({starts_at, stops_at})');
+        console.log('[TileOrderingFlow] 📅 ✅ Called api.setCartData({starts_at, stops_at}) - cart is empty');
       } catch (e) {
         console.warn('[TileOrderingFlow] 📅 ❌ api.setCartData failed:', e);
       }
+    } else if (hasItems) {
+      console.log('[TileOrderingFlow] 📅 ⚠️ Skipped api.setCartData - cart has items, would clear them');
     }
 
     if (api.cartData) {
@@ -628,9 +634,11 @@ const TileOrderingFlow = ({
           const datesStillSet = finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt;
           if (!datesStillSet) {
             console.log('[TileOrderingFlow] 📅 ⚠️ Dates were cleared when items were added. Re-applying...');
-            // Re-apply dates
+            // Re-apply dates (don't use api.setCartData here - cart has items)
             applyRentalPeriod(startsAt, stopsAt);
-            if (typeof api.setCartData === 'function') {
+            // Only use setCartData if cart is empty
+            const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+            if (typeof api.setCartData === 'function' && !hasItems) {
               try {
                 api.setCartData({ starts_at: startsAt, stops_at: stopsAt });
               } catch (e) {

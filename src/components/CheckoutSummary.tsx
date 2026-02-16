@@ -91,17 +91,20 @@ const CheckoutSummary = ({ items, rentalDays, startDate, onBack }: CheckoutSumma
       
       const cart = api?.cart;
       
-      // Method 1: Try setCartData (available in the API)
-      if (typeof api.setCartData === 'function') {
+      // Method 1: Try setCartData (ONLY when cart is empty - it clears items otherwise)
+      const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+      if (typeof api.setCartData === 'function' && !hasItems) {
         try {
           api.setCartData({
             starts_at: startsAt,
             stops_at: stopsAt,
           });
-          console.log('[CheckoutSummary] ✅ Called api.setCartData({starts_at, stops_at})');
+          console.log('[CheckoutSummary] ✅ Called api.setCartData({starts_at, stops_at}) - cart is empty');
         } catch (e) {
           console.warn('[CheckoutSummary] ❌ api.setCartData failed:', e);
         }
+      } else if (hasItems) {
+        console.log('[CheckoutSummary] ⚠️ Skipped api.setCartData - cart has items, would clear them');
       }
       
       // Method 2: Try setting cartData directly
