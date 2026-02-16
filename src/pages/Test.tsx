@@ -123,14 +123,46 @@ const Test = () => {
         const finalCartData = api.cartData;
         if (finalCartData) {
           const datesMatch = finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt;
+          // CRITICAL: Check if widget is actually rendering
+          const widgetContainer = document.getElementById('booqable-cart-widget');
+          const widgetIsRendering = widgetContainer && (
+            widgetContainer.children.length > 0 || 
+            widgetContainer.innerHTML.trim().length > 0 ||
+            widgetContainer.querySelector('iframe') !== null
+          );
+          
+          // Check if dates are visible in widget DOM (if widget is rendering)
+          let datesVisibleInWidget = false;
+          if (widgetIsRendering) {
+            const dateInputs = widgetContainer!.querySelectorAll('input[type="date"], input[name*="start"], input[name*="stop"]');
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0] as HTMLInputElement;
+              const stopInput = dateInputs[1] as HTMLInputElement;
+              const startDateStr = startsAt.split('T')[0];
+              const stopDateStr = stopsAt.split('T')[0];
+              datesVisibleInWidget = startInput.value === startDateStr && stopInput.value === stopDateStr;
+            }
+          }
+          
           console.log('[Test] 📅 Verification after setting dates:', {
             target: { starts_at: startsAt, stops_at: stopsAt },
-            actual: { starts_at: finalCartData.starts_at, stops_at: finalCartData.stops_at },
-            datesMatch,
+            cartData: { starts_at: finalCartData.starts_at, stops_at: finalCartData.stops_at },
+            datesMatchInCartData: datesMatch,
+            widgetIsRendering,
+            datesVisibleInWidget,
+            note: widgetIsRendering 
+              ? (datesVisibleInWidget ? '✅ Dates visible in widget UI' : '⚠️ Widget rendering but dates not visible in UI')
+              : '⚠️ Widget not rendering - cartData is local JS object, not actual widget state'
           });
           
-          if (datesMatch) {
-            console.log('[Test] 📅 ✅ SUCCESS: Dates are set in cart!');
+          if (datesMatch && widgetIsRendering && datesVisibleInWidget) {
+            console.log('[Test] 📅 ✅ SUCCESS: Dates are set in cartData AND visible in widget UI!');
+          } else if (datesMatch && !widgetIsRendering) {
+            console.warn('[Test] 📅 ⚠️ WARNING: Dates set in cartData but widget is NOT rendering. cartData is a local JS object, not the actual widget state.');
+            console.warn('[Test] 📅 ⚠️ The widget may read dates from URL params on initial load, or may only show dates in checkout.');
+          } else if (datesMatch && widgetIsRendering && !datesVisibleInWidget) {
+            console.warn('[Test] 📅 ⚠️ WARNING: Dates set in cartData and widget is rendering, but dates are not visible in widget UI.');
+            console.warn('[Test] 📅 ⚠️ The widget may not display dates in the cart widget (only in checkout).');
           } else {
             console.log('[Test] 📅 ⚠️ Dates may not match. Will continue monitoring...');
           }
@@ -1522,6 +1554,21 @@ const Test = () => {
     // Wait a moment for dates to be processed
     await new Promise(resolve => setTimeout(resolve, 500));
 
+    // CRITICAL: Verify widget is actually rendering before reporting success
+    const widgetContainer = document.getElementById('booqable-cart-widget');
+    const widgetIsRendering = widgetContainer && (
+      widgetContainer.children.length > 0 || 
+      widgetContainer.innerHTML.trim().length > 0 ||
+      widgetContainer.querySelector('iframe') !== null ||
+      widgetContainer.querySelector('*') !== null
+    );
+    
+    if (!widgetIsRendering) {
+      console.warn('[Test] ⚠️ WIDGET NOT RENDERING: Cart widget container is empty. Dates may be set in cartData but widget UI is not displaying.');
+      console.warn('[Test] ⚠️ This means api.cartData is a local JavaScript object, not the actual widget state.');
+      console.warn('[Test] ⚠️ The widget may read dates from URL params on initial load, or may only show dates in checkout.');
+    }
+
     // STEP 2: Add product to cart
     console.log('[Test] 🛒 STEP 2: Adding product to cart...');
     const api = getBooqableApi();
@@ -1944,7 +1991,21 @@ const Test = () => {
         if (!datesMatch && attempt < maxAttempts) {
           applyDatesAggressively(attempt + 1, maxAttempts);
         } else if (datesMatch) {
-          console.log(`[Test] 📅 ✅ Dates successfully set after ${attempt} attempts!`);
+          // CRITICAL: Verify widget is actually rendering before reporting success
+          const widgetContainer = document.getElementById('booqable-cart-widget');
+          const widgetIsRendering = widgetContainer && (
+            widgetContainer.children.length > 0 || 
+            widgetContainer.innerHTML.trim().length > 0 ||
+            widgetContainer.querySelector('iframe') !== null
+          );
+          
+          if (widgetIsRendering) {
+            console.log(`[Test] 📅 ✅ Dates set in cartData after ${attempt} attempts (widget is rendering)`);
+          } else {
+            console.warn(`[Test] 📅 ⚠️ Dates set in cartData after ${attempt} attempts, but widget is NOT rendering.`);
+            console.warn(`[Test] 📅 ⚠️ cartData is a local JS object - widget may not reflect these changes.`);
+          }
+          
           // Disconnect observer when dates are set
           if (dateObserver) {
             dateObserver.disconnect();
