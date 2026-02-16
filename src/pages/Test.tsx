@@ -634,8 +634,184 @@ const Test = () => {
             console.warn('[Test] 📅 ❌ Failed to re-apply dates via URL:', e);
           }
           
-          // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+          // Check if cart has items
           const hasItems = currentCartData?.items && Array.isArray(currentCartData.items) && currentCartData.items.length > 0;
+          
+          // When cart has items, prioritize cart API methods and DOM manipulation
+          // When cart is empty, use api.setCartData
+          
+          // Method 2: Try cart API methods FIRST (PRIORITY when cart has items - these should preserve items)
+          const cart = api?.cart;
+          if (cart) {
+            const cartMethods = [
+              { name: 'cart.setTimespan', fn: cart.setTimespan },
+              { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
+              { name: 'cart.setPeriod', fn: cart.setPeriod },
+              { name: 'cart.setDates', fn: cart.setDates },
+              { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
+            ];
+            
+            let methodSucceeded = false;
+            for (const method of cartMethods) {
+              if (typeof method.fn === 'function') {
+                try {
+                  method.fn(targetDates.startsAt, targetDates.stopsAt);
+                  console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name}`);
+                  methodSucceeded = true;
+                  break;
+                } catch (e) {
+                  try {
+                    method.fn({ starts_at: targetDates.startsAt, stops_at: targetDates.stopsAt });
+                    console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name} (object)`);
+                    methodSucceeded = true;
+                    break;
+                  } catch (e2) {
+                    // continue
+                  }
+                }
+              }
+            }
+            
+            // If cart API methods exist but didn't work, retry after a delay
+            if (!methodSucceeded && hasItems) {
+              setTimeout(() => {
+                for (const method of cartMethods) {
+                  if (typeof method.fn === 'function') {
+                    try {
+                      method.fn(targetDates.startsAt, targetDates.stopsAt);
+                      console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name} (retry)`);
+                      break;
+                    } catch (e) {
+                      try {
+                        method.fn({ starts_at: targetDates.startsAt, stops_at: targetDates.stopsAt });
+                        console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name} (object, retry)`);
+                        break;
+                      } catch (e2) {
+                        // continue
+                      }
+                    }
+                  }
+                }
+              }, 300);
+            }
+          }
+          
+          // Method 3: Try to set dates directly in DOM (if widget has date inputs) - CRITICAL for persistence
+          const setDatesInDOM = () => {
+            try {
+              // Try multiple comprehensive selectors to find date inputs
+              const selectors = [
+                '#booqable-cart-widget input[type="date"]',
+                '#booqable-cart-widget input[type="text"][name*="start"]',
+                '#booqable-cart-widget input[type="text"][name*="stop"]',
+                '#booqable-cart-widget input[name*="start"]',
+                '#booqable-cart-widget input[name*="stop"]',
+                '.booqable-cart input[type="date"]',
+                '.booqable-cart input[name*="start"]',
+                '.booqable-cart input[name*="stop"]',
+                'input[type="date"]',
+                'input[name*="start"]',
+                'input[name*="stop"]',
+                '[data-booqable-date-start]',
+                '[data-booqable-date-stop]',
+                '[id*="start"]',
+                '[id*="stop"]',
+              ];
+              
+              let dateInputs: HTMLInputElement[] = [];
+              let foundSelector = '';
+              
+              for (const selector of selectors) {
+                const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(selector));
+                if (inputs.length >= 2) {
+                  dateInputs = inputs;
+                  foundSelector = selector;
+                  break;
+                }
+              }
+              
+              if (dateInputs.length >= 2) {
+                const startInput = dateInputs[0];
+                const stopInput = dateInputs[1];
+                
+                // Extract date from ISO string (YYYY-MM-DD format)
+                const startDateStr = targetDates.startsAt.split('T')[0];
+                const stopDateStr = targetDates.stopsAt.split('T')[0];
+                
+                console.log('[Test] 📅 🔧 Setting dates in DOM inputs:', {
+                  startInput: { 
+                    tagName: startInput.tagName, 
+                    type: startInput.type, 
+                    name: startInput.name, 
+                    id: startInput.id,
+                    currentValue: startInput.value,
+                    newValue: startDateStr
+                  },
+                  stopInput: { 
+                    tagName: stopInput.tagName, 
+                    type: stopInput.type, 
+                    name: stopInput.name, 
+                    id: stopInput.id,
+                    currentValue: stopInput.value,
+                    newValue: stopDateStr
+                  },
+                  selector: foundSelector
+                });
+                
+                // Method 1: Direct value assignment
+                startInput.value = startDateStr;
+                stopInput.value = stopDateStr;
+                
+                // Method 2: Set attribute
+                startInput.setAttribute('value', startDateStr);
+                stopInput.setAttribute('value', stopDateStr);
+                
+                // Method 3: Use native value setter (triggers React updates)
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(startInput, startDateStr);
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(stopInput, stopDateStr);
+                
+                // Method 4: Trigger multiple event types in sequence
+                const eventTypes = ['focus', 'input', 'change', 'blur'];
+                eventTypes.forEach((eventType, idx) => {
+                  setTimeout(() => {
+                    const startEvent = new Event(eventType, { bubbles: true, cancelable: true });
+                    const stopEvent = new Event(eventType, { bubbles: true, cancelable: true });
+                    startInput.dispatchEvent(startEvent);
+                    stopInput.dispatchEvent(stopEvent);
+                  }, idx * 10);
+                });
+                
+                // Verify values were set
+                setTimeout(() => {
+                  const actualStartValue = startInput.value;
+                  const actualStopValue = stopInput.value;
+                  console.log('[Test] 📅 ✅ DOM dates set:', {
+                    start: { expected: startDateStr, actual: actualStartValue, match: actualStartValue === startDateStr },
+                    stop: { expected: stopDateStr, actual: actualStopValue, match: actualStopValue === stopDateStr }
+                  });
+                }, 100);
+                
+                return true;
+              } else {
+                console.log('[Test] 📅 ⚠️ No date inputs found in DOM. Tried selectors:', selectors);
+                return false;
+              }
+            } catch (e) {
+              console.warn('[Test] 📅 DOM manipulation failed:', e);
+              return false;
+            }
+          };
+          
+          // Try immediately
+          setDatesInDOM();
+          
+          // Retry after delays (date inputs might not be in DOM yet)
+          setTimeout(() => setDatesInDOM(), 100);
+          setTimeout(() => setDatesInDOM(), 300);
+          setTimeout(() => setDatesInDOM(), 500);
+          setTimeout(() => setDatesInDOM(), 1000);
+          
+          // Method 4: api.setCartData (ONLY when cart is empty - it clears items otherwise)
           if (typeof api.setCartData === 'function' && !hasItems) {
             try {
               api.setCartData({
@@ -668,7 +844,7 @@ const Test = () => {
             console.log('[Test] 📅 ⚠️ Skipped api.setCartData - cart has items, would clear them');
           }
           
-          // Method 3: Direct cartData assignment (with retry)
+          // Method 5: Direct cartData assignment (fallback - less reliable but sometimes works)
           if (api.cartData) {
             try {
               api.cartData.starts_at = targetDates.startsAt;
@@ -692,62 +868,6 @@ const Test = () => {
             } catch (e) {
               console.warn('[Test] 📅 ❌ Failed to re-apply dates on cartData:', e);
             }
-          }
-          
-          // Method 4: Try cart API methods
-          const cart = api?.cart;
-          if (cart) {
-            const cartMethods = [
-              { name: 'cart.setTimespan', fn: cart.setTimespan },
-              { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
-              { name: 'cart.setPeriod', fn: cart.setPeriod },
-              { name: 'cart.setDates', fn: cart.setDates },
-              { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
-            ];
-            
-            for (const method of cartMethods) {
-              if (typeof method.fn === 'function') {
-                try {
-                  method.fn(targetDates.startsAt, targetDates.stopsAt);
-                  console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name}`);
-                  break;
-                } catch (e) {
-                  try {
-                    method.fn({ starts_at: targetDates.startsAt, stops_at: targetDates.stopsAt });
-                    console.log(`[Test] 📅 ✅ Re-applied dates via ${method.name} (object)`);
-                    break;
-                  } catch (e2) {
-                    // continue
-                  }
-                }
-              }
-            }
-          }
-          
-          // Method 5: Try to set dates directly in DOM (if widget has date inputs)
-          try {
-            const dateInputs = document.querySelectorAll('#booqable-cart-widget input[type="date"], #booqable-cart-widget input[name*="start"], #booqable-cart-widget input[name*="stop"], .booqable-cart input[type="date"]');
-            if (dateInputs.length >= 2) {
-              const startInput = dateInputs[0] as HTMLInputElement;
-              const stopInput = dateInputs[1] as HTMLInputElement;
-              
-              // Extract date from ISO string (YYYY-MM-DD format)
-              const startDateStr = targetDates.startsAt.split('T')[0];
-              const stopDateStr = targetDates.stopsAt.split('T')[0];
-              
-              startInput.value = startDateStr;
-              stopInput.value = stopDateStr;
-              
-              // Trigger change events
-              startInput.dispatchEvent(new Event('change', { bubbles: true }));
-              stopInput.dispatchEvent(new Event('change', { bubbles: true }));
-              startInput.dispatchEvent(new Event('input', { bubbles: true }));
-              stopInput.dispatchEvent(new Event('input', { bubbles: true }));
-              
-              console.log('[Test] 📅 ✅ Set dates directly in DOM inputs:', { startDateStr, stopDateStr });
-            }
-          } catch (e) {
-            // DOM method failed, continue
           }
           
           // Refresh widget
@@ -1535,45 +1655,108 @@ const Test = () => {
         }
       }
       
-      // Method 5: DOM manipulation - find and set date inputs
+      // Method 5: DOM manipulation - find and set date inputs (CRITICAL - widget reads from DOM)
       try {
-        // Try multiple selectors to find date inputs
+        // Try multiple comprehensive selectors to find date inputs
         const selectors = [
           '#booqable-cart-widget input[type="date"]',
+          '#booqable-cart-widget input[type="text"][name*="start"]',
+          '#booqable-cart-widget input[type="text"][name*="stop"]',
           '#booqable-cart-widget input[name*="start"]',
           '#booqable-cart-widget input[name*="stop"]',
           '.booqable-cart input[type="date"]',
-          'input[type="date"][name*="start"]',
-          'input[type="date"][name*="stop"]',
+          '.booqable-cart input[name*="start"]',
+          '.booqable-cart input[name*="stop"]',
+          'input[type="date"]',
+          'input[name*="start"]',
+          'input[name*="stop"]',
           '[data-booqable-date-start]',
           '[data-booqable-date-stop]',
+          '[id*="start"]',
+          '[id*="stop"]',
         ];
         
-        let dateInputs: NodeListOf<HTMLInputElement> | null = null;
+        let dateInputs: HTMLInputElement[] = [];
+        let foundSelector = '';
+        
         for (const selector of selectors) {
-          const inputs = document.querySelectorAll<HTMLInputElement>(selector);
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(selector));
           if (inputs.length >= 2) {
             dateInputs = inputs;
+            foundSelector = selector;
+            console.log(`[Test] 📅 🔍 Found ${inputs.length} date inputs using selector: ${selector}`);
             break;
           }
         }
         
-        if (dateInputs && dateInputs.length >= 2) {
+        if (dateInputs.length >= 2) {
           const startInput = dateInputs[0];
           const stopInput = dateInputs[1];
           const startDateStr = startsAt.split('T')[0];
           const stopDateStr = stopsAt.split('T')[0];
           
+          console.log(`[Test] 📅 🔧 Setting dates in DOM inputs (attempt ${attempt}):`, {
+            startInput: { 
+              tagName: startInput.tagName, 
+              type: startInput.type, 
+              name: startInput.name, 
+              id: startInput.id,
+              currentValue: startInput.value,
+              newValue: startDateStr
+            },
+            stopInput: { 
+              tagName: stopInput.tagName, 
+              type: stopInput.type, 
+              name: stopInput.name, 
+              id: stopInput.id,
+              currentValue: stopInput.value,
+              newValue: stopDateStr
+            },
+            selector: foundSelector
+          });
+          
+          // Method 1: Direct value assignment
           startInput.value = startDateStr;
           stopInput.value = stopDateStr;
           
-          // Trigger multiple event types
-          ['change', 'input', 'blur'].forEach(eventType => {
-            startInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
-            stopInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+          // Method 2: Set attribute
+          startInput.setAttribute('value', startDateStr);
+          stopInput.setAttribute('value', stopDateStr);
+          
+          // Method 3: Use native value setter (triggers React updates)
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(startInput, startDateStr);
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(stopInput, stopDateStr);
+          
+          // Method 4: Trigger multiple event types in sequence
+          const eventTypes = ['focus', 'input', 'change', 'blur'];
+          eventTypes.forEach((eventType, idx) => {
+            setTimeout(() => {
+              const startEvent = new Event(eventType, { bubbles: true, cancelable: true });
+              const stopEvent = new Event(eventType, { bubbles: true, cancelable: true });
+              startInput.dispatchEvent(startEvent);
+              stopInput.dispatchEvent(stopEvent);
+              
+              // Also try native events
+              if (eventType === 'change') {
+                const nativeStartEvent = new Event('change', { bubbles: true, cancelable: true });
+                const nativeStopEvent = new Event('change', { bubbles: true, cancelable: true });
+                startInput.dispatchEvent(nativeStartEvent);
+                stopInput.dispatchEvent(nativeStopEvent);
+              }
+            }, idx * 10);
           });
           
-          console.log(`[Test] 📅 ✅ Set dates in DOM inputs (attempt ${attempt}):`, { startDateStr, stopDateStr });
+          // Verify values were set
+          setTimeout(() => {
+            const actualStartValue = startInput.value;
+            const actualStopValue = stopInput.value;
+            console.log(`[Test] 📅 ✅ DOM dates set (attempt ${attempt}):`, {
+              start: { expected: startDateStr, actual: actualStartValue, match: actualStartValue === startDateStr },
+              stop: { expected: stopDateStr, actual: actualStopValue, match: actualStopValue === stopDateStr }
+            });
+          }, 100);
+        } else {
+          console.log(`[Test] 📅 ⚠️ No date inputs found in DOM (attempt ${attempt}). Tried selectors:`, selectors);
         }
       } catch (e) {
         console.warn(`[Test] 📅 DOM manipulation failed (attempt ${attempt}):`, e);
