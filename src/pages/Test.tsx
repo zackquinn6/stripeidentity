@@ -825,14 +825,14 @@ const Test = () => {
                 setTimeout(() => {
                   const stillEmpty = !api.cartData?.items || api.cartData.items.length === 0;
                   if (stillEmpty) {
-                    try {
-                      api.setCartData({
-                        starts_at: targetDates.startsAt,
-                        stops_at: targetDates.stopsAt,
-                      });
-                      console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData (retry after cart creation)');
-                    } catch (e) {
-                      // ignore
+                  try {
+                    api.setCartData({
+                      starts_at: targetDates.startsAt,
+                      stops_at: targetDates.stopsAt,
+                    });
+                    console.log('[Test] 📅 ✅ Re-applied dates via api.setCartData (retry after cart creation)');
+                  } catch (e) {
+                    // ignore
                     }
                   }
                 }, 200);
@@ -1586,6 +1586,59 @@ const Test = () => {
     // ALWAYS re-apply dates after product is added (Booqable often clears them)
     console.log('[Test] 📅 ⚠️ Re-applying dates after product added (Booqable may have cleared them)...');
     
+    // Set up MutationObserver to watch for date inputs appearing in the widget
+    const setupDateInputObserver = () => {
+      const widgetContainer = document.getElementById('booqable-cart-widget') || document.body;
+      const observer = new MutationObserver((mutations) => {
+        // Look for date inputs that were added
+        const dateInputs = document.querySelectorAll<HTMLInputElement>(
+          'input[type="date"], input[name*="start"], input[name*="stop"], input[id*="start"], input[id*="stop"]'
+        );
+        
+        if (dateInputs.length >= 2) {
+          const startInput = dateInputs[0];
+          const stopInput = dateInputs[1];
+          const startDateStr = startsAt.split('T')[0];
+          const stopDateStr = stopsAt.split('T')[0];
+          
+          // Only set if values don't match
+          if (startInput.value !== startDateStr || stopInput.value !== stopDateStr) {
+            console.log('[Test] 📅 🔍 MutationObserver: Found date inputs, setting values...');
+            startInput.value = startDateStr;
+            stopInput.value = stopDateStr;
+            startInput.setAttribute('value', startDateStr);
+            stopInput.setAttribute('value', stopDateStr);
+            
+            // Trigger events
+            ['change', 'input'].forEach(eventType => {
+              startInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+              stopInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+            });
+            
+            console.log('[Test] 📅 ✅ MutationObserver: Set dates in inputs');
+          }
+        }
+      });
+      
+      observer.observe(widgetContainer, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['value']
+      });
+      
+      // Disconnect after 10 seconds
+      setTimeout(() => {
+        observer.disconnect();
+        console.log('[Test] 📅 MutationObserver disconnected');
+      }, 10000);
+      
+      return observer;
+    };
+    
+    // Start watching for date inputs
+    const dateObserver = setupDateInputObserver();
+    
     // Aggressive date re-application with multiple methods and retries
     const applyDatesAggressively = (attempt: number, maxAttempts: number) => {
       if (attempt > maxAttempts) return;
@@ -1656,6 +1709,7 @@ const Test = () => {
       }
       
       // Method 5: DOM manipulation - find and set date inputs (CRITICAL - widget reads from DOM)
+      console.log(`[Test] 📅 🔍 Starting DOM manipulation (attempt ${attempt})...`);
       try {
         // Try multiple comprehensive selectors to find date inputs
         const selectors = [
@@ -1756,10 +1810,27 @@ const Test = () => {
             });
           }, 100);
         } else {
-          console.log(`[Test] 📅 ⚠️ No date inputs found in DOM (attempt ${attempt}). Tried selectors:`, selectors);
+          console.log(`[Test] 📅 ⚠️ No date inputs found in DOM (attempt ${attempt})`);
+          console.log(`[Test] 📅 🔍 Searched ${selectors.length} selectors, found 0-1 inputs`);
+          // Log all inputs found with each selector for debugging
+          selectors.forEach(selector => {
+            const inputs = document.querySelectorAll<HTMLInputElement>(selector);
+            if (inputs.length > 0) {
+              console.log(`[Test] 📅 🔍 Selector "${selector}" found ${inputs.length} input(s):`, 
+                Array.from(inputs).map(inp => ({ 
+                  tagName: inp.tagName, 
+                  type: inp.type, 
+                  name: inp.name, 
+                  id: inp.id,
+                  value: inp.value,
+                  className: inp.className
+                }))
+              );
+            }
+          });
         }
       } catch (e) {
-        console.warn(`[Test] 📅 DOM manipulation failed (attempt ${attempt}):`, e);
+        console.error(`[Test] 📅 ❌ DOM manipulation failed (attempt ${attempt}):`, e);
       }
       
       // Refresh widget
@@ -1774,6 +1845,11 @@ const Test = () => {
           applyDatesAggressively(attempt + 1, maxAttempts);
         } else if (datesMatch) {
           console.log(`[Test] 📅 ✅ Dates successfully set after ${attempt} attempts!`);
+          // Disconnect observer when dates are set
+          if (dateObserver) {
+            dateObserver.disconnect();
+            console.log('[Test] 📅 MutationObserver disconnected (dates set)');
+          }
         }
       }, 500);
     };
