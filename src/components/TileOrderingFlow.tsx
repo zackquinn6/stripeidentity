@@ -469,6 +469,45 @@ const TileOrderingFlow = ({
     }
   }, [startDate, endDate, showCheckout]);
 
+  // Helper function to get cart snapshot (same as Test page)
+  const getCartSnapshot = useCallback(() => {
+    const api = getBooqableApi();
+    if (!api) {
+      return { itemCount: 0, signature: 'no-api' };
+    }
+    
+    // Try Booqable cartData first (source of truth if available)
+    if (api?.cartData?.items && Array.isArray(api.cartData.items)) {
+      const items = api.cartData.items;
+      const itemCount = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+      const signature = items.length > 0 
+        ? items.map((i: any) => `${i.product_id || i.id || i.product_group_id}:${i.quantity}`).join(',')
+        : 'empty';
+      return { itemCount, signature };
+    }
+    
+    // Fallback: count items in the widget DOM
+    const widgetSelectors = [
+      '.booqable-cart-items .item',
+      '.booqable-cart .cart-item',
+      '[data-booqable-cart] .item',
+      '.bq-cart-items > *',
+      '.booqable-widget .cart-line',
+    ];
+    
+    let itemCount = 0;
+    for (const selector of widgetSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        itemCount = elements.length;
+        break;
+      }
+    }
+    
+    const signature = `dom-items:${itemCount}`;
+    return { itemCount, signature };
+  }, []);
+
   // Add all selected items to Booqable cart (using same methodology as test page)
   useEffect(() => {
     // Don't sync if checkout summary is shown (it handles its own sync)
@@ -481,7 +520,7 @@ const TileOrderingFlow = ({
     if (isIdMapLoading) return;
     
     const api = getBooqableApi();
-    if (!api || !api.cart) {
+    if (!api) {
       // Booqable not ready yet, will retry on next render
       return;
     }
@@ -506,47 +545,92 @@ const TileOrderingFlow = ({
     console.log('[TileOrderingFlow] Items to add:', rentalItems.map(item => ({ name: item.name, quantity: item.quantity, booqableId: item.booqableId })));
     console.log('[TileOrderingFlow] Dates:', { startsAt, stopsAt });
 
-    // STEP 1: Set rental dates first (same as test page)
-    console.log('[TileOrderingFlow] 📅 STEP 1: Setting rental dates...');
+    // STEP 1: Set rental dates first (same as test page) - with retries
+    console.log('[TileOrderingFlow] 📅 STEP 1: Setting rental dates (with retries)...');
     const dateResult = applyRentalPeriod(startsAt, stopsAt);
     console.log('[TileOrderingFlow] 📅 Date setting result:', dateResult);
 
-    // Also try additional date methods (ONLY when cart is empty - it clears items otherwise)
-    const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
-    if (typeof api.setCartData === 'function' && !hasItems) {
-      try {
-        api.setCartData({
-          starts_at: startsAt,
-          stops_at: stopsAt,
-        });
-        console.log('[TileOrderingFlow] 📅 ✅ Called api.setCartData({starts_at, stops_at}) - cart is empty');
-      } catch (e) {
-        console.warn('[TileOrderingFlow] 📅 ❌ api.setCartData failed:', e);
+    // Apply dates multiple times with delays to catch cart creation
+    const applyDatesWithRetries = () => {
+      const retryDelays = [100, 300, 500, 1000, 2000];
+      for (const delay of retryDelays) {
+        setTimeout(() => {
+          // Method 1: URL params
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('starts_at', startsAt);
+            url.searchParams.set('stops_at', stopsAt);
+            window.history.replaceState({}, '', url.toString());
+          } catch (e) {
+            // ignore
+          }
+          
+          // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+          const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+          if (typeof api.setCartData === 'function' && !hasItems) {
+            try {
+              api.setCartData({
+                starts_at: startsAt,
+                stops_at: stopsAt,
+              });
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Method 3: Direct cartData
+          if (api.cartData) {
+            try {
+              api.cartData.starts_at = startsAt;
+              api.cartData.stops_at = stopsAt;
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Method 4: Cart API methods
+          const cart = api?.cart;
+          if (cart) {
+            const cartMethods = [
+              { name: 'cart.setTimespan', fn: cart.setTimespan },
+              { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
+              { name: 'cart.setPeriod', fn: cart.setPeriod },
+              { name: 'cart.setDates', fn: cart.setDates },
+              { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
+            ];
+            
+            for (const method of cartMethods) {
+              if (typeof method.fn === 'function') {
+                try {
+                  method.fn(startsAt, stopsAt);
+                  break;
+                } catch (e) {
+                  try {
+                    method.fn({ starts_at: startsAt, stops_at: stopsAt });
+                    break;
+                  } catch (e2) {
+                    // continue
+                  }
+                }
+              }
+            }
+          }
+          
+          // Refresh widget
+          booqableRefresh();
+        }, delay);
       }
-    } else if (hasItems) {
-      console.log('[TileOrderingFlow] 📅 ⚠️ Skipped api.setCartData - cart has items, would clear them');
-    }
-
-    if (api.cartData) {
-      try {
-        api.cartData.starts_at = startsAt;
-        api.cartData.stops_at = stopsAt;
-        console.log('[TileOrderingFlow] 📅 ✅ Set cartData directly');
-      } catch (e) {
-        console.warn('[TileOrderingFlow] 📅 ❌ Could not set cartData:', e);
-      }
-    }
+    };
+    
+    applyDatesWithRetries();
 
     // Wait a moment for dates to be processed
     setTimeout(() => {
-      // STEP 2: Add items to cart
+      // STEP 2: Add items to cart (using Test page methodology)
       console.log('[TileOrderingFlow] 🛒 STEP 2: Adding items to cart...');
       
-      const cart = api.cart;
-      if (!cart) {
-        console.warn('[TileOrderingFlow] ⚠️ Cart not available');
-        return;
-      }
+      const beforeCartSnapshot = getCartSnapshot();
+      console.log('[TileOrderingFlow] 🛒 Cart BEFORE adding items:', beforeCartSnapshot);
 
       // Prepare items for cart - resolve slugs to UUIDs
       const itemsToAdd = rentalItems.map(item => {
@@ -554,108 +638,344 @@ const TileOrderingFlow = ({
         return {
           product_group_id: productId,
           quantity: item.quantity,
+          slug: item.booqableId!,
+          name: item.name,
         };
       });
 
       console.log('[TileOrderingFlow] 🛒 Items to add:', itemsToAdd);
 
-      // Try batch add methods first
-      const batchMethods = [
-        { name: 'cart.addItems', fn: cart.addItems },
-        { name: 'cart.addLineItems', fn: cart.addLineItems },
-        { name: 'cart.addLines', fn: cart.addLines },
-      ];
+      // METHOD 1: Try to click Booqable buttons programmatically (same as Test page)
+      let itemsAddedViaButtons = 0;
+      for (const item of itemsToAdd) {
+        // Try to find button by data-id or data-product-slug
+        const button = document.querySelector(
+          `.booqable-product-button[data-id="${item.product_group_id}"], .booqable-product-button[data-product-slug="${item.slug}"], .booqable-product-button[data-id="${item.slug}"]`
+        ) as HTMLElement;
+        
+        if (button) {
+          const clickableElement = button.querySelector('button, [role="button"], .bq-button') as HTMLElement;
+          const elementToClick = clickableElement || button;
+          
+          // Click multiple times for quantity > 1
+          for (let i = 0; i < item.quantity; i++) {
+            setTimeout(() => {
+              const clickEvent = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+              });
+              elementToClick.dispatchEvent(clickEvent);
+              console.log(`[TileOrderingFlow] 🛒 ✅ Clicked button for ${item.name} (${i + 1}/${item.quantity})`);
+            }, i * 200); // Stagger clicks
+          }
+          itemsAddedViaButtons++;
+        }
+      }
 
-      let itemsAdded = false;
-      for (const method of batchMethods) {
-        if (typeof method.fn === 'function') {
-          try {
-            method.fn(itemsToAdd);
-            console.log(`[TileOrderingFlow] ✅ Added items via ${method.name}`);
-            itemsAdded = true;
-            break;
-          } catch (e) {
-            console.log(`[TileOrderingFlow] ${method.name} failed:`, e);
+      // METHOD 2: Fallback to API methods if buttons not found
+      if (itemsAddedViaButtons < itemsToAdd.length) {
+        console.log('[TileOrderingFlow] Some items not found as buttons, trying API methods...');
+        const cart = api.cart;
+        if (cart) {
+          // Try batch add methods first
+          const batchMethods = [
+            { name: 'cart.addItems', fn: cart.addItems },
+            { name: 'cart.addLineItems', fn: cart.addLineItems },
+            { name: 'cart.addLines', fn: cart.addLines },
+          ];
+
+          let itemsAdded = false;
+          for (const method of batchMethods) {
+            if (typeof method.fn === 'function') {
+              try {
+                method.fn(itemsToAdd.map(item => ({ product_group_id: item.product_group_id, quantity: item.quantity })));
+                console.log(`[TileOrderingFlow] ✅ Added items via ${method.name}`);
+                itemsAdded = true;
+                break;
+              } catch (e) {
+                console.log(`[TileOrderingFlow] ${method.name} failed:`, e);
+              }
+            }
+          }
+
+          // Fallback: add items one by one
+          if (!itemsAdded) {
+            console.log('[TileOrderingFlow] Batch methods failed, trying per-item methods');
+            const perItemMethods = [
+              { name: 'cart.addItem', fn: cart.addItem },
+              { name: 'cart.addProductGroup', fn: cart.addProductGroup },
+              { name: 'cart.add', fn: cart.add },
+            ];
+            
+            let successCount = 0;
+            for (const item of itemsToAdd) {
+              const productId = item.product_group_id;
+              const quantity = item.quantity;
+              
+              let itemAdded = false;
+              for (const method of perItemMethods) {
+                if (typeof method.fn === 'function') {
+                  try {
+                    // Try string, quantity format
+                    method.fn(productId, quantity);
+                    console.log(`[TileOrderingFlow] ✅ Added item via ${method.name}:`, productId, quantity);
+                    itemAdded = true;
+                    successCount++;
+                    break;
+                  } catch (e) {
+                    try {
+                      // Try object format
+                      method.fn({ product_group_id: productId, quantity });
+                      console.log(`[TileOrderingFlow] ✅ Added item via ${method.name} (object):`, productId, quantity);
+                      itemAdded = true;
+                      successCount++;
+                      break;
+                    } catch (e2) {
+                      // continue
+                    }
+                  }
+                }
+              }
+              
+              if (!itemAdded) {
+                console.warn(`[TileOrderingFlow] ❌ Could not add item:`, productId, quantity);
+              }
+            }
+            
+            console.log(`[TileOrderingFlow] Added ${successCount}/${itemsToAdd.length} items to cart via API`);
           }
         }
       }
 
-      // Fallback: add items one by one
-      if (!itemsAdded) {
-        console.log('[TileOrderingFlow] Batch methods failed, trying per-item methods');
-        const perItemMethods = [
-          { name: 'cart.addItem', fn: cart.addItem },
-          { name: 'cart.addProductGroup', fn: cart.addProductGroup },
-          { name: 'cart.add', fn: cart.add },
-        ];
+      // Verify cart was updated
+      setTimeout(() => {
+        const afterCartSnapshot = getCartSnapshot();
+        console.log('[TileOrderingFlow] 🛒 Cart AFTER adding items:', afterCartSnapshot);
         
-        let successCount = 0;
-        for (const item of itemsToAdd) {
-          const productId = item.product_group_id;
-          const quantity = item.quantity;
+        // ALWAYS re-apply dates after items are added (Booqable often clears them)
+        console.log('[TileOrderingFlow] 📅 ⚠️ Re-applying dates after items added (Booqable may have cleared them)...');
+        
+        // Set up MutationObserver to watch for date inputs appearing in the widget
+        const setupDateInputObserver = () => {
+          const widgetContainer = document.getElementById('booqable-cart-widget') || document.body;
+          const observer = new MutationObserver((mutations) => {
+            // Look for date inputs that were added
+            const dateInputs = document.querySelectorAll<HTMLInputElement>(
+              'input[type="date"], input[name*="start"], input[name*="stop"], input[id*="start"], input[id*="stop"]'
+            );
+            
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0];
+              const stopInput = dateInputs[1];
+              const startDateStr = startsAt.split('T')[0];
+              const stopDateStr = stopsAt.split('T')[0];
+              
+              // Only set if values don't match
+              if (startInput.value !== startDateStr || stopInput.value !== stopDateStr) {
+                console.log('[TileOrderingFlow] 📅 🔍 MutationObserver: Found date inputs, setting values...');
+                startInput.value = startDateStr;
+                stopInput.value = stopDateStr;
+                startInput.setAttribute('value', startDateStr);
+                stopInput.setAttribute('value', stopDateStr);
+                
+                // Trigger events
+                ['change', 'input'].forEach(eventType => {
+                  startInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+                  stopInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+                });
+                
+                console.log('[TileOrderingFlow] 📅 ✅ MutationObserver: Set dates in inputs');
+              }
+            }
+          });
           
-          let itemAdded = false;
-          for (const method of perItemMethods) {
-            if (typeof method.fn === 'function') {
-              try {
-                // Try string, quantity format
-                method.fn(productId, quantity);
-                console.log(`[TileOrderingFlow] ✅ Added item via ${method.name}:`, productId, quantity);
-                itemAdded = true;
-                successCount++;
-                break;
-              } catch (e) {
+          observer.observe(widgetContainer, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['value']
+          });
+          
+          // Disconnect after 10 seconds
+          setTimeout(() => {
+            observer.disconnect();
+            console.log('[TileOrderingFlow] 📅 MutationObserver disconnected');
+          }, 10000);
+          
+          return observer;
+        };
+        
+        // Start watching for date inputs
+        const dateObserver = setupDateInputObserver();
+        
+        // Aggressive date re-application with multiple methods and retries
+        const applyDatesAggressively = (attempt: number, maxAttempts: number) => {
+          if (attempt > maxAttempts) return;
+          
+          console.log(`[TileOrderingFlow] 📅 Re-applying dates (attempt ${attempt}/${maxAttempts})...`);
+          
+          // Method 1: URL params
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('starts_at', startsAt);
+            url.searchParams.set('stops_at', stopsAt);
+            window.history.replaceState({}, '', url.toString());
+          } catch (e) {
+            // ignore
+          }
+          
+          // Method 2: api.setCartData (ONLY when cart is empty - it clears items otherwise)
+          const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
+          if (typeof api.setCartData === 'function' && !hasItems) {
+            try {
+              api.setCartData({
+                starts_at: startsAt,
+                stops_at: stopsAt,
+              });
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Method 3: Direct cartData
+          if (api.cartData) {
+            try {
+              api.cartData.starts_at = startsAt;
+              api.cartData.stops_at = stopsAt;
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Method 4: Cart API methods
+          const cart = api?.cart;
+          if (cart) {
+            const cartMethods = [
+              { name: 'cart.setTimespan', fn: cart.setTimespan },
+              { name: 'cart.setTimeSpan', fn: cart.setTimeSpan },
+              { name: 'cart.setPeriod', fn: cart.setPeriod },
+              { name: 'cart.setDates', fn: cart.setDates },
+              { name: 'cart.setRentalPeriod', fn: cart.setRentalPeriod },
+            ];
+            
+            for (const method of cartMethods) {
+              if (typeof method.fn === 'function') {
                 try {
-                  // Try object format
-                  method.fn({ product_group_id: productId, quantity });
-                  console.log(`[TileOrderingFlow] ✅ Added item via ${method.name} (object):`, productId, quantity);
-                  itemAdded = true;
-                  successCount++;
+                  method.fn(startsAt, stopsAt);
+                  console.log(`[TileOrderingFlow] 📅 ✅ Called ${method.name} (attempt ${attempt})`);
                   break;
-                } catch (e2) {
-                  // continue
+                } catch (e) {
+                  try {
+                    method.fn({ starts_at: startsAt, stops_at: stopsAt });
+                    console.log(`[TileOrderingFlow] 📅 ✅ Called ${method.name} (object, attempt ${attempt})`);
+                    break;
+                  } catch (e2) {
+                    // continue
+                  }
                 }
               }
             }
           }
           
-          if (!itemAdded) {
-            console.warn(`[TileOrderingFlow] ❌ Could not add item:`, productId, quantity);
-          }
-        }
-        
-        console.log(`[TileOrderingFlow] Added ${successCount}/${itemsToAdd.length} items to cart`);
-      }
-
-      // Verify dates are still set after adding items
-      setTimeout(() => {
-        const finalCartData = api.cartData;
-        if (finalCartData) {
-          const datesStillSet = finalCartData.starts_at === startsAt && finalCartData.stops_at === stopsAt;
-          if (!datesStillSet) {
-            console.log('[TileOrderingFlow] 📅 ⚠️ Dates were cleared when items were added. Re-applying...');
-            // Re-apply dates (don't use api.setCartData here - cart has items)
-            applyRentalPeriod(startsAt, stopsAt);
-            // Only use setCartData if cart is empty
-            const hasItems = api.cartData?.items && Array.isArray(api.cartData.items) && api.cartData.items.length > 0;
-            if (typeof api.setCartData === 'function' && !hasItems) {
-              try {
-                api.setCartData({ starts_at: startsAt, stops_at: stopsAt });
-              } catch (e) {
-                // ignore
+          // Method 5: DOM manipulation - find and set date inputs
+          try {
+            const selectors = [
+              '#booqable-cart-widget input[type="date"]',
+              '#booqable-cart-widget input[type="text"][name*="start"]',
+              '#booqable-cart-widget input[type="text"][name*="stop"]',
+              '#booqable-cart-widget input[name*="start"]',
+              '#booqable-cart-widget input[name*="stop"]',
+              '.booqable-cart input[type="date"]',
+              '.booqable-cart input[name*="start"]',
+              '.booqable-cart input[name*="stop"]',
+              'input[type="date"]',
+              'input[name*="start"]',
+              'input[name*="stop"]',
+            ];
+            
+            let dateInputs: HTMLInputElement[] = [];
+            for (const selector of selectors) {
+              const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(selector));
+              if (inputs.length >= 2) {
+                dateInputs = inputs;
+                break;
               }
             }
+            
+            if (dateInputs.length >= 2) {
+              const startInput = dateInputs[0];
+              const stopInput = dateInputs[1];
+              const startDateStr = startsAt.split('T')[0];
+              const stopDateStr = stopsAt.split('T')[0];
+              
+              // Set value multiple ways
+              startInput.value = startDateStr;
+              stopInput.value = stopDateStr;
+              startInput.setAttribute('value', startDateStr);
+              stopInput.setAttribute('value', stopDateStr);
+              
+              // Use native value setter
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(startInput, startDateStr);
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(stopInput, stopDateStr);
+              
+              // Trigger multiple events
+              ['focus', 'input', 'change', 'blur'].forEach(eventType => {
+                startInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+                stopInput.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+              });
+              
+              console.log(`[TileOrderingFlow] 📅 ✅ Set dates in DOM inputs (attempt ${attempt})`);
+            }
+          } catch (e) {
+            // ignore
           }
-        }
-      }, 1000);
-
-      // Refresh cart to update display
-      setTimeout(() => {
-        booqableRefresh();
-        console.log('[TileOrderingFlow] Refreshed Booqable widget');
-      }, 500);
-    }, 300);
-  }, [getAllSelectedItems, startDate, endDate, slugToUuid, isIdMapLoading, showCheckout]);
+          
+          // Refresh widget
+          booqableRefresh();
+          if (typeof api.refresh === 'function') {
+            try {
+              api.refresh();
+            } catch (e) {
+              // ignore
+            }
+          }
+          if (typeof api.trigger === 'function') {
+            try {
+              api.trigger('page-change');
+              api.trigger('refresh');
+              api.trigger('dom-change');
+              api.trigger('cart:update');
+              api.trigger('cart:change');
+              api.trigger('date-change');
+            } catch (e) {
+              // ignore
+            }
+          }
+          
+          // Schedule next attempt if dates still don't match
+          setTimeout(() => {
+            const currentCartData = api.cartData;
+            const datesMatch = currentCartData?.starts_at === startsAt && currentCartData?.stops_at === stopsAt;
+            
+            if (!datesMatch && attempt < maxAttempts) {
+              applyDatesAggressively(attempt + 1, maxAttempts);
+            } else if (datesMatch) {
+              console.log(`[TileOrderingFlow] 📅 ✅ Dates successfully set after ${attempt} attempts!`);
+              // Disconnect observer when dates are set
+              if (dateObserver) {
+                dateObserver.disconnect();
+                console.log('[TileOrderingFlow] 📅 MutationObserver disconnected (dates set)');
+              }
+            }
+          }, 500);
+        };
+        
+        // Start aggressive date application (10 attempts over 5 seconds)
+        applyDatesAggressively(1, 10);
+      }, 1500);
+    }, 500);
+  }, [getAllSelectedItems, startDate, endDate, slugToUuid, isIdMapLoading, showCheckout, getCartSnapshot]);
   const getAddOnSummary = (category: AddOnCategory) => {
     const selected = category.items.filter(item => item.quantity > 0);
     if (selected.length === 0) {
