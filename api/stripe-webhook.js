@@ -43,9 +43,15 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3. PATCH Booqable customer: mark verified + clear URL
-    await fetch(
-      `https://api.booqable.com/api/4/customers/${customerId}`,
+    const baseUrl = process.env.BOOQABLE_BASE_URL;
+    if (!baseUrl) {
+      return res.status(500).json({
+        error: "BOOQABLE_BASE_URL not configured",
+      });
+    }
+
+    const updateRes = await fetch(
+      `${baseUrl}/api/4/customers/${customerId}`,
       {
         method: "PATCH",
         headers: {
@@ -53,15 +59,30 @@ export default async function handler(req, res) {
           Authorization: `Bearer ${process.env.BOOQABLE_API_KEY}`,
         },
         body: JSON.stringify({
-          customer: {
-            custom_fields: {
-              identity_verified: true,
-              identity_verification_url: null,
+          data: {
+            type: "customers",
+            id: customerId,
+            attributes: {
+              properties_attributes: [
+                { identifier: "identity_verified", value: "Verified" },
+                { identifier: "identity_verification_url", value: "" },
+              ],
             },
           },
         }),
       }
     );
+
+    if (!updateRes.ok) {
+      const text = await updateRes.text();
+      console.error("Failed to update Booqable customer:", text);
+      return res.status(502).json({
+        error: "Booqable customer update failed",
+        status: updateRes.status,
+        customerId,
+        details: text,
+      });
+    }
 
     return res.status(200).json({
       ok: true,

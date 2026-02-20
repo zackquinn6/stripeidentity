@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (customer.custom_fields?.identity_verified) {
+    if (customer.properties?.identity_verified === "Verified") {
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -65,19 +65,30 @@ export default async function handler(req, res) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    const session = await stripe.identity.verificationSessions.create({
-      type: "document",
-      metadata: {
-        customer_id: customerId,
-        order_id: orderId
-      },
-      options: {
-        document: {
-          require_id_number: true,
-          require_live_capture: true
-        }
-      }
-    });
+    const flowId = process.env.STRIPE_IDENTITY_FLOW_ID;
+    const session = await stripe.identity.verificationSessions.create(
+      flowId
+        ? {
+            verification_flow: flowId,
+            metadata: {
+              customer_id: customerId,
+              order_id: orderId
+            }
+          }
+        : {
+            type: "document",
+            metadata: {
+              customer_id: customerId,
+              order_id: orderId
+            },
+            options: {
+              document: {
+                require_id_number: true,
+                require_live_capture: true
+              }
+            }
+          }
+    );
 
     const updateRes = await fetch(
       `${BOOQABLE_BASE_URL}/api/4/customers/${customerId}`,
@@ -92,9 +103,10 @@ export default async function handler(req, res) {
             type: "customers",
             id: customerId,
             attributes: {
-              custom_fields: {
-                identity_verification_url: session.url
-              }
+              properties_attributes: [
+                { identifier: "identity_verification_url", value: session.url },
+                { identifier: "identity_verified", value: "Unverified" }
+              ]
             }
           }
         })
