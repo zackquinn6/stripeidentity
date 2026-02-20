@@ -1,31 +1,98 @@
+import Stripe from "stripe";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  try {
-    // Parse body if it's a string or ensure it's an object
-    let body = req.body;
-    if (typeof body === 'string') {
-      body = JSON.parse(body);
-    }
-    if (!body || typeof body !== 'object') {
-      return res.status(400).json({ error: "Invalid request body" });
-    }
+  // 1. Extract payload (supports both flat + nested formats)
+  const orderId =
+    req.body.order_id ||
+    req.body.order?.id;
 
-    const { order_id, customer_id, customer_email } = body;
+  const customerId =
+    req.body.customer_id ||
+    req.body.order?.customer_id;
 
-    if (!order_id || !customer_id || !customer_email) {
-      return res.status(400).json({ error: "Missing required fields" });
+  const customerEmail =
+    req.body.customer_email ||
+    req.body.order?.customer?.email;
+
+  if (!orderId || !customerId || !customerEmail) {
+    return res.status(400).json({
+      error: "Missing required fields",
+      received: req.body
+    });
+  }
+
+  // 2. Fetch the customer from Booqable
+  const customerRes = await fetch(
+    `https://api.booqable.com/api/4/customers/${customerId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.BOOQABLE_API_KEY}`
+      }
     }
+  );
 
-    // TEMP: return success so you can test
+  const customerData = await customerRes.json();
+  const customer = customerData.customer;
+
+  // 3. Skip verification if already verified
+  if (customer.custom_fields?.identity_verified) {
     return res.status(200).json({
       ok: true,
-      received: { order_id, customer_id, customer_email }
+      skipped: true,
+      reason: "Customer already verified",
+      customerId,
+      orderId
     });
-  } catch (error) {
-    console.error('Error in booqable-order-created:', error);
-    return res.status(500).json({ error: "Internal server error", message: error.message });
   }
+
+  // 4. Create Stripe Identity session
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+  const session = await stripe.identity.verificationSessions.create({
+    type: "document",
+    metadata: {
+      customer_id: customerId,
+      order_id: orderId
+    },
+    options: {
+      document: {
+        require_id_number: true,
+        require_live_capture: true
+      }
+    }
+  });
+
+  const verificationUrl = session.url;
+
+  // 5. PATCH the customer with the verification URL
+  await fetch(
+    `https://api.booqable.com/api/4/customers/${customerId}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.BOOQABLE_API_KEY}`
+      },
+      body: JSON.stringify({
+        customer: {
+          custom_fields: {
+            identity_verification_url: verificationUrl
+          }
+        }
+      })
+    }
+  );
+
+  // 6. Return clean debugging output
+  return res.status(200).json({
+    ok: true,
+    createdVerificationSession: true,
+    customerId,
+    orderId,
+    verificationUrl
+  });
 }
