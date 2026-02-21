@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "resend": "^6.9.2",
     "stripe": "^14.0.0"
   }
 }
