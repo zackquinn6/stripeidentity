@@ -1,5 +1,10 @@
 import Stripe from "stripe";
 import { sendVerificationEmail } from "../lib/sendVerificationEmail.js";
+import {
+  fetchCustomerIdForOrder,
+  identityWebhookEventEligible,
+  parseBooqableOrderWebhook,
+} from "../lib/booqableOrderWebhook.js";
 
 const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
 
@@ -11,67 +16,6 @@ function trimEmail(value) {
   return t.length > 0 ? t : null;
 }
 
-/**
- * Booqable may POST either:
- * - App / Zapier shape: { order: { id, customer_id } }
- * - Native v4 webhooks: { event: "order.created" | …, data: { id, customer?, relationships? } }
- * - JSON:API document: { data: { type: "orders", id, relationships: { customer: { data: { id } } } } }
- */
-function extractOrderContext(body) {
-  if (!body || typeof body !== "object") {
-    return null;
-  }
-
-  const wrapped = body.order;
-  if (wrapped?.id && wrapped?.customer_id) {
-    return {
-      orderId: String(wrapped.id),
-      customerId: String(wrapped.customer_id)
-    };
-  }
-
-  const event = body.event;
-  const data = body.data;
-  const isOrderEvent =
-    typeof event === "string" && /^order\./i.test(event.trim());
-  if (
-    isOrderEvent &&
-    data &&
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    data.id
-  ) {
-    const relId = data.relationships?.customer?.data?.id;
-    const customerId =
-      data.customer_id != null && data.customer_id !== ""
-        ? String(data.customer_id)
-        : data.customer != null && typeof data.customer === "object" && data.customer.id
-          ? String(data.customer.id)
-          : relId != null && relId !== ""
-            ? String(relId)
-            : null;
-    if (customerId) {
-      return { orderId: String(data.id), customerId };
-    }
-  }
-
-  const doc = body.data;
-  if (
-    doc &&
-    typeof doc === "object" &&
-    doc.type === "orders" &&
-    doc.id &&
-    doc.relationships?.customer?.data?.id
-  ) {
-    return {
-      orderId: String(doc.id),
-      customerId: String(doc.relationships.customer.data.id)
-    };
-  }
-
-  return null;
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -81,15 +25,55 @@ export default async function handler(req, res) {
   }
 
   try {
-    const ctx = extractOrderContext(req.body);
-    if (!ctx) {
+    const parsed = parseBooqableOrderWebhook(req.body);
+    if (!parsed) {
       return res.status(400).json({
         error:
-          "Unrecognized payload: expected Booqable v4 webhook (event order.* + data.id + data.customer.id) or { order: { id, customer_id } }",
-        hint: "Register webhook URL pointing to this route; use webhook version 4 (application/json)."
+          "Unrecognized payload: expected Booqable v4 order webhook (version 4 JSON) or { order: { id, customer_id } }.",
+        hint: "Register a v4 webhook endpoint (POST /api/4/webhook_endpoints) with events such as order.saved_as_draft and order.reserved; URL must be this route. See lib/booqableOrderWebhook.js and scripts/register-booqable-webhook.mjs."
       });
     }
-    const { orderId, customerId } = ctx;
+
+    if (!identityWebhookEventEligible(parsed)) {
+      return res.status(200).json({
+        ok: true,
+        skipped: true,
+        reason: "webhook_event_not_used_for_identity",
+        event: parsed.event,
+        orderId: parsed.orderId,
+      });
+    }
+
+    let customerId = parsed.customerId;
+    if (!customerId) {
+      const apiKey = process.env.BOOQABLE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "BOOQABLE_API_KEY not configured" });
+      }
+      const resolved = await fetchCustomerIdForOrder(
+        BOOQABLE_BASE_URL,
+        apiKey,
+        parsed.orderId
+      );
+      if (!resolved.ok) {
+        return res.status(502).json({
+          error: "Failed to load order from Booqable to resolve customer",
+          status: resolved.status,
+          orderId: parsed.orderId,
+        });
+      }
+      customerId = resolved.customerId;
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        error:
+          "Order has no customer in Booqable; assign a customer on the order before identity can start.",
+        orderId: parsed.orderId,
+      });
+    }
+
+    const orderId = parsed.orderId;
 
     const customerRes = await fetch(
       `${BOOQABLE_BASE_URL}/api/4/customers/${customerId}`,
@@ -232,6 +216,7 @@ export default async function handler(req, res) {
       createdVerificationSession: true,
       customerId,
       orderId,
+      booqableWebhookEvent: parsed.event,
       verificationUrl: session.url,
       emailSent,
       resendConfigured,
