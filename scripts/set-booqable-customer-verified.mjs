@@ -12,6 +12,7 @@
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { assertToolioBooqableBaseUrl } from "../lib/toolioBooqableOrigin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -32,7 +33,6 @@ for (const envPath of [join(root, ".env"), join(root, "..", ".env")]) {
   break;
 }
 
-const baseUrl = process.env.BOOQABLE_BASE_URL;
 const apiKey = process.env.BOOQABLE_API_KEY;
 const customerId =
   process.argv[2] || process.env.BOOQABLE_CUSTOMER_ID;
@@ -43,6 +43,13 @@ if (missing.length) {
   console.error("Missing env:", missing.join(", "));
   process.exit(1);
 }
+
+const urlCheck = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+if (!urlCheck.ok) {
+  console.error(urlCheck.error);
+  process.exit(1);
+}
+const baseUrl = urlCheck.normalized;
 
 if (!customerId) {
   console.error(

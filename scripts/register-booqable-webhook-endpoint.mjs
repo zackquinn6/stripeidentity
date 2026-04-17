@@ -21,6 +21,7 @@ import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS } from "../lib/booqableOrderWebhook.js";
+import { assertToolioBooqableBaseUrl } from "../lib/toolioBooqableOrigin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -47,7 +48,12 @@ function normalizeUrl(u) {
     .replace(/\/+$/, "");
 }
 
-const baseUrl = process.env.BOOQABLE_BASE_URL?.replace(/\/$/, "");
+const urlCheck = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+if (!urlCheck.ok) {
+  console.error(urlCheck.error);
+  process.exit(1);
+}
+const baseUrl = urlCheck.normalized;
 const apiKey = process.env.BOOQABLE_API_KEY;
 const targetUrlRaw = process.env.BOOQABLE_WEBHOOK_TARGET_URL?.trim();
 const targetUrl = targetUrlRaw ? normalizeUrl(targetUrlRaw) : "";

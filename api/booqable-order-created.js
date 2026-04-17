@@ -6,8 +6,10 @@ import {
   parseBooqableOrderWebhook,
 } from "../lib/booqableOrderWebhook.js";
 import { runIdentityFlowForOrder } from "../lib/runIdentityFlowForOrder.js";
-
-const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
+import {
+  assertToolioBooqableBaseUrl,
+  TOOLIO_BOOQABLE_BASE_URL,
+} from "../lib/toolioBooqableOrigin.js";
 
 export default async function handler(req, res) {
   if (req.method === "HEAD") {
@@ -15,10 +17,13 @@ export default async function handler(req, res) {
     return;
   }
   if (req.method === "GET") {
+    const urlStatus = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
     res.status(200).json({
       ok: true,
       route: "booqable-order-created",
-      booqableBaseUrlConfigured: Boolean(BOOQABLE_BASE_URL),
+      booqableBaseUrlRequired: TOOLIO_BOOQABLE_BASE_URL,
+      booqableBaseUrlOk: urlStatus.ok,
+      ...(urlStatus.ok ? {} : { booqableBaseUrlError: urlStatus.error }),
       usage:
         "POST Booqable v4 webhooks (data.type webhooks per developers.booqable.com #webhooks-fields), order.* payloads, or wrapped { order: { id, customer_id } }. Aliases: /api/webhook, /api/webhooks/booqable, /webhook/booqable.",
     });
@@ -27,16 +32,28 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (!BOOQABLE_BASE_URL) {
-    return res.status(500).json({ error: "BOOQABLE_BASE_URL not configured" });
+
+  const urlStatus = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+  if (!urlStatus.ok) {
+    return res.status(500).json({ error: urlStatus.error });
   }
+  const booqableBaseUrl = urlStatus.normalized;
 
   try {
     const rawBody = coerceBooqableWebhookBody(req);
-    const webhookEvent =
-      rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)
-        ? rawBody.event ?? null
-        : null;
+    let webhookEvent = null;
+    if (rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)) {
+      if (typeof rawBody.event === "string") {
+        webhookEvent = rawBody.event;
+      } else if (
+        rawBody.data &&
+        typeof rawBody.data === "object" &&
+        rawBody.data.attributes &&
+        typeof rawBody.data.attributes.event === "string"
+      ) {
+        webhookEvent = rawBody.data.attributes.event;
+      }
+    }
     console.info("booqable-order-created POST", {
       contentType: req.headers["content-type"] ?? null,
       webhookEvent: typeof webhookEvent === "string" ? webhookEvent : null,
@@ -69,7 +86,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "BOOQABLE_API_KEY not configured" });
       }
       const stRes = await fetchOrderStatusFromBooqable(
-        BOOQABLE_BASE_URL,
+        booqableBaseUrl,
         apiKey,
         orderId
       );
@@ -98,7 +115,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "BOOQABLE_API_KEY not configured" });
       }
       const resolved = await fetchCustomerIdForOrder(
-        BOOQABLE_BASE_URL,
+        booqableBaseUrl,
         apiKey,
         orderId
       );

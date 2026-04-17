@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { assertToolioBooqableBaseUrl } from "../lib/toolioBooqableOrigin.js";
 
 /**
  * Sync Stripe Identity verified sessions → Booqable.
@@ -13,8 +14,6 @@ import Stripe from "stripe";
  * Lists sessions with status=verified, PATCHes each with metadata.customer_id
  * to Booqable (identity_verified = Verified only). Returns { patched: number, errors: [] }.
  */
-const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
-
 async function patchBooqableCustomer(baseUrl, customerId) {
   const updateRes = await fetch(`${baseUrl}/api/4/customers/${customerId}`, {
     method: "PATCH",
@@ -45,9 +44,11 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (!BOOQABLE_BASE_URL) {
-    return res.status(500).json({ error: "BOOQABLE_BASE_URL not configured" });
+  const urlCheck = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+  if (!urlCheck.ok) {
+    return res.status(500).json({ error: urlCheck.error });
   }
+  const booqableBaseUrl = urlCheck.normalized;
 
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
         const customerId = session.metadata?.customer_id;
         if (!customerId) return;
 
-        const result = await patchBooqableCustomer(BOOQABLE_BASE_URL, customerId);
+        const result = await patchBooqableCustomer(booqableBaseUrl, customerId);
         if (result.ok) {
           results.patched += 1;
         } else {

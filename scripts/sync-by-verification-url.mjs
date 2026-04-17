@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import Stripe from "stripe";
+import { assertToolioBooqableBaseUrl } from "../lib/toolioBooqableOrigin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -41,7 +42,12 @@ if (missing.length) {
   process.exit(1);
 }
 
-const baseUrl = process.env.BOOQABLE_BASE_URL;
+const urlCheck = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+if (!urlCheck.ok) {
+  console.error(urlCheck.error);
+  process.exit(1);
+}
+const baseUrl = urlCheck.normalized;
 const apiKey = process.env.BOOQABLE_API_KEY;
 
 async function listBooqableCustomers() {

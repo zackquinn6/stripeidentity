@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { assertToolioBooqableBaseUrl } from "../lib/toolioBooqableOrigin.js";
 
 export const config = {
   api: {
@@ -43,15 +44,13 @@ export default async function handler(req, res) {
       });
     }
 
-    const baseUrl = process.env.BOOQABLE_BASE_URL;
-    if (!baseUrl) {
-      return res.status(500).json({
-        error: "BOOQABLE_BASE_URL not configured",
-      });
+    const urlCheck = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+    if (!urlCheck.ok) {
+      return res.status(500).json({ error: urlCheck.error });
     }
 
     const updateRes = await fetch(
-      `${baseUrl}/api/4/customers/${customerId}`,
+      `${urlCheck.normalized}/api/4/customers/${customerId}`,
       {
         method: "PATCH",
         headers: {
