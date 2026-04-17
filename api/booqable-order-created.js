@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       route: "booqable-order-created",
       booqableBaseUrlConfigured: Boolean(BOOQABLE_BASE_URL),
       usage:
-        "POST Booqable order webhooks (event order.*) or wrapped { order: { id, customer_id } }. Same handler: /api/webhook, /api/webhooks/booqable, /webhook/booqable.",
+        "POST Booqable v4 webhooks (data.type webhooks per developers.booqable.com #webhooks-fields), order.* payloads, or wrapped { order: { id, customer_id } }. Aliases: /api/webhook, /api/webhooks/booqable, /webhook/booqable.",
     });
     return;
   }
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       return res.status(400).json({
         error:
           "Unrecognized payload: expected Booqable v4 order webhook (version 4 JSON) or { order: { id, customer_id } }.",
-        hint: "Expected Booqable v4 order webhook (event order.* and order data) or { order: { id, customer_id } }. See docs/zapier-booqable-identity.md.",
+        hint: "Expected Booqable v4 payload: data.type webhooks (attributes.event + attributes.data), event order.* + data, or { order: { id, customer_id } }. See https://developers.booqable.com/#webhooks-fields and docs/zapier-booqable-identity.md.",
       });
     }
 
