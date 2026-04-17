@@ -11,6 +11,10 @@ You do **not** add separate Zapier steps for Stripe, Resend, or Booqable edits�
 
 **Stripe completion → “Verified”** still comes from Booqable/Stripe via your existing **`/api/stripe-webhook`** (Stripe sends `identity.verification_session.verified`). That is unrelated to this Zap.
 
+### Avoiding “Webhooks by Zapier” (premium)
+
+If your plan charges for **Webhooks by Zapier**, you do **not** need that app: use **Vercel Cron + polling** instead so nothing in Zapier POSTs to Vercel. See **[`docs/poll-identity-cron.md`](./poll-identity-cron.md)** (`GET /api/cron/poll-orders-identity`). Booqable still has no user-editable “send webhooks to my URL” field; the poll reads the Booqable REST API with your existing API key.
+
 ---
 
 ## Prerequisites (Vercel)
@@ -35,7 +39,7 @@ Deploy so `https://<project>.vercel.app/api/booqable-order-created` is live.
 | Step | App | What to choose |
 |------|-----|----------------|
 | 1 | **Booqable** | Trigger (see below) |
-| 2 | **Webhooks by Zapier** | **POST** (JSON body to your Vercel URL) |
+| 2 | HTTP POST to Vercel | Any Zapier action that can **POST JSON** to a URL on your plan (e.g. **Webhooks by Zapier** if included, or another HTTP integration). Target: `POST /api/booqable-order-created` with the body below. |
 
 Zapier’s Booqable app exposes triggers such as **Reserved Order**, **Updated Order**, **Started Order**, etc. It does **not** list a separate “order created” trigger in the same way Booqable’s internal lifecycle does.
 
@@ -59,9 +63,9 @@ Confirm the sample includes **order id** and **customer id** (names may be like 
 
 ---
 
-## Step 2 — Action: Webhooks by Zapier → POST
+## Step 2 — Action: POST JSON to Vercel
 
-1. **Action** → **Webhooks by Zapier** → **POST**.
+1. **Action** → choose an HTTP POST action available on your Zapier plan → **POST** (JSON body).
 2. **URL**  
    `https://<your-vercel-project>.vercel.app/api/booqable-order-created`
 3. **Payload type** → **Json**.
