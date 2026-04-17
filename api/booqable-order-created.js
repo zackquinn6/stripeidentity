@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { sendVerificationEmail } from "../lib/sendVerificationEmail.js";
 
 const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
 
@@ -20,13 +21,6 @@ export default async function handler(req, res) {
     }
     const orderId = order.id;
     const customerId = order.customer_id;
-    const customerEmail = order.customer?.email;
-    if (!customerEmail) {
-      return res.status(400).json({
-        error: "Missing order.customer.email",
-        received: req.body
-      });
-    }
 
     const customerRes = await fetch(
       `${BOOQABLE_BASE_URL}/api/4/customers/${customerId}`,
@@ -54,7 +48,18 @@ export default async function handler(req, res) {
       });
     }
 
-    if (customer.properties?.identity_verified === "Verified") {
+    const customerEmail = customer.email;
+    if (!customerEmail) {
+      return res.status(400).json({
+        error: "Customer has no email in Booqable",
+        customerId
+      });
+    }
+
+    const identityVerifiedStatus = customer.properties?.identity_verified;
+    // Booqable leaves this null for new customers; only the literal "Verified" skips the flow.
+    const alreadyVerified = identityVerifiedStatus === "Verified";
+    if (alreadyVerified) {
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -124,12 +129,43 @@ export default async function handler(req, res) {
       });
     }
 
+    const resendConfigured = Boolean(
+      process.env.RESEND_API_KEY && process.env.RESEND_FROM
+    );
+
+    let emailSent = false;
+    let emailError = null;
+    if (resendConfigured) {
+      try {
+        const emailResult = await sendVerificationEmail({
+          to: customerEmail,
+          verificationUrl: session.url
+        });
+        if (emailResult.error) {
+          emailError = emailResult.error.message || String(emailResult.error);
+          console.error("Resend email failed:", emailError);
+        } else {
+          emailSent = true;
+        }
+      } catch (err) {
+        emailError = err.message;
+        console.error("Resend email error:", err);
+      }
+    } else {
+      console.error(
+        "Verification session created but email not sent: set RESEND_API_KEY and RESEND_FROM"
+      );
+    }
+
     return res.status(200).json({
       ok: true,
       createdVerificationSession: true,
       customerId,
       orderId,
-      verificationUrl: session.url
+      verificationUrl: session.url,
+      emailSent,
+      resendConfigured,
+      ...(emailError && { emailError })
     });
   } catch (error) {
     console.error("Error in booqable-order-created:", error);
