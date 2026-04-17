@@ -16,6 +16,12 @@ You do **not** add separate Zapier steps for Stripe, Resend, or Booqable edits�
 1. **Best:** Booqable **[webhook_endpoints](https://developers.booqable.com/#webhook-endpoints-subscribe-to-webhook-events)** API — Booqable POSTs directly to Vercel when orders hit subscribed events (no Zapier). Run `node scripts/register-booqable-webhook-endpoint.mjs` from this repo if your token can create endpoints.
 2. **Otherwise:** any Zapier/Make action that can **HTTP POST JSON** to Vercel (same body as below)—without using the paid “Webhooks by Zapier” app if your plan charges for it.
 
+### Booqable native webhooks — admin orders (draft → reserved)
+
+Booqable’s API documents **order** webhook names such as `order.saved_as_draft`, `order.reserved`, and **`order.updated`** ([webhook endpoints](https://developers.booqable.com/#webhook-endpoints-subscribe-to-webhook-events)). In the dashboard, **New → Draft (save) → Reserve** may emit **`order.updated`** when the order becomes **reserved**, instead of (or in addition to) **`order.reserved`**.
+
+This repo’s `scripts/register-booqable-webhook-endpoint.mjs` subscribes to **`BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS`** in `lib/booqableOrderWebhook.js` (includes `order.updated`). For **`order.updated`**, Vercel **GETs** `/api/4/orders/:id` and runs identity **only** when Booqable reports `status: reserved`, so routine edits do not start Stripe Identity.
+
 ---
 
 ## Prerequisites (Vercel)

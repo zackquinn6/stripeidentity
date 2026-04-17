@@ -1,5 +1,6 @@
 import {
   fetchCustomerIdForOrder,
+  fetchOrderStatusFromBooqable,
   identityWebhookEventEligible,
   parseBooqableOrderWebhook,
 } from "../lib/booqableOrderWebhook.js";
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!identityWebhookEventEligible(parsed)) {
+    if (!identityWebhookEventEligible(parsed, req.body)) {
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -33,6 +34,36 @@ export default async function handler(req, res) {
         event: parsed.event,
         orderId: parsed.orderId,
       });
+    }
+
+    const orderId = parsed.orderId;
+
+    if (parsed.event === "order.updated" && parsed.kind !== "wrapped") {
+      const apiKey = process.env.BOOQABLE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "BOOQABLE_API_KEY not configured" });
+      }
+      const stRes = await fetchOrderStatusFromBooqable(
+        BOOQABLE_BASE_URL,
+        apiKey,
+        orderId
+      );
+      if (!stRes.ok) {
+        return res.status(502).json({
+          error: "Failed to fetch order status from Booqable",
+          status: stRes.httpStatus,
+          orderId,
+        });
+      }
+      if (stRes.status !== "reserved") {
+        return res.status(200).json({
+          ok: true,
+          skipped: true,
+          reason: "order_updated_but_not_reserved",
+          orderId,
+          booqableStatus: stRes.status,
+        });
+      }
     }
 
     let customerId = parsed.customerId;
@@ -44,13 +75,13 @@ export default async function handler(req, res) {
       const resolved = await fetchCustomerIdForOrder(
         BOOQABLE_BASE_URL,
         apiKey,
-        parsed.orderId
+        orderId
       );
       if (!resolved.ok) {
         return res.status(502).json({
           error: "Failed to load order from Booqable to resolve customer",
           status: resolved.status,
-          orderId: parsed.orderId,
+          orderId,
         });
       }
       customerId = resolved.customerId;
@@ -60,11 +91,9 @@ export default async function handler(req, res) {
       return res.status(400).json({
         error:
           "Order has no customer in Booqable; assign a customer on the order before identity can start.",
-        orderId: parsed.orderId,
+        orderId,
       });
     }
-
-    const orderId = parsed.orderId;
 
     const result = await runIdentityFlowForOrder({
       orderId,

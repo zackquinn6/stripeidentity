@@ -7,7 +7,8 @@
  * Requires: BOOQABLE_BASE_URL, BOOQABLE_API_KEY, BOOQABLE_WEBHOOK_TARGET_URL
  *   (full HTTPS URL to /api/booqable-order-created, publicly reachable).
  *
- * Events match lib/booqableOrderWebhook.js (order.saved_as_draft, order.saved_as_concept, order.reserved).
+ * Events: lib/booqableOrderWebhook.js `BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS`
+ * (includes `order.updated` so admin reserve flows reach Vercel; handler requires `reserved`).
  * Your handler also accepts wrapped { order: { id, customer_id } } from tools that reshape payloads.
  *
  * Run: node scripts/register-booqable-webhook-endpoint.mjs
@@ -16,7 +17,7 @@
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { IDENTITY_ORDER_WEBHOOK_EVENTS } from "../lib/booqableOrderWebhook.js";
+import { BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS } from "../lib/booqableOrderWebhook.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -55,7 +56,7 @@ if (!targetUrl) {
   process.exit(1);
 }
 
-const events = [...IDENTITY_ORDER_WEBHOOK_EVENTS].sort();
+const events = [...BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS].sort();
 const url = `${baseUrl}/api/4/webhook_endpoints`;
 const body = {
   data: {
