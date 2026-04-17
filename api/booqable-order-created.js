@@ -1,4 +1,5 @@
 import {
+  coerceBooqableWebhookBody,
   fetchCustomerIdForOrder,
   fetchOrderStatusFromBooqable,
   identityWebhookEventEligible,
@@ -7,20 +8,6 @@ import {
 import { runIdentityFlowForOrder } from "../lib/runIdentityFlowForOrder.js";
 
 const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
-
-function normalizeJsonBody(body) {
-  if (body == null) {
-    return null;
-  }
-  if (typeof body === "string") {
-    try {
-      return JSON.parse(body);
-    } catch {
-      return null;
-    }
-  }
-  return body;
-}
 
 export default async function handler(req, res) {
   if (req.method === "HEAD") {
@@ -45,7 +32,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const rawBody = normalizeJsonBody(req.body);
+    const rawBody = coerceBooqableWebhookBody(req);
     const webhookEvent =
       rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)
         ? rawBody.event ?? null

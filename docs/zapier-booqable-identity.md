@@ -1,5 +1,7 @@
 # Zapier → Vercel (Stripe Identity + Resend + Booqable status)
 
+[Booqable API v4](https://developers.booqable.com/) uses company-scoped URLs: `https://{company_slug}.booqable.com/api/4/`. Set **`BOOQABLE_BASE_URL`** to `https://{company_slug}.booqable.com` (no trailing `/api/4` required for this app’s fetches). Webhook **endpoints** support [Version 1 (default)](https://developers.booqable.com/#webhook-endpoints-version-1-default) and [Version 4 (opt-in)](https://developers.booqable.com/#webhook-endpoints-version-4-opt-in); the Vercel handler accepts **JSON POSTs** and common **`application/x-www-form-urlencoded`** bodies (including JSON in a `payload` field), then parses `order.*` payloads per the [webhook endpoints](https://developers.booqable.com/#webhook-endpoints-subscribe-to-webhook-events) docs.
+
 Your Vercel route **`POST /api/booqable-order-created`** already does the full chain in one request:
 
 1. Loads the customer from Booqable (needs email for Resend).
