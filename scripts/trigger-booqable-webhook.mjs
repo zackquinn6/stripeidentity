@@ -1,9 +1,10 @@
 /**
- * Trigger simulated Booqable order-created webhook to Vercel.
- * Flow: Booqable (simulated) → Vercel → Stripe (verification session) → Booqable PATCH (status only) → Resend (email to customer).
+ * POST the same JSON body a Make/Zapier HTTP step should send to Vercel (Booqable has
+ * predefined integrations only—you configure the automation, not a raw URL in Booqable).
  *
- * Set BOOQABLE_CUSTOMER_ID to a real customer ID from Booqable (e.g. Zachary Quinn).
- * Optionally: WEBHOOK_URL, CUSTOMER_EMAIL.
+ * Flow: POST → Vercel → Stripe Identity session → Booqable PATCH → Resend (if configured).
+ *
+ * Set BOOQABLE_CUSTOMER_ID to a real Booqable customer UUID. Optionally: WEBHOOK_URL, CUSTOMER_EMAIL.
  *
  * Run: node scripts/trigger-booqable-webhook.mjs
  */

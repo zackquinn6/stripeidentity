@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       return res.status(400).json({
         error:
           "Unrecognized payload: expected Booqable v4 order webhook (version 4 JSON) or { order: { id, customer_id } }.",
-        hint: "Register a v4 webhook endpoint (POST /api/4/webhook_endpoints) with events such as order.saved_as_draft and order.reserved; URL must be this route. See lib/booqableOrderWebhook.js and scripts/register-booqable-webhook.mjs."
+        hint: "Booqable does not let you paste a custom URL into Booqable itself. Use a predefined Booqable integration (Make / Zapier / similar), then an HTTP action that POSTs JSON to this route—ideally { order: { id, customer_id } }. See lib/booqableOrderWebhook.js."
       });
     }
 
