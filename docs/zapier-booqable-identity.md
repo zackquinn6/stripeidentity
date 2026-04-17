@@ -13,7 +13,8 @@ You do **not** add separate Zapier steps for Stripe, Resend, or Booqable edits�
 
 ### Avoiding “Webhooks by Zapier” (premium)
 
-If your plan charges for **Webhooks by Zapier**, you do **not** need that app: use **Vercel Cron + polling** instead so nothing in Zapier POSTs to Vercel. See **[`docs/poll-identity-cron.md`](./poll-identity-cron.md)** (`GET /api/cron/poll-orders-identity`). Booqable still has no user-editable “send webhooks to my URL” field; the poll reads the Booqable REST API with your existing API key.
+1. **Best:** Booqable **[webhook_endpoints](https://developers.booqable.com/#webhook-endpoints-subscribe-to-webhook-events)** API — Booqable POSTs directly to Vercel when orders hit subscribed events (no Zapier). Run `node scripts/register-booqable-webhook-endpoint.mjs` from this repo if your token can create endpoints.
+2. If the API is not available on your plan: **Vercel Cron + polling** — see **[`docs/poll-identity-cron.md`](./poll-identity-cron.md)** (`GET /api/cron/poll-orders-identity`).
 
 ---
 

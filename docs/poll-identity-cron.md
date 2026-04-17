@@ -1,11 +1,17 @@
 # Polling reserved orders (no “Webhooks by Zapier”)
 
-Booqable does not let you register an arbitrary public URL. **Zapier’s “Webhooks by Zapier” action is a paid add-on**; the free path is either:
+## Preferred: Booqable `webhook_endpoints` (direct POST to Vercel)
 
-- **Zapier “Webhooks” action** — often not the same product; check your plan, **or**
+If your Booqable API access allows it, subscribe with the **Webhook endpoints** API so Booqable pushes events to your deployment (no Zapier, no polling). Official flow: [Subscribe to webhook events](https://developers.booqable.com/#webhook-endpoints-subscribe-to-webhook-events). In this repo run `node scripts/register-booqable-webhook-endpoint.mjs` after setting `BOOQABLE_WEBHOOK_TARGET_URL`, or call `POST /api/4/webhook_endpoints` yourself with `version: 4` and your public `https://…/api/booqable-order-created` URL.
+
+If that `POST` returns **403/404** or your account cannot create endpoints, use the cron approach below or an automation HTTP step.
+
+---
+
+When **`webhook_endpoints` subscription is not allowed** for your token or plan, you still need something to reach Vercel, for example:
+
+- **Zapier / Make** with an HTTP POST (some Zapier “Webhooks” features are paid—check your plan), **or**
 - **This cron route** — Vercel (or any monitor) calls your deployment on a schedule; the handler reads **recent reserved orders** from the Booqable API and runs the same Stripe + Resend + Booqable logic as `POST /api/booqable-order-created`.
-
-There is **no separate Booqable → Vercel “push”** unless you use an automation app or Booqable exposes a hook you can afford.
 
 ---
 
