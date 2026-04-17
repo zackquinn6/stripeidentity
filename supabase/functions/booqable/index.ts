@@ -13,49 +13,6 @@ const BOOQABLE_BASE_URL_V1 = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/1`
 const BOOQABLE_BASE_URL_V4 = `https://${BOOQABLE_COMPANY_ID}.booqable.com/api/4`;
 const BOOQABLE_SHOP_URL = `https://toolio-inc.booqableshop.com`;
 
-/** POST { order: { id, customer_id } } to Vercel /api/booqable-order-created after Booqable accepts the order. */
-async function notifyIdentityOrderCreated(
-  hookUrl: string,
-  orderId: string,
-  customerId: string
-): Promise<{ ok: boolean; status?: number; detail?: string }> {
-  const res = await fetch(hookUrl.trim(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      order: { id: orderId, customer_id: customerId },
-    }),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    console.error(
-      '[Booqable] IDENTITY_ORDER_CREATED_URL failed:',
-      res.status,
-      text.slice(0, 1000)
-    );
-    return { ok: false, status: res.status, detail: text.slice(0, 500) };
-  }
-  return { ok: true };
-}
-
-function customerIdFromCreatedOrder(
-  order: unknown,
-  paramCustomerId: string | undefined
-): string | undefined {
-  if (paramCustomerId != null && String(paramCustomerId).trim() !== '') {
-    return String(paramCustomerId).trim();
-  }
-  const o = order as Record<string, unknown> | null | undefined;
-  const rel = (o?.relationships as Record<string, unknown> | undefined)?.customer as
-    | { data?: { id?: string } }
-    | undefined;
-  const id = rel?.data?.id;
-  if (id != null && String(id).trim() !== '') {
-    return String(id).trim();
-  }
-  return undefined;
-}
-
 // Actions that require authentication (order creation and checkout work for guests)
 const AUTH_REQUIRED_ACTIONS = ['add-line', 'book-order', 'reserve-order'];
 
@@ -671,47 +628,8 @@ serve(async (req) => {
           console.log(`[Booqable] Added ${successCount} items, ${failCount} failed to order ${orderId}`);
         }
 
-        const identityHookUrl = Deno.env.get('IDENTITY_ORDER_CREATED_URL');
-        const resolvedCustomerId = customerIdFromCreatedOrder(order, customer_id);
-
-        let identity_notification:
-          | { attempted: false; reason: string }
-          | { attempted: true; ok: boolean; status?: number };
-
-        if (!resolvedCustomerId) {
-          console.error(
-            '[Booqable] create-order: no customer on order; identity service not notified.'
-          );
-          identity_notification = {
-            attempted: false,
-            reason: 'no_customer_on_order',
-          };
-        } else if (!identityHookUrl?.trim()) {
-          console.error(
-            '[Booqable] create-order: set IDENTITY_ORDER_CREATED_URL (e.g. https://…vercel.app/api/booqable-order-created) in Edge Function secrets.'
-          );
-          identity_notification = {
-            attempted: false,
-            reason: 'identity_url_not_configured',
-          };
-        } else {
-          const inv = await notifyIdentityOrderCreated(
-            identityHookUrl,
-            String(orderId),
-            resolvedCustomerId
-          );
-          identity_notification = {
-            attempted: true,
-            ok: inv.ok,
-            ...(inv.status !== undefined ? { status: inv.status } : {}),
-          };
-        }
-
         return new Response(
-          JSON.stringify({
-            order: { id: orderId, ...order?.attributes, ...order },
-            identity_notification,
-          }),
+          JSON.stringify({ order: { id: orderId, ...order?.attributes, ...order } }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
