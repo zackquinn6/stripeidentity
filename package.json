@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test lib/booqableOrderWebhook.test.js"
+  },
   "dependencies": {
     "resend": "^6.9.2",
     "stripe": "^14.0.0"

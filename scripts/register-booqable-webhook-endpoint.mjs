@@ -8,7 +8,7 @@
  *   (full HTTPS URL to /api/booqable-order-created, publicly reachable).
  *
  * Events: lib/booqableOrderWebhook.js `BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS`
- * (includes `order.updated` so admin reserve flows reach Vercel; handler requires `reserved`).
+ * (`order.reserved`, `order.updated`; handler GET-gates `order.updated` to `reserved` only).
  * Your handler also accepts wrapped { order: { id, customer_id } } from tools that reshape payloads.
  *
  * Run: node scripts/register-booqable-webhook-endpoint.mjs
