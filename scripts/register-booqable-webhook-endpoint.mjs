@@ -11,7 +11,10 @@
  * (`order.reserved`, `order.updated`; handler GET-gates `order.updated` to `reserved` only).
  * Your handler also accepts wrapped { order: { id, customer_id } } from tools that reshape payloads.
  *
+ * This script lists existing endpoints, then PATCHes a matching URL or POSTs a new endpoint.
+ *
  * Run: node scripts/register-booqable-webhook-endpoint.mjs
+ * List only: node scripts/list-booqable-webhook-endpoints.mjs
  */
 
 import { readFileSync, existsSync } from "fs";
@@ -38,9 +41,16 @@ for (const envPath of [join(root, ".env"), join(root, "..", ".env")]) {
   break;
 }
 
+function normalizeUrl(u) {
+  return String(u || "")
+    .trim()
+    .replace(/\/+$/, "");
+}
+
 const baseUrl = process.env.BOOQABLE_BASE_URL?.replace(/\/$/, "");
 const apiKey = process.env.BOOQABLE_API_KEY;
-const targetUrl = process.env.BOOQABLE_WEBHOOK_TARGET_URL?.trim();
+const targetUrlRaw = process.env.BOOQABLE_WEBHOOK_TARGET_URL?.trim();
+const targetUrl = targetUrlRaw ? normalizeUrl(targetUrlRaw) : "";
 
 const missing = ["BOOQABLE_BASE_URL", "BOOQABLE_API_KEY"].filter(
   (k) => !process.env[k]
@@ -57,19 +67,84 @@ if (!targetUrl) {
 }
 
 const events = [...BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS].sort();
+const listUrl = `${baseUrl}/api/4/webhook_endpoints`;
+
+console.log("GET", listUrl, "(existing endpoints)\n");
+
+const listRes = await fetch(listUrl, {
+  headers: { Authorization: `Bearer ${apiKey}` },
+});
+const listText = await listRes.text();
+let listJson;
+try {
+  listJson = JSON.parse(listText);
+} catch {
+  listJson = null;
+}
+if (!listRes.ok) {
+  console.error("List webhook_endpoints failed:", listRes.status, listText);
+  process.exit(1);
+}
+
+const existing = Array.isArray(listJson?.data) ? listJson.data : [];
+const match = existing.find(
+  (row) => normalizeUrl(row?.attributes?.url) === targetUrl
+);
+
+const attributes = {
+  url: targetUrl,
+  version: 4,
+  events,
+};
+
+if (match?.id) {
+  const patchUrl = `${baseUrl}/api/4/webhook_endpoints/${encodeURIComponent(match.id)}`;
+  console.log("PATCH", patchUrl);
+  console.log("  target:", targetUrl);
+  console.log("  events:", events.join(", "));
+  console.log("");
+
+  const res = await fetch(patchUrl, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      data: {
+        type: "webhook_endpoints",
+        id: match.id,
+        attributes,
+      },
+    }),
+  });
+
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = text;
+  }
+
+  if (!res.ok) {
+    console.error("PATCH failed:", res.status, data);
+    process.exit(1);
+  }
+  console.log("OK", res.status, "(updated existing endpoint)");
+  console.log(JSON.stringify(data, null, 2).slice(0, 2500));
+  process.exit(0);
+}
+
 const url = `${baseUrl}/api/4/webhook_endpoints`;
 const body = {
   data: {
     type: "webhook_endpoints",
-    attributes: {
-      url: targetUrl,
-      version: 4,
-      events,
-    },
+    attributes,
   },
 };
 
-console.log("POST", url);
+console.log("POST", url, "(no existing endpoint matched this URL)");
 console.log("  target:", targetUrl);
 console.log("  events:", events.join(", "));
 console.log("");
@@ -93,6 +168,9 @@ try {
 
 if (!res.ok) {
   console.error("Booqable webhook_endpoints create failed:", res.status, data);
+  console.error(
+    "\nIf Booqable reports a duplicate URL, run: node scripts/list-booqable-webhook-endpoints.mjs\nand PATCH or delete the old row, then run this script again."
+  );
   process.exit(1);
 }
 

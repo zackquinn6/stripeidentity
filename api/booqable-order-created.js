@@ -8,7 +8,35 @@ import { runIdentityFlowForOrder } from "../lib/runIdentityFlowForOrder.js";
 
 const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
 
+function normalizeJsonBody(body) {
+  if (body == null) {
+    return null;
+  }
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
+  return body;
+}
+
 export default async function handler(req, res) {
+  if (req.method === "HEAD") {
+    res.status(200).end();
+    return;
+  }
+  if (req.method === "GET") {
+    res.status(200).json({
+      ok: true,
+      route: "booqable-order-created",
+      booqableBaseUrlConfigured: Boolean(BOOQABLE_BASE_URL),
+      usage:
+        "Booqable webhook_endpoints should POST JSON here (v4 webhook or wrapped { order: { id, customer_id } }).",
+    });
+    return;
+  }
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -17,7 +45,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const parsed = parseBooqableOrderWebhook(req.body);
+    const rawBody = normalizeJsonBody(req.body);
+    const webhookEvent =
+      rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)
+        ? rawBody.event ?? null
+        : null;
+    console.info("booqable-order-created POST", {
+      contentType: req.headers["content-type"] ?? null,
+      webhookEvent: typeof webhookEvent === "string" ? webhookEvent : null,
+    });
+
+    const parsed = parseBooqableOrderWebhook(rawBody);
     if (!parsed) {
       return res.status(400).json({
         error:
@@ -26,7 +64,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!identityWebhookEventEligible(parsed, req.body)) {
+    if (!identityWebhookEventEligible(parsed, rawBody)) {
       return res.status(200).json({
         ok: true,
         skipped: true,
