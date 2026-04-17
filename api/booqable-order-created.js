@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       return res.status(400).json({
         error:
           "Unrecognized payload: expected Booqable v4 order webhook (version 4 JSON) or { order: { id, customer_id } }.",
-        hint: "Prefer Booqable API webhook_endpoints → your URL (developers.booqable.com #webhook-endpoints-subscribe-to-webhook-events). Else Zapier/Make HTTP POST, or GET /api/cron/poll-orders-identity. See docs/poll-identity-cron.md.",
+        hint: "Use Booqable API webhook_endpoints → your URL (developers.booqable.com #webhook-endpoints-subscribe-to-webhook-events), or Zapier/Make HTTP POST with { order: { id, customer_id } }. See scripts/register-booqable-webhook-endpoint.mjs and docs/zapier-booqable-identity.md.",
       });
     }
 
