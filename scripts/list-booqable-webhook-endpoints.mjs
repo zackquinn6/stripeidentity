@@ -1,5 +1,5 @@
 /**
- * List Booqable v4 webhook_endpoints for this account (GET /api/4/webhook_endpoints).
+ * List Booqable v4 webhook_endpoints for this account (GET …/webhook_endpoints with BOOQABLE_BASE_URL = v4 root).
  * Use this when Vercel receives no POSTs — usually no endpoint, wrong URL, or wrong events.
  *
  * Requires: BOOQABLE_BASE_URL, BOOQABLE_API_KEY
@@ -45,7 +45,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-const listUrl = `${baseUrl}/api/4/webhook_endpoints`;
+const listUrl = `${baseUrl}/webhook_endpoints`;
 console.log("GET", listUrl, "\n");
 
 const res = await fetch(listUrl, {

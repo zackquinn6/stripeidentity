@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       booqableBaseUrlOk: urlStatus.ok,
       ...(urlStatus.ok ? {} : { booqableBaseUrlError: urlStatus.error }),
       note: "This URL path runs on your Vercel deployment, not on Booqable. https://toolio-inc.booqable.com/api/... is Booqable's API (e.g. /api/4/orders) and has no booqable-order-created route — opening it there returns Not found from Booqable.",
-      booqableRestApiExample: `${TOOLIO_BOOQABLE_BASE_URL}/api/4/orders`,
+      booqableRestApiExample: `${TOOLIO_BOOQABLE_BASE_URL}/orders`,
       configureBooqableWebhookToPostTo:
         vercelOrigin != null
           ? `${vercelOrigin}/api/booqable-order-created`

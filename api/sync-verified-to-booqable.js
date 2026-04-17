@@ -15,7 +15,7 @@ import { assertToolioBooqableBaseUrl } from "../lib/toolioBooqableOrigin.js";
  * to Booqable (identity_verified = Verified only). Returns { patched: number, errors: [] }.
  */
 async function patchBooqableCustomer(baseUrl, customerId) {
-  const updateRes = await fetch(`${baseUrl}/api/4/customers/${customerId}`, {
+  const updateRes = await fetch(`${baseUrl}/customers/${customerId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

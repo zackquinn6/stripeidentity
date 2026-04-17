@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     }
 
     const updateRes = await fetch(
-      `${urlCheck.normalized}/api/4/customers/${customerId}`,
+      `${urlCheck.normalized}/customers/${customerId}`,
       {
         method: "PATCH",
         headers: {

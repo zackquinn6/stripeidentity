@@ -58,7 +58,7 @@ if (!customerId) {
   process.exit(1);
 }
 
-const url = `${baseUrl}/api/4/customers/${customerId}`;
+const url = `${baseUrl}/customers/${customerId}`;
 console.log("PATCH", url);
 console.log("  identity_verified → Verified\n");
 

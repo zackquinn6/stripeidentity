@@ -73,7 +73,7 @@ if (!targetUrl) {
 }
 
 const events = [...BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS].sort();
-const listUrl = `${baseUrl}/api/4/webhook_endpoints`;
+const listUrl = `${baseUrl}/webhook_endpoints`;
 
 console.log("GET", listUrl, "(existing endpoints)\n");
 
@@ -104,7 +104,7 @@ const attributes = {
 };
 
 if (match?.id) {
-  const patchUrl = `${baseUrl}/api/4/webhook_endpoints/${encodeURIComponent(match.id)}`;
+  const patchUrl = `${baseUrl}/webhook_endpoints/${encodeURIComponent(match.id)}`;
   console.log("PATCH", patchUrl);
   console.log("  target:", targetUrl);
   console.log("  events:", events.join(", "));
@@ -142,7 +142,7 @@ if (match?.id) {
   process.exit(0);
 }
 
-const url = `${baseUrl}/api/4/webhook_endpoints`;
+const url = `${baseUrl}/webhook_endpoints`;
 const body = {
   data: {
     type: "webhook_endpoints",

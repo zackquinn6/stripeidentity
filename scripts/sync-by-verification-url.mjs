@@ -54,7 +54,7 @@ async function listBooqableCustomers() {
   const customers = [];
   let page = 1;
   while (true) {
-    const res = await fetch(`${baseUrl}/api/4/customers?page[number]=${page}&page[size]=50`, {
+    const res = await fetch(`${baseUrl}/customers?page[number]=${page}&page[size]=50`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!res.ok) throw new Error(`Booqable list failed: ${res.status} ${await res.text()}`);
@@ -77,7 +77,7 @@ async function listBooqableCustomers() {
 }
 
 async function patchBooqableCustomer(customerId, status) {
-  const res = await fetch(`${baseUrl}/api/4/customers/${customerId}`, {
+  const res = await fetch(`${baseUrl}/customers/${customerId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
