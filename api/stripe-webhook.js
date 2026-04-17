@@ -65,7 +65,6 @@ export default async function handler(req, res) {
             attributes: {
               properties_attributes: [
                 { identifier: "identity_verified", value: "Verified" },
-                { identifier: "identity_verification_url", value: "" },
               ],
             },
           },

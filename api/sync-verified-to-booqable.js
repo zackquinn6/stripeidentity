@@ -11,7 +11,7 @@ import Stripe from "stripe";
  *
  * POST /api/sync-verified-to-booqable
  * Lists sessions with status=verified, PATCHes each with metadata.customer_id
- * to Booqable (Verified + clear URL). Returns { patched: number, errors: [] }.
+ * to Booqable (identity_verified = Verified only). Returns { patched: number, errors: [] }.
  */
 const BOOQABLE_BASE_URL = process.env.BOOQABLE_BASE_URL;
 
@@ -29,7 +29,6 @@ async function patchBooqableCustomer(baseUrl, customerId) {
         attributes: {
           properties_attributes: [
             { identifier: "identity_verified", value: "Verified" },
-            { identifier: "identity_verification_url", value: "" },
           ],
         },
       },

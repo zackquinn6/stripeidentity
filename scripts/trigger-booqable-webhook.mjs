@@ -1,6 +1,6 @@
 /**
  * Trigger simulated Booqable order-created webhook to Vercel.
- * Flow: Booqable (simulated) → Vercel → Stripe (verification session) → Booqable PATCH → Resend (email to customer).
+ * Flow: Booqable (simulated) → Vercel → Stripe (verification session) → Booqable PATCH (status only) → Resend (email to customer).
  *
  * Set BOOQABLE_CUSTOMER_ID to a real customer ID from Booqable (e.g. Zachary Quinn).
  * Optionally: WEBHOOK_URL, CUSTOMER_EMAIL.

@@ -1,8 +1,11 @@
 /**
- * One-time push: match Stripe Identity verified sessions to Booqable by verification URL.
+ * One-time / legacy sync: match Stripe Identity verified sessions to Booqable.
  *
- * Uses Stripe data (session.url) to find the matching Booqable customer
- * (identity_verification_url field). Does NOT rely on metadata.customer_id.
+ * Prefers session.metadata.customer_id when present. Otherwise matches by
+ * session.url against Booqable customers that still have identity_verification_url
+ * stored (legacy rows only — the live app no longer writes that field).
+ *
+ * Patches only identity_verified on Booqable (does not write verification URL).
  *
  * Run from repo root: node scripts/sync-by-verification-url.mjs
  */
@@ -67,7 +70,7 @@ async function listBooqableCustomers() {
   return customers;
 }
 
-async function patchBooqableCustomer(customerId, status, verificationUrl) {
+async function patchBooqableCustomer(customerId, status) {
   const res = await fetch(`${baseUrl}/api/4/customers/${customerId}`, {
     method: "PATCH",
     headers: {
@@ -79,10 +82,7 @@ async function patchBooqableCustomer(customerId, status, verificationUrl) {
         type: "customers",
         id: customerId,
         attributes: {
-          properties_attributes: [
-            { identifier: "identity_verified", value: status },
-            { identifier: "identity_verification_url", value: verificationUrl },
-          ],
+          properties_attributes: [{ identifier: "identity_verified", value: status }],
         },
       },
     }),
@@ -140,25 +140,25 @@ async function main() {
     let customerId = null;
     let customerLabel = "";
 
-    if (session.url) {
+    if (session.metadata?.customer_id) {
+      customerId = session.metadata.customer_id;
+      customerLabel = `metadata.customer_id ${customerId}`;
+    }
+    if (!customerId && session.url) {
       const customer = urlToCustomer.get(session.url.trim());
       if (customer) {
         customerId = customer.id;
         customerLabel = customer.name || customer.email || customerId;
       }
     }
-    if (!customerId && session.metadata?.customer_id) {
-      customerId = session.metadata.customer_id;
-      customerLabel = `metadata.customer_id ${customerId}`;
-    }
 
     if (!customerId) {
-      console.log(`   No Booqable match for Stripe session ${session.id} (no URL match, no metadata.customer_id)`);
+      console.log(`   No Booqable match for Stripe session ${session.id} (no metadata.customer_id, no legacy URL match)`);
       skipped += 1;
       continue;
     }
 
-    const result = await patchBooqableCustomer(customerId, "Verified", "");
+    const result = await patchBooqableCustomer(customerId, "Verified");
     if (result.ok) {
       console.log(`   Patched ${customerLabel} → Verified`);
       patched += 1;

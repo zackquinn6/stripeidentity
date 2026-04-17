@@ -109,7 +109,6 @@ export default async function handler(req, res) {
             id: customerId,
             attributes: {
               properties_attributes: [
-                { identifier: "identity_verification_url", value: session.url },
                 { identifier: "identity_verified", value: "Unverified" }
               ]
             }
