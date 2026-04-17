@@ -13,9 +13,9 @@ function trimEmail(value) {
 
 /**
  * Booqable may POST either:
- * - Test / Zapier shape: { order: { id, customer_id, customer?: { email } } }
- * - Native v4 webhooks: { event: "order.created" | …, data: { id, customer: { id, email? } } }
- * - JSON:API document: { data: { type: "orders", id, relationships… }, included?: [{ type: "customers", attributes.email }] }
+ * - App / Zapier shape: { order: { id, customer_id } }
+ * - Native v4 webhooks: { event: "order.created" | …, data: { id, customer?, relationships? } }
+ * - JSON:API document: { data: { type: "orders", id, relationships: { customer: { data: { id } } } } }
  */
 function extractOrderContext(body) {
   if (!body || typeof body !== "object") {
@@ -24,39 +24,34 @@ function extractOrderContext(body) {
 
   const wrapped = body.order;
   if (wrapped?.id && wrapped?.customer_id) {
-    const emailFromPayload =
-      wrapped.customer != null && typeof wrapped.customer === "object"
-        ? trimEmail(wrapped.customer.email)
-        : null;
     return {
       orderId: String(wrapped.id),
-      customerId: String(wrapped.customer_id),
-      emailFromPayload
+      customerId: String(wrapped.customer_id)
     };
   }
 
   const event = body.event;
   const data = body.data;
+  const isOrderEvent =
+    typeof event === "string" && /^order\./i.test(event.trim());
   if (
-    typeof event === "string" &&
-    event.startsWith("order.") &&
+    isOrderEvent &&
     data &&
     typeof data === "object" &&
     !Array.isArray(data) &&
     data.id
   ) {
+    const relId = data.relationships?.customer?.data?.id;
     const customerId =
       data.customer_id != null && data.customer_id !== ""
         ? String(data.customer_id)
         : data.customer != null && typeof data.customer === "object" && data.customer.id
           ? String(data.customer.id)
-          : null;
+          : relId != null && relId !== ""
+            ? String(relId)
+            : null;
     if (customerId) {
-      const emailFromPayload =
-        data.customer != null && typeof data.customer === "object"
-          ? trimEmail(data.customer.email)
-          : null;
-      return { orderId: String(data.id), customerId, emailFromPayload };
+      return { orderId: String(data.id), customerId };
     }
   }
 
@@ -68,20 +63,10 @@ function extractOrderContext(body) {
     doc.id &&
     doc.relationships?.customer?.data?.id
   ) {
-    const customerId = String(doc.relationships.customer.data.id);
-    let emailFromPayload = null;
-    const included = body.included;
-    if (Array.isArray(included)) {
-      const row = included.find(
-        (item) =>
-          item &&
-          item.type === "customers" &&
-          String(item.id) === customerId &&
-          item.attributes
-      );
-      emailFromPayload = trimEmail(row?.attributes?.email);
-    }
-    return { orderId: String(doc.id), customerId, emailFromPayload };
+    return {
+      orderId: String(doc.id),
+      customerId: String(doc.relationships.customer.data.id)
+    };
   }
 
   return null;
@@ -104,7 +89,7 @@ export default async function handler(req, res) {
         hint: "Register webhook URL pointing to this route; use webhook version 4 (application/json)."
       });
     }
-    const { orderId, customerId, emailFromPayload } = ctx;
+    const { orderId, customerId } = ctx;
 
     const customerRes = await fetch(
       `${BOOQABLE_BASE_URL}/api/4/customers/${customerId}`,
@@ -132,18 +117,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const emailFromApi = trimEmail(customer.email);
-    let customerEmail = emailFromApi;
-    if (!customerEmail && emailFromPayload) {
-      console.warn(
-        "booqable-order-created: Booqable customer record has no email; using email from webhook payload for Resend."
-      );
-      customerEmail = emailFromPayload;
-    }
+    const customerEmail = trimEmail(customer.email);
     if (!customerEmail) {
       return res.status(400).json({
-        error:
-          "No customer email: missing on Booqable customer and not present on webhook payload (data.customer.email or order.customer.email).",
+        error: "Customer has no email in Booqable (required for Resend).",
         customerId
       });
     }
