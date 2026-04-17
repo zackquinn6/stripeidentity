@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/webhook/booqable",
+      "destination": "/api/booqable-order-created"
+    },
+    {
+      "source": "/api/webhook",
+      "destination": "/api/booqable-order-created"
+    },
+    {
+      "source": "/api/webhooks/booqable",
+      "destination": "/api/booqable-order-created"
+    },
+    {
       "source": "/((?!api).*)",
       "destination": "/index.html"
     }

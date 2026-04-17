@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       route: "booqable-order-created",
       booqableBaseUrlConfigured: Boolean(BOOQABLE_BASE_URL),
       usage:
-        "Booqable webhook_endpoints should POST JSON here (v4 webhook or wrapped { order: { id, customer_id } }).",
+        "POST Booqable order webhooks (event order.*) or wrapped { order: { id, customer_id } }. Same handler: /api/webhook, /api/webhooks/booqable, /webhook/booqable.",
     });
     return;
   }
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
       return res.status(400).json({
         error:
           "Unrecognized payload: expected Booqable v4 order webhook (version 4 JSON) or { order: { id, customer_id } }.",
-        hint: "Use Booqable API webhook_endpoints → your URL (developers.booqable.com #webhook-endpoints-subscribe-to-webhook-events), or Zapier/Make HTTP POST with { order: { id, customer_id } }. See scripts/register-booqable-webhook-endpoint.mjs and docs/zapier-booqable-identity.md.",
+        hint: "Expected Booqable v4 order webhook (event order.* and order data) or { order: { id, customer_id } }. See docs/zapier-booqable-identity.md.",
       });
     }
 
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
 
     const orderId = parsed.orderId;
 
-    if (parsed.event === "order.updated" && parsed.kind !== "wrapped") {
+    if (parsed.kind !== "wrapped") {
       const apiKey = process.env.BOOQABLE_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "BOOQABLE_API_KEY not configured" });
@@ -97,7 +97,7 @@ export default async function handler(req, res) {
         return res.status(200).json({
           ok: true,
           skipped: true,
-          reason: "order_updated_but_not_reserved",
+          reason: "order_not_reserved",
           orderId,
           booqableStatus: stRes.status,
         });
