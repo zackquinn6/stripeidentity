@@ -39,6 +39,13 @@ export default async function handler(req, res) {
           : "https://<your-vercel-host>/api/booqable-order-created (replace with your project URL; Vercel sets VERCEL_URL on deployments)",
       usage:
         "POST Booqable v4 webhooks (data.type webhooks per developers.booqable.com #webhooks-fields), order.* payloads, or wrapped { order: { id, customer_id } }. Aliases: /api/webhook, /api/webhooks/booqable, /webhook/booqable.",
+      ifNoPostAppearsInVercelLogs: [
+        "Creating an order in the dashboard does not by itself send HTTP to Vercel — only a configured webhook (or Zapier/Make) does.",
+        "The webhook target URL must be your Vercel host + /api/booqable-order-created (or an alias path), not toolio-inc.booqable.com.",
+        "The Booqable endpoint must subscribe to order-related events (e.g. order.updated, order.reserved); see BOOQABLE_WEBHOOK_SUBSCRIBE_ORDER_EVENTS in lib/booqableOrderWebhook.js.",
+        "Turn off Vercel Deployment Protection for the deployment that receives webhooks, or Booqable's POST may never reach the function.",
+        "Reserve the order if you expect identity: this app skips until Booqable reports status reserved (draft-only webhooks return 200 skipped).",
+      ],
     });
     return;
   }
@@ -46,8 +53,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  console.info("booqable-order-created: POST ingress", {
+    contentType: req.headers["content-type"] ?? null,
+    contentLength: req.headers["content-length"] ?? null,
+    userAgent:
+      typeof req.headers["user-agent"] === "string"
+        ? req.headers["user-agent"].slice(0, 160)
+        : null,
+  });
+
   const urlStatus = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
   if (!urlStatus.ok) {
+    console.error("booqable-order-created: BOOQABLE_BASE_URL rejected", urlStatus.error);
     return res.status(500).json({ error: urlStatus.error });
   }
   const booqableBaseUrl = urlStatus.normalized;
@@ -67,13 +84,17 @@ export default async function handler(req, res) {
         webhookEvent = rawBody.data.attributes.event;
       }
     }
-    console.info("booqable-order-created POST", {
-      contentType: req.headers["content-type"] ?? null,
+    console.info("booqable-order-created: body parsed", {
       webhookEvent: typeof webhookEvent === "string" ? webhookEvent : null,
+      bodyKeys:
+        rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)
+          ? Object.keys(rawBody).slice(0, 20)
+          : null,
     });
 
     const parsed = parseBooqableOrderWebhook(rawBody);
     if (!parsed) {
+      console.warn("booqable-order-created: unrecognized payload shape");
       return res.status(400).json({
         error:
           "Unrecognized payload: expected Booqable v4 order webhook (version 4 JSON) or { order: { id, customer_id } }.",
@@ -82,6 +103,10 @@ export default async function handler(req, res) {
     }
 
     if (!identityWebhookEventEligible(parsed, rawBody)) {
+      console.info("booqable-order-created: skipped (event not used)", {
+        event: parsed.event,
+        orderId: parsed.orderId,
+      });
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -111,6 +136,10 @@ export default async function handler(req, res) {
         });
       }
       if (stRes.status !== "reserved") {
+        console.info("booqable-order-created: skipped (order not reserved)", {
+          orderId,
+          booqableStatus: stRes.status,
+        });
         return res.status(200).json({
           ok: true,
           skipped: true,
