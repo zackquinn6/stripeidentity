@@ -119,6 +119,7 @@ Publish the Zap. Each time Booqable fires the trigger, Zapier POSTs once → Ver
 
 | Symptom | What to check |
 |---------|----------------|
+| **Opening `https://toolio-inc.booqable.com/api/booqable-order-created` returns Not found** | That URL is **Booqable’s** host; their API lives under paths like `/api/4/...`. The route **`/api/booqable-order-created`** exists only on **your Vercel app** (e.g. `https://stripeidentity.vercel.app/api/booqable-order-created`). Booqable should **POST webhooks to Vercel**, not the other way around. |
 | **Nothing hits Vercel** when you reserve in Booqable | Booqable only POSTs after you create a **`webhook_endpoints`** row on the **same** account (`BOOQABLE_BASE_URL`). Run `node scripts/list-booqable-webhook-endpoints.mjs` — if the list is empty or no row has your exact Vercel URL, run `node scripts/register-booqable-webhook-endpoint.mjs` with `BOOQABLE_WEBHOOK_TARGET_URL` set. The register script updates an existing endpoint URL match or creates one. |
 | Vercel **Logs** show no `booqable-order-created POST` lines | Booqable is not calling your URL (wrong company subdomain, typo in URL, or **Vercel Deployment Protection** blocking Booqable’s servers). Open `GET https://<project>.vercel.app/api/booqable-order-created` in a browser — you should see JSON `ok: true`. |
 | Zapier test **400** from Vercel | Body must be `{ "order": { "id", "customer_id" } }` with real Booqable UUIDs. |

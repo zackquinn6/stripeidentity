@@ -18,12 +18,25 @@ export default async function handler(req, res) {
   }
   if (req.method === "GET") {
     const urlStatus = assertToolioBooqableBaseUrl(process.env.BOOQABLE_BASE_URL);
+    const vercelUrlRaw = process.env.VERCEL_URL;
+    const vercelOrigin =
+      vercelUrlRaw && typeof vercelUrlRaw === "string"
+        ? /^https?:\/\//i.test(vercelUrlRaw.trim())
+          ? vercelUrlRaw.trim().replace(/\/$/, "")
+          : `https://${vercelUrlRaw.trim().replace(/\/$/, "")}`
+        : null;
     res.status(200).json({
       ok: true,
       route: "booqable-order-created",
       booqableBaseUrlRequired: TOOLIO_BOOQABLE_BASE_URL,
       booqableBaseUrlOk: urlStatus.ok,
       ...(urlStatus.ok ? {} : { booqableBaseUrlError: urlStatus.error }),
+      note: "This URL path runs on your Vercel deployment, not on Booqable. https://toolio-inc.booqable.com/api/... is Booqable's API (e.g. /api/4/orders) and has no booqable-order-created route — opening it there returns Not found from Booqable.",
+      booqableRestApiExample: `${TOOLIO_BOOQABLE_BASE_URL}/api/4/orders`,
+      configureBooqableWebhookToPostTo:
+        vercelOrigin != null
+          ? `${vercelOrigin}/api/booqable-order-created`
+          : "https://<your-vercel-host>/api/booqable-order-created (replace with your project URL; Vercel sets VERCEL_URL on deployments)",
       usage:
         "POST Booqable v4 webhooks (data.type webhooks per developers.booqable.com #webhooks-fields), order.* payloads, or wrapped { order: { id, customer_id } }. Aliases: /api/webhook, /api/webhooks/booqable, /webhook/booqable.",
     });
